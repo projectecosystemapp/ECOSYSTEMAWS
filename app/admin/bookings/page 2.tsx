@@ -59,7 +59,7 @@ export default function BookingOversight() {
       
       // Update selected booking if it's the one being changed
       if (selectedBooking?.id === bookingId) {
-        const updatedBooking = bookingsData.find(b => b.id === bookingId);
+        const updatedBooking = bookingsData.find((b: any) => b.id === bookingId);
         setSelectedBooking(updatedBooking || null);
       }
     } catch (error) {
