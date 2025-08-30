@@ -8,4 +8,27 @@ export const auth = defineAuth({
   loginWith: {
     email: true,
   },
+  
+  // User groups for role-based access
+  groups: [
+    'Customers',
+    'Providers',
+    'Admins',
+  ],
+  
+  // Custom attributes
+  userAttributes: {
+    givenName: {
+      mutable: true,
+      required: false,
+    },
+    familyName: {
+      mutable: true,
+      required: false,
+    },
+    phoneNumber: {
+      mutable: true,
+      required: false,
+    },
+  },
 });
