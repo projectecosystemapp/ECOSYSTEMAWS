@@ -290,8 +290,8 @@ const schema = a.schema({
       allow.groups(['Admins']),
     ]),
 
-  // Subscription Model
-  Subscription: a
+  // UserSubscription Model (renamed from Subscription to avoid GraphQL reserved word conflict)
+  UserSubscription: a
     .model({
       customerId: a.id().required(),
       providerId: a.id().required(),
