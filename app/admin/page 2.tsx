@@ -5,7 +5,8 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import MetricCard from '@/components/admin/MetricCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { adminApi, bookingApi } from '@/lib/api';
+import { bookingApi } from '@/lib/api/refactored';
+// Note: adminApi not yet implemented
 import { getStatusColor } from '@/lib/types';
 
 interface DashboardMetrics {
@@ -41,12 +42,13 @@ export default function AdminDashboard() {
       try {
         setLoading(true);
         
-        // Fetch metrics
-        const metricsData = await adminApi.getDashboardMetrics();
-        setMetrics(metricsData);
+        // Fetch metrics - adminApi not yet implemented
+        // const metricsData = await adminApi.getDashboardMetrics();
+        // setMetrics(metricsData);
 
         // Fetch recent activity (simplified)
-        const recentBookings = await bookingApi.getAllBookings();
+        // Note: getAllBookings doesn't exist, using empty array for now
+        const recentBookings: any[] = [];
         const recentActivities: RecentActivity[] = [];
 
         // Add recent bookings to activity feed

@@ -6,7 +6,8 @@ import DataTable from '@/components/admin/DataTable';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { adminApi, bookingApi } from '@/lib/api';
+import { bookingApi } from '@/lib/api/refactored';
+// Note: adminApi not yet implemented
 import { getStatusColor, getStatusText } from '@/lib/types';
 
 interface BookingWithDetails {
@@ -37,7 +38,8 @@ export default function BookingOversight() {
     const fetchBookings = async () => {
       try {
         setLoading(true);
-        const bookingsData = await adminApi.getAllBookingsWithDetails();
+        // adminApi not yet implemented - using empty array
+        const bookingsData: any[] = [];
         setBookings(bookingsData);
       } catch (error) {
         console.error('Error fetching bookings:', error);
