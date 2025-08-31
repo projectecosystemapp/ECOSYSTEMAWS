@@ -1,6 +1,7 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { Button } from '@/components/ui/button';
@@ -369,6 +370,7 @@ export default function ProviderOnboarding() {
   };
 
   return (
+    <Suspense fallback={null}>
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
@@ -424,6 +426,7 @@ export default function ProviderOnboarding() {
         </Card>
       </div>
     </div>
+    </Suspense>
   );
 }
 

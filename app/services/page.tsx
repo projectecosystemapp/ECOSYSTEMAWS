@@ -1,6 +1,7 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { refactoredApi } from '@/lib/api/refactored';
 import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
@@ -184,6 +185,7 @@ export default function ServicesPage() {
   };
 
   return (
+    <Suspense fallback={null}>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-white border-b">
@@ -465,5 +467,6 @@ export default function ServicesPage() {
         )}
       </div>
     </div>
+    </Suspense>
   );
 }

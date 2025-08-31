@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Suspense } from 'react';
 import "./globals.css";
+import '@aws-amplify/ui-react/styles.css';
 import ConfigureAmplifyClientSide from "./amplify-config";
 import ClientLayout from "./client-layout";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Ecosystem Global Solutions - Service Marketplace",
@@ -18,9 +17,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body>
         <ConfigureAmplifyClientSide />
-        <ClientLayout>{children}</ClientLayout>
+        <Suspense fallback={null}>
+          <ClientLayout>{children}</ClientLayout>
+        </Suspense>
       </body>
     </html>
   );

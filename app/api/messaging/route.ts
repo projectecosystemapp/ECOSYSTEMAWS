@@ -11,36 +11,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, data, userEmail } = body;
 
-    // Get current user for authentication
-    const user = await runWithAmplifyServerContext({
+    return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
-      operation: (contextSpec) => getCurrentUser(contextSpec)
+      operation: async (contextSpec) => {
+        const user = await getCurrentUser(contextSpec);
+        if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+        const currentUserEmail = user.signInDetails?.loginId;
+        if (
+          currentUserEmail !== userEmail &&
+          !['CREATE_CONVERSATION_THREAD', 'SEARCH_MESSAGES'].includes(action)
+        ) {
+          return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+        }
+
+        const result = await handleMessagingOperation(action, data, userEmail);
+        return NextResponse.json(result);
+      },
     });
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Validate that userEmail matches current user
-    const currentUserEmail = user.signInDetails?.loginId;
-    if (currentUserEmail !== userEmail && !['CREATE_CONVERSATION_THREAD', 'SEARCH_MESSAGES'].includes(action)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // For development, we'll use direct database operations
-    // In production, this would invoke the Lambda function:
-    // const lambdaClient = new LambdaClient({ region: 'us-east-1' });
-    // const command = new InvokeCommand({
-    //   FunctionName: 'messaging-handler',
-    //   Payload: JSON.stringify({ action, data, userEmail })
-    // });
-    // const result = await lambdaClient.send(command);
-
-    // Direct implementation for development
-    const result = await handleMessagingOperation(action, data, userEmail);
-
-    return NextResponse.json(result);
-
   } catch (error) {
     console.error('Messaging API error:', error);
     return NextResponse.json(

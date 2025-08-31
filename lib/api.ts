@@ -2,34 +2,36 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
 
 // Generate the GraphQL client
-export const client = generateClient<Schema>();
+// Factory to create an Amplify Data client when needed.
+// Ensures server-side usage happens inside runWithAmplifyServerContext.
+export const getClient = () => generateClient<Schema>();
 
 // Helper functions for common operations
 
 // User Profile operations
 export const userProfileApi = {
   create: async (data: any) => {
-    const response = await client.models.UserProfile.create(data);
+    const response = await getClient().models.UserProfile.create(data);
     return response.data;
   },
   
   get: async (id: string) => {
-    const response = await client.models.UserProfile.get({ id });
+    const response = await getClient().models.UserProfile.get({ id });
     return response.data;
   },
   
   list: async () => {
-    const response = await client.models.UserProfile.list();
+    const response = await getClient().models.UserProfile.list();
     return response.data;
   },
   
   update: async (data: any) => {
-    const response = await client.models.UserProfile.update(data);
+    const response = await getClient().models.UserProfile.update(data);
     return response.data;
   },
   
   delete: async (id: string) => {
-    const response = await client.models.UserProfile.delete({ id });
+    const response = await getClient().models.UserProfile.delete({ id });
     return response.data;
   },
 };
@@ -37,17 +39,17 @@ export const userProfileApi = {
 // Service operations
 export const serviceApi = {
   create: async (data: any) => {
-    const response = await client.models.Service.create(data);
+    const response = await getClient().models.Service.create(data);
     return response.data;
   },
   
   get: async (id: string) => {
-    const response = await client.models.Service.get({ id });
+    const response = await getClient().models.Service.get({ id });
     return response.data;
   },
   
   list: async (filter?: any) => {
-    const response = await client.models.Service.list({ filter });
+    const response = await getClient().models.Service.list({ filter });
     return response.data;
   },
 
@@ -79,26 +81,26 @@ export const serviceApi = {
   },
   
   listByCategory: async (category: string) => {
-    const response = await client.models.Service.list({
+    const response = await getClient().models.Service.list({
       filter: { category: { eq: category } }
     });
     return response.data;
   },
   
   listByProvider: async (providerEmail: string) => {
-    const response = await client.models.Service.list({
+    const response = await getClient().models.Service.list({
       filter: { providerEmail: { eq: providerEmail } }
     });
     return response.data;
   },
   
   update: async (data: any) => {
-    const response = await client.models.Service.update(data);
+    const response = await getClient().models.Service.update(data);
     return response.data;
   },
   
   delete: async (id: string) => {
-    const response = await client.models.Service.delete({ id });
+    const response = await getClient().models.Service.delete({ id });
     return response.data;
   },
 };
@@ -106,48 +108,48 @@ export const serviceApi = {
 // Booking operations
 export const bookingApi = {
   create: async (data: any) => {
-    const response = await client.models.Booking.create(data);
+    const response = await getClient().models.Booking.create(data);
     return response.data;
   },
   
   get: async (id: string) => {
-    const response = await client.models.Booking.get({ id });
+    const response = await getClient().models.Booking.get({ id });
     return response.data;
   },
   
   listByCustomer: async (customerEmail: string) => {
-    const response = await client.models.Booking.list({
+    const response = await getClient().models.Booking.list({
       filter: { customerEmail: { eq: customerEmail } }
     });
     return response.data;
   },
   
   listByProvider: async (providerEmail: string) => {
-    const response = await client.models.Booking.list({
+    const response = await getClient().models.Booking.list({
       filter: { providerEmail: { eq: providerEmail } }
     });
     return response.data;
   },
   
   listByStatus: async (status: string) => {
-    const response = await client.models.Booking.list({
+    const response = await getClient().models.Booking.list({
       filter: { status: { eq: status } }
     });
     return response.data;
   },
   
   update: async (data: any) => {
-    const response = await client.models.Booking.update(data);
+    const response = await getClient().models.Booking.update(data);
     return response.data;
   },
   
   updateStatus: async (id: string, status: string) => {
-    const response = await client.models.Booking.update({ id, status: status as any });
+    const response = await getClient().models.Booking.update({ id, status: status as any });
     return response.data;
   },
   
   delete: async (id: string) => {
-    const response = await client.models.Booking.delete({ id });
+    const response = await getClient().models.Booking.delete({ id });
     return response.data;
   },
 
@@ -206,7 +208,7 @@ export const bookingApi = {
 // Review operations
 export const reviewApi = {
   create: async (data: any) => {
-    const response = await client.models.Review.create({
+    const response = await getClient().models.Review.create({
       ...data,
       createdAt: new Date().toISOString()
     });
@@ -214,31 +216,31 @@ export const reviewApi = {
   },
 
   get: async (id: string) => {
-    const response = await client.models.Review.get({ id });
+    const response = await getClient().models.Review.get({ id });
     return response.data;
   },
 
   list: async (filter?: any) => {
-    const response = await client.models.Review.list({ filter });
+    const response = await getClient().models.Review.list({ filter });
     return response.data;
   },
 
   listByService: async (serviceId: string) => {
-    const response = await client.models.Review.list({
+    const response = await getClient().models.Review.list({
       filter: { serviceId: { eq: serviceId } }
     });
     return response.data;
   },
 
   listByCustomer: async (customerEmail: string) => {
-    const response = await client.models.Review.list({
+    const response = await getClient().models.Review.list({
       filter: { reviewerEmail: { eq: customerEmail } }
     });
     return response.data;
   },
 
   listByProvider: async (providerEmail: string) => {
-    const response = await client.models.Review.list({
+    const response = await getClient().models.Review.list({
       filter: { revieweeEmail: { eq: providerEmail } }
     });
     return response.data;
@@ -252,12 +254,12 @@ export const reviewApi = {
   },
 
   update: async (data: any) => {
-    const response = await client.models.Review.update(data);
+    const response = await getClient().models.Review.update(data);
     return response.data;
   },
 
   addProviderResponse: async (id: string, providerResponse: string) => {
-    const response = await client.models.Review.update({ 
+    const response = await getClient().models.Review.update({ 
       id, 
       response: providerResponse,
       responseDate: new Date().toISOString()
@@ -266,7 +268,7 @@ export const reviewApi = {
   },
 
   delete: async (id: string) => {
-    const response = await client.models.Review.delete({ id });
+    const response = await getClient().models.Review.delete({ id });
     return response.data;
   },
 
@@ -358,33 +360,33 @@ export const reviewApi = {
 // Message operations
 export const messageApi = {
   create: async (data: any) => {
-    const response = await client.models.Message.create(data);
+    const response = await getClient().models.Message.create(data);
     return response.data;
   },
 
   get: async (id: string) => {
-    const response = await client.models.Message.get({ id });
+    const response = await getClient().models.Message.get({ id });
     return response.data;
   },
 
   list: async (filter?: any) => {
-    const response = await client.models.Message.list({ filter });
+    const response = await getClient().models.Message.list({ filter });
     return response.data;
   },
 
   update: async (data: any) => {
-    const response = await client.models.Message.update(data);
+    const response = await getClient().models.Message.update(data);
     return response.data;
   },
 
   delete: async (id: string) => {
-    const response = await client.models.Message.delete({ id });
+    const response = await getClient().models.Message.delete({ id });
     return response.data;
   },
 
   // Get messages for a specific conversation
   getConversationMessages: async (conversationId: string) => {
-    const response = await client.models.Message.list({
+    const response = await getClient().models.Message.list({
       filter: { conversationId: { eq: conversationId } }
     });
     return response.data?.sort((a, b) => 
@@ -394,10 +396,10 @@ export const messageApi = {
 
   // Get conversations for a user (distinct conversation IDs)
   getUserConversations: async (userEmail: string) => {
-    const sentMessages = await client.models.Message.list({
+    const sentMessages = await getClient().models.Message.list({
       filter: { senderEmail: { eq: userEmail } }
     });
-    const receivedMessages = await client.models.Message.list({
+    const receivedMessages = await getClient().models.Message.list({
       filter: { recipientEmail: { eq: userEmail } }
     });
 
@@ -420,7 +422,7 @@ export const messageApi = {
 
   // Get unread message count for a user
   getUnreadCount: async (userEmail: string) => {
-    const response = await client.models.Message.list({
+    const response = await getClient().models.Message.list({
       filter: { 
         recipientEmail: { eq: userEmail },
         read: { eq: false }
@@ -431,7 +433,7 @@ export const messageApi = {
 
   // Mark messages as read
   markAsRead: async (conversationId: string, recipientEmail: string) => {
-    const unreadMessages = await client.models.Message.list({
+    const unreadMessages = await getClient().models.Message.list({
       filter: {
         conversationId: { eq: conversationId },
         recipientEmail: { eq: recipientEmail },
@@ -440,7 +442,7 @@ export const messageApi = {
     });
 
     const updatePromises = unreadMessages.data?.map(message =>
-      client.models.Message.update({ id: message.id, read: true })
+      getClient().models.Message.update({ id: message.id, read: true })
     ) || [];
 
     await Promise.all(updatePromises);
@@ -473,14 +475,14 @@ export const messageApi = {
   canMessage: async (userEmail1: string, userEmail2: string) => {
     try {
       // Check if there's any booking between these users
-      const bookings1 = await client.models.Booking.list({
+      const bookings1 = await getClient().models.Booking.list({
         filter: {
           customerEmail: { eq: userEmail1 },
           providerEmail: { eq: userEmail2 }
         }
       });
 
-      const bookings2 = await client.models.Booking.list({
+      const bookings2 = await getClient().models.Booking.list({
         filter: {
           customerEmail: { eq: userEmail2 },
           providerEmail: { eq: userEmail1 }
@@ -496,7 +498,7 @@ export const messageApi = {
 
   // Subscribe to new messages in a conversation
   subscribeToConversation: (conversationId: string, callback: (message: any) => void) => {
-    return client.models.Message.observeQuery({
+    return getClient().models.Message.observeQuery({
       filter: { conversationId: { eq: conversationId } }
     }).subscribe({
       next: ({ items }) => {
@@ -514,7 +516,7 @@ export const messageApi = {
 
   // Subscribe to unread count changes
   subscribeToUnreadCount: (userEmail: string, callback: (count: number) => void) => {
-    return client.models.Message.observeQuery({
+    return getClient().models.Message.observeQuery({
       filter: { 
         recipientEmail: { eq: userEmail },
         read: { eq: false }
@@ -560,7 +562,7 @@ export const getOtherParticipant = (conversationId: string, currentUserEmail: st
 // Provider operations
 export const providerApi = {
   create: async (data: any) => {
-    const response = await client.models.UserProfile.create({
+    const response = await getClient().models.UserProfile.create({
       ...data,
       role: 'PROVIDER'
     });
@@ -569,40 +571,40 @@ export const providerApi = {
   
   get: async (email: string) => {
     // Get user by email - need to list and filter since get() expects ID
-    const response = await client.models.UserProfile.list({ 
+    const response = await getClient().models.UserProfile.list({ 
       filter: { email: { eq: email } }
     });
     return response.data?.[0] || null;
   },
   
   list: async (filter?: any) => {
-    const response = await client.models.UserProfile.list({ 
+    const response = await getClient().models.UserProfile.list({ 
       filter: { ...filter, role: { eq: 'PROVIDER' } }
     });
     return response.data;
   },
   
   update: async (data: any) => {
-    const response = await client.models.UserProfile.update(data);
+    const response = await getClient().models.UserProfile.update(data);
     return response.data;
   },
   
   delete: async (email: string) => {
     // First get the user by email to get the ID
-    const userResponse = await client.models.UserProfile.list({ 
+    const userResponse = await getClient().models.UserProfile.list({ 
       filter: { email: { eq: email } }
     });
     const user = userResponse.data?.[0];
     if (!user) return null;
     
     // Now delete by ID
-    const response = await client.models.UserProfile.delete({ id: user.id });
+    const response = await getClient().models.UserProfile.delete({ id: user.id });
     return response.data;
   },
 
   // Get provider by email
   getByEmail: async (email: string) => {
-    const response = await client.models.UserProfile.list({
+    const response = await getClient().models.UserProfile.list({
       filter: { email: { eq: email } }
     });
     return response.data?.[0];
@@ -610,13 +612,13 @@ export const providerApi = {
 
   // Update verification status
   updateVerificationStatus: async (id: string, status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
-    const response = await client.models.UserProfile.update({ id, verificationStatus: status });
+    const response = await getClient().models.UserProfile.update({ id, verificationStatus: status });
     return response.data;
   },
 
   // Get providers by verification status
   listByVerificationStatus: async (status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
-    const response = await client.models.UserProfile.list({
+    const response = await getClient().models.UserProfile.list({
       filter: { verificationStatus: { eq: status } }
     });
     return response.data;
@@ -631,7 +633,7 @@ export const adminApi = {
       const [users, services, bookingsResponse, providers] = await Promise.all([
         userProfileApi.list(),
         serviceApi.list(),
-        client.models.Booking.list(),
+        getClient().models.Booking.list(),
         providerApi.list()
       ]);
 
@@ -664,9 +666,9 @@ export const adminApi = {
     try {
       const [users, bookingsResponse, services, reviewsResponse] = await Promise.all([
         userProfileApi.list(),
-        client.models.Booking.list(),
+        getClient().models.Booking.list(),
         serviceApi.list(),
-        client.models.Review.list()
+        getClient().models.Review.list()
       ]);
 
       const bookings = bookingsResponse?.data || [];
@@ -704,8 +706,8 @@ export const adminApi = {
     try {
       const [services, bookingsResponse, reviewsResponse] = await Promise.all([
         serviceApi.list(),
-        client.models.Booking.list(),
-        client.models.Review.list()
+        getClient().models.Booking.list(),
+        getClient().models.Review.list()
       ]);
 
       const bookings = bookingsResponse?.data || [];
@@ -738,7 +740,7 @@ export const adminApi = {
   getAllBookingsWithDetails: async () => {
     try {
       const [bookingsResponse, services, users] = await Promise.all([
-        client.models.Booking.list(),
+        getClient().models.Booking.list(),
         serviceApi.list(),
         userProfileApi.list()
       ]);
@@ -771,8 +773,8 @@ export const adminApi = {
       const [providers, services, bookingsResponse, reviewsResponse] = await Promise.all([
         providerApi.list(),
         serviceApi.list(),
-        client.models.Booking.list(),
-        client.models.Review.list()
+        getClient().models.Booking.list(),
+        getClient().models.Review.list()
       ]);
 
       const bookings = bookingsResponse?.data || [];
@@ -811,9 +813,9 @@ export const adminApi = {
   getAnalyticsData: async () => {
     try {
       const [bookingsResponse, services, reviewsResponse, users] = await Promise.all([
-        client.models.Booking.list(),
+        getClient().models.Booking.list(),
         serviceApi.list(),
-        client.models.Review.list(),
+        getClient().models.Review.list(),
         userProfileApi.list()
       ]);
 

@@ -6,8 +6,7 @@
  * No more 'as any' casts!
  */
 
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
+import { getClient } from '@/lib/api';
 import {
   mapApiServiceToService,
   mapApiServiceList,
@@ -36,7 +35,7 @@ import type {
   Notification
 } from '@/lib/types';
 
-const client = generateClient<Schema>();
+// Use factory to create client at call time
 
 /**
  * Service API - Type-safe service operations
@@ -68,7 +67,7 @@ export const serviceApi = {
         locationType: data.locationType
       };
 
-      const response = await client.models.Service.create(apiData);
+      const response = await getClient().models.Service.create(apiData);
       
       if (response.data) {
         return mapApiServiceToService(response.data);
@@ -86,7 +85,7 @@ export const serviceApi = {
    */
   get: async (id: string): Promise<Service | null> => {
     try {
-      const response = await client.models.Service.get({ id });
+      const response = await getClient().models.Service.get({ id });
       
       if (response.data) {
         return mapApiServiceToService(response.data);
@@ -104,7 +103,7 @@ export const serviceApi = {
    */
   list: async (filter?: any): Promise<Service[]> => {
     try {
-      const response = await client.models.Service.list({ filter });
+      const response = await getClient().models.Service.list({ filter });
       
       if (response.data) {
         return mapApiServiceList(response.data);
@@ -122,7 +121,7 @@ export const serviceApi = {
    */
   listByProvider: async (providerEmail: string): Promise<Service[]> => {
     try {
-      const response = await client.models.Service.list({
+      const response = await getClient().models.Service.list({
         filter: { providerEmail: { eq: providerEmail } }
       });
       
@@ -159,8 +158,8 @@ export const serviceApi = {
       }
 
       const [servicesResponse, reviewsResponse] = await Promise.all([
-        client.models.Service.list({ filter }),
-        client.models.Review.list()
+        getClient().models.Service.list({ filter }),
+        getClient().models.Review.list()
       ]);
 
       if (!servicesResponse.data) return [];
@@ -209,7 +208,7 @@ export const serviceApi = {
         delete updateData.duration;
       }
 
-      const response = await client.models.Service.update(updateData);
+      const response = await getClient().models.Service.update(updateData);
       
       if (response.data) {
         return mapApiServiceToService(response.data);
@@ -227,7 +226,7 @@ export const serviceApi = {
    */
   delete: async (id: string): Promise<boolean> => {
     try {
-      const response = await client.models.Service.delete({ id });
+      const response = await getClient().models.Service.delete({ id });
       return !!response.data;
     } catch (error) {
       console.error('Error deleting service:', error);
@@ -273,7 +272,7 @@ export const bookingApi = {
         providerEarnings: data.providerEarnings
       };
 
-      const response = await client.models.Booking.create(apiData);
+      const response = await getClient().models.Booking.create(apiData);
       
       if (response.data) {
         return mapApiBookingToBooking(response.data);
@@ -291,7 +290,7 @@ export const bookingApi = {
    */
   get: async (id: string): Promise<Booking | null> => {
     try {
-      const response = await client.models.Booking.get({ id });
+      const response = await getClient().models.Booking.get({ id });
       
       if (response.data) {
         return mapApiBookingToBooking(response.data);
@@ -309,7 +308,7 @@ export const bookingApi = {
    */
   listByCustomer: async (customerEmail: string): Promise<Booking[]> => {
     try {
-      const response = await client.models.Booking.list({
+      const response = await getClient().models.Booking.list({
         filter: { customerEmail: { eq: customerEmail } }
       });
       
@@ -329,7 +328,7 @@ export const bookingApi = {
    */
   listByProvider: async (providerEmail: string): Promise<Booking[]> => {
     try {
-      const response = await client.models.Booking.list({
+      const response = await getClient().models.Booking.list({
         filter: { providerEmail: { eq: providerEmail } }
       });
       
@@ -352,7 +351,7 @@ export const bookingApi = {
     status: Booking['status']
   ): Promise<Booking | null> => {
     try {
-      const response = await client.models.Booking.update({ id, status });
+      const response = await getClient().models.Booking.update({ id, status });
       
       if (response.data) {
         return mapApiBookingToBooking(response.data);
@@ -604,7 +603,7 @@ export const userProfileApi = {
    */
   create: async (data: Partial<UserProfile>): Promise<UserProfile | null> => {
     try {
-      const response = await client.models.UserProfile.create({
+      const response = await getClient().models.UserProfile.create({
         email: data.email!,
         ...data
       });
@@ -625,7 +624,7 @@ export const userProfileApi = {
    */
   get: async (email: string): Promise<UserProfile | null> => {
     try {
-      const response = await client.models.UserProfile.list({
+      const response = await getClient().models.UserProfile.list({
         filter: { email: { eq: email } }
       });
       
@@ -645,7 +644,7 @@ export const userProfileApi = {
    */
   listProviders: async (): Promise<UserProfile[]> => {
     try {
-      const response = await client.models.UserProfile.list({
+      const response = await getClient().models.UserProfile.list({
         filter: { role: { eq: 'PROVIDER' } }
       });
       
@@ -668,7 +667,7 @@ export const userProfileApi = {
       if (!data.id) {
         throw new Error('ID is required to update user profile');
       }
-      const response = await client.models.UserProfile.update({
+      const response = await getClient().models.UserProfile.update({
         id: data.id,
         ...data
       });
@@ -716,7 +715,7 @@ export const messageApi = {
         messageType: 'TEXT' as const
       };
 
-      const response = await client.models.Message.create(apiData);
+      const response = await getClient().models.Message.create(apiData);
       
       if (response.data) {
         return mapApiMessageToMessage(response.data);
@@ -734,7 +733,7 @@ export const messageApi = {
    */
   getConversationMessages: async (conversationId: string): Promise<Message[]> => {
     try {
-      const response = await client.models.Message.list({
+      const response = await getClient().models.Message.list({
         filter: { conversationId: { eq: conversationId } }
       });
       
@@ -758,7 +757,7 @@ export const messageApi = {
    */
   markAsRead: async (id: string): Promise<Message | null> => {
     try {
-      const response = await client.models.Message.update({
+      const response = await getClient().models.Message.update({
         id,
         read: true,
         readAt: new Date().toISOString()

@@ -1,6 +1,7 @@
 'use client';
+export const dynamic = 'force-dynamic';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
 import ConversationList from '@/components/messaging/ConversationList';
@@ -159,6 +160,7 @@ export default function MessagesPage() {
   );
 
   return (
+    <Suspense fallback={null}>
     <div className="container mx-auto p-6">
       <div className="mb-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
@@ -218,5 +220,6 @@ export default function MessagesPage() {
         </div>
       </div>
     </div>
+    </Suspense>
   );
 }

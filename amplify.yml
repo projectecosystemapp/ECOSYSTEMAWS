@@ -3,6 +3,9 @@ frontend:
   phases:
     preBuild:
       commands:
+        - echo "Node/NPM versions before switch:"; node -v; npm -v
+        - if [ -f .nvmrc ]; then echo "Using Node from .nvmrc"; nvm install; nvm use; fi
+        - echo "Node/NPM versions after switch:"; node -v; npm -v
         - npm ci
         - echo "Setting up environment variables..."
     build:
