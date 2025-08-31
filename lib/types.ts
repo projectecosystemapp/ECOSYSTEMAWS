@@ -1,16 +1,39 @@
 // Booking system types
-export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+export type BookingStatus = 'PENDING' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'DISPUTED' | 'REFUNDED';
 
 export interface Booking {
   id: string;
   serviceId: string;
-  customerEmail: string;
+  serviceTitle?: string;
+  providerId: string;
+  providerName?: string;
   providerEmail: string;
+  customerId: string;
+  customerName?: string;
+  customerEmail: string;
+  customerPhone?: string;
   scheduledDate: string;
   scheduledTime: string;
+  duration?: number;
   status: BookingStatus;
   totalAmount: number;
+  platformFee?: number;
+  providerEarnings?: number;
   notes?: string;
+  providerNotes?: string;
+  cancellationReason?: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
+  completedAt?: string;
+  paymentIntentId?: string;
+  paymentStatus?: string;
+  refundAmount?: number;
+  refundedAt?: string;
+  location?: string;
+  reviewId?: string;
+  reviewed?: boolean;
+  reminderSent?: boolean;
+  metadata?: any;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -33,7 +56,7 @@ export interface Service {
   serviceRadius?: number;
   latitude?: number;
   longitude?: number;
-  locationType?: 'PROVIDER_LOCATION' | 'CUSTOMER_LOCATION' | 'BOTH';
+  locationType?: 'PROVIDER_LOCATION' | 'CUSTOMER_LOCATION' | 'BOTH' | 'VIRTUAL';
   createdAt?: string;
   updatedAt?: string;
 }
@@ -141,7 +164,7 @@ export interface ServiceFormData {
   serviceState?: string;
   serviceZipCode?: string;
   serviceRadius?: number;
-  locationType?: 'PROVIDER_LOCATION' | 'CUSTOMER_LOCATION' | 'BOTH';
+  locationType?: 'PROVIDER_LOCATION' | 'CUSTOMER_LOCATION' | 'BOTH' | 'VIRTUAL';
 }
 
 // Form validation errors
@@ -225,8 +248,15 @@ export interface Review {
   customerEmail: string;
   providerEmail: string;
   rating: number; // 1-5
+  title?: string;
   comment?: string;
   providerResponse?: string;
+  providerResponseDate?: string;
+  images?: string[];
+  verified?: boolean;
+  helpful?: number;
+  reported?: boolean;
+  hidden?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -295,16 +325,115 @@ export const formatRating = (rating: number): string => {
   return rating.toFixed(1);
 };
 
+// User Profile type
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  role?: 'CUSTOMER' | 'PROVIDER' | 'BOTH' | 'ADMIN';
+  profilePicture?: string;
+  bio?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  language?: string;
+  businessName?: string;
+  businessType?: 'INDIVIDUAL' | 'BUSINESS';
+  stripeAccountId?: string;
+  stripeOnboardingComplete?: boolean;
+  verificationStatus?: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  verificationDocuments?: string[];
+  totalRatings?: number;
+  averageRating?: number;
+  completedServices?: number;
+  responseTime?: number;
+  notificationPreferences?: any;
+  availabilitySettings?: any;
+  searchRadius?: number;
+  instantBooking?: boolean;
+  active?: boolean;
+  lastActive?: string;
+  joinedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Transaction type
+export interface Transaction {
+  id: string;
+  bookingId: string;
+  serviceId?: string;
+  customerId: string;
+  customerEmail: string;
+  providerId: string;
+  providerEmail: string;
+  type: 'PAYMENT' | 'REFUND' | 'PAYOUT' | 'FEE';
+  amount: number;
+  currency?: string;
+  platformFee?: number;
+  providerEarnings?: number;
+  stripePaymentIntentId?: string;
+  stripeTransferId?: string;
+  stripeRefundId?: string;
+  paymentMethod?: string;
+  last4?: string;
+  receiptUrl?: string;
+  escrowEnabled?: boolean;
+  escrowReleaseDate?: string;
+  escrowReleaseConditions?: any;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+  metadata?: any;
+  failureReason?: string;
+  createdAt?: string;
+  processedAt?: string;
+  updatedAt?: string;
+}
+
+// Notification type
+export interface Notification {
+  id: string;
+  userId: string;
+  userEmail: string;
+  type: 'BOOKING_REQUEST' | 'BOOKING_CONFIRMED' | 'BOOKING_CANCELLED' | 'PAYMENT_RECEIVED' | 'REVIEW_RECEIVED' | 'MESSAGE_RECEIVED' | 'DISPUTE_OPENED' | 'SYSTEM_ALERT' | 'INFO';
+  title: string;
+  message: string;
+  actionUrl?: string;
+  actionLabel?: string;
+  icon?: string;
+  read?: boolean;
+  readAt?: string;
+  metadata?: any;
+  expiresAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 // Messaging system types
 export interface Message {
   id: string;
   conversationId: string;
+  senderId: string;
   senderEmail: string;
+  recipientId: string;
   recipientEmail: string;
   content: string;
+  messageType?: 'TEXT' | 'IMAGE' | 'FILE' | 'SYSTEM';
+  attachments?: string[];
   read: boolean;
+  readAt?: string;
   bookingId?: string;
   serviceId?: string;
+  edited?: boolean;
+  editedAt?: string;
+  deleted?: boolean;
+  deletedAt?: string;
+  metadata?: any;
   createdAt?: string;
   updatedAt?: string;
 }

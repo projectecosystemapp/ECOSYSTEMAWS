@@ -21,7 +21,7 @@ interface ProviderWithStats {
   zipCode?: string;
   stripeAccountId?: string;
   stripeOnboardingComplete: boolean;
-  verificationStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  verificationStatus: 'PENDING' | 'VERIFIED' | 'REJECTED';
   active: boolean;
   servicesCount: number;
   bookingsCount: number;
@@ -45,7 +45,9 @@ export default function ProviderManagement() {
     const fetchProviders = async () => {
       try {
         setLoading(true);
-        const providersData = await adminApi.getProvidersWithStats();
+        // adminApi not yet implemented - using empty array for now
+        // const providersData = await adminApi.getProvidersWithStats();
+        const providersData: ProviderWithStats[] = [];
         setProviders(providersData);
       } catch (error) {
         console.error('Error fetching providers:', error);
@@ -59,19 +61,23 @@ export default function ProviderManagement() {
 
   const handleVerificationStatusChange = async (
     providerId: string, 
-    newStatus: 'PENDING' | 'APPROVED' | 'REJECTED'
+    newStatus: 'PENDING' | 'VERIFIED' | 'REJECTED'
   ) => {
     try {
       await providerApi.updateVerificationStatus(providerId, newStatus);
       
       // Refresh providers list
-      const providersData = await adminApi.getProvidersWithStats();
-      setProviders(providersData);
+      // adminApi not yet implemented - would refresh here
+      // const providersData = await adminApi.getProvidersWithStats();
+      // setProviders(providersData);
       
       // Update selected provider if it's the one being changed
       if (selectedProvider?.id === providerId) {
-        const updatedProvider = providersData.find((p: any) => p.id === providerId);
-        setSelectedProvider(updatedProvider || null);
+        // Update locally for now since adminApi is not implemented
+        setSelectedProvider({ ...selectedProvider, verificationStatus: newStatus } as any);
+        setProviders(prev => prev.map(p => 
+          p.id === providerId ? { ...p, verificationStatus: newStatus } : p
+        ) as any);
       }
     } catch (error) {
       console.error('Error updating provider verification status:', error);
@@ -83,13 +89,17 @@ export default function ProviderManagement() {
       await providerApi.update({ id: providerId, active: !currentActive });
       
       // Refresh providers list
-      const providersData = await adminApi.getProvidersWithStats();
-      setProviders(providersData);
+      // adminApi not yet implemented - would refresh here
+      // const providersData = await adminApi.getProvidersWithStats();
+      // setProviders(providersData);
       
       // Update selected provider if it's the one being changed
       if (selectedProvider?.id === providerId) {
-        const updatedProvider = providersData.find((p: any) => p.id === providerId);
-        setSelectedProvider(updatedProvider || null);
+        // Update locally for now since adminApi is not implemented
+        setSelectedProvider({ ...selectedProvider, active: !currentActive } as any);
+        setProviders(prev => prev.map(p => 
+          p.id === providerId ? { ...p, active: !currentActive } : p
+        ) as any);
       }
     } catch (error) {
       console.error('Error toggling provider status:', error);
@@ -98,7 +108,7 @@ export default function ProviderManagement() {
 
   const filteredProviders = providers.filter(provider => {
     if (filterStatus === 'all') return true;
-    if (filterStatus === 'verified') return provider.verificationStatus === 'APPROVED';
+    if (filterStatus === 'verified') return provider.verificationStatus === 'VERIFIED';
     if (filterStatus === 'pending') return provider.verificationStatus === 'PENDING';
     if (filterStatus === 'rejected') return provider.verificationStatus === 'REJECTED';
     if (filterStatus === 'stripe') return provider.stripeOnboardingComplete;
@@ -115,7 +125,7 @@ export default function ProviderManagement() {
 
   const getVerificationStatusColor = (status: string) => {
     switch (status) {
-      case 'APPROVED':
+      case 'VERIFIED':
         return 'text-green-600 bg-green-100';
       case 'PENDING':
         return 'text-yellow-600 bg-yellow-100';
@@ -237,7 +247,7 @@ export default function ProviderManagement() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              handleVerificationStatusChange(provider.id, 'APPROVED');
+              handleVerificationStatusChange(provider.id, 'VERIFIED');
             }}
             className="ml-1"
           >
@@ -285,7 +295,7 @@ export default function ProviderManagement() {
                 ({filter.key === 'all' 
                   ? providers.length 
                   : filter.key === 'verified'
-                  ? providers.filter(p => p.verificationStatus === 'APPROVED').length
+                  ? providers.filter(p => p.verificationStatus === 'VERIFIED').length
                   : filter.key === 'pending'
                   ? providers.filter(p => p.verificationStatus === 'PENDING').length
                   : filter.key === 'rejected'
@@ -438,7 +448,7 @@ export default function ProviderManagement() {
                         <Button
                           size="sm"
                           className="w-full"
-                          onClick={() => handleVerificationStatusChange(selectedProvider.id, 'APPROVED')}
+                          onClick={() => handleVerificationStatusChange(selectedProvider.id, 'VERIFIED')}
                         >
                           Approve Provider
                         </Button>

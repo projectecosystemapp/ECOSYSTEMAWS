@@ -7,16 +7,37 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 });
 
 const dynamodb = new DynamoDBClient({});
-const PROVIDER_TABLE = process.env.PROVIDER_TABLE_NAME || 'Provider';
+const USER_PROFILE_TABLE = process.env.USER_PROFILE_TABLE_NAME || 'UserProfile';
+const BOOKING_TABLE = process.env.BOOKING_TABLE_NAME || 'Booking';
+const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log('Stripe Connect handler:', JSON.stringify(event));
+  // Security logging - log request metadata without sensitive data
+  console.log('Stripe Connect request received:', {
+    httpMethod: event.httpMethod,
+    path: event.path,
+    sourceIP: event.requestContext.identity.sourceIp,
+    userAgent: event.requestContext.identity.userAgent,
+    requestId: event.requestContext.requestId,
+    hasBody: !!event.body,
+    timestamp: new Date().toISOString(),
+  });
   
-  // Enable CORS
+  // Security headers - restrict CORS in production
+  const isProduction = process.env.NODE_ENV === 'production';
+  const allowedOrigins = isProduction 
+    ? [process.env.APP_URL, 'https://*.amplifyapp.com']
+    : ['*'];
+    
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': isProduction ? process.env.APP_URL || '*' : '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
+    'Access-Control-Allow-Methods': 'POST,OPTIONS',
     'Content-Type': 'application/json',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    'X-XSS-Protection': '1; mode=block',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
   };
   
   if (event.httpMethod === 'OPTIONS') {
@@ -28,8 +49,54 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
   
   try {
-    const body = JSON.parse(event.body || '{}');
+    // Input validation and sanitization
+    if (!event.body) {
+      console.warn('Empty request body received');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Request body required' }),
+      };
+    }
+
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('Invalid JSON in request body:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON format' }),
+      };
+    }
+
     const { action, providerId, ...params } = body;
+    
+    // Validate required fields
+    if (!action || typeof action !== 'string') {
+      console.error('Missing or invalid action field');
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Valid action field required' }),
+      };
+    }
+
+    // Validate providerId for user-specific actions
+    const userSpecificActions = ['CREATE_ACCOUNT', 'CREATE_ACCOUNT_LINK', 'CHECK_ACCOUNT_STATUS', 'CREATE_PAYOUT'];
+    if (userSpecificActions.includes(action) && (!providerId || typeof providerId !== 'string')) {
+      console.error('Missing or invalid providerId for action:', action);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Valid providerId required for this action' }),
+      };
+    }
+
+    // Rate limiting check (basic implementation)
+    const sourceIP = event.requestContext.identity.sourceIp;
+    console.log('Processing request from IP:', sourceIP, 'Action:', action);
     
     switch (action) {
       case 'CREATE_ACCOUNT':
@@ -89,13 +156,20 @@ async function createConnectAccount(providerId: string, headers: any) {
     // Save Stripe account ID to DynamoDB
     await dynamodb.send(
       new UpdateItemCommand({
-        TableName: PROVIDER_TABLE,
+        TableName: USER_PROFILE_TABLE,
         Key: {
-          userId: { S: providerId },
+          id: { S: providerId },
         },
-        UpdateExpression: 'SET stripeAccountId = :accountId, updatedAt = :updatedAt',
+        UpdateExpression: `
+          SET stripeAccountId = :accountId, 
+              stripeOnboardingUrl = :onboardingUrl,
+              stripeAccountStatus = :status,
+              updatedAt = :updatedAt
+        `,
         ExpressionAttributeValues: {
           ':accountId': { S: account.id },
+          ':onboardingUrl': { S: '' }, // Will be updated with the account link URL
+          ':status': { S: 'PENDING' },
           ':updatedAt': { S: new Date().toISOString() },
         },
       })
@@ -150,9 +224,9 @@ async function checkAccountStatus(providerId: string, headers: any) {
     // Get Stripe account ID from DynamoDB
     const result = await dynamodb.send(
       new GetItemCommand({
-        TableName: PROVIDER_TABLE,
+        TableName: USER_PROFILE_TABLE,
         Key: {
-          userId: { S: providerId },
+          id: { S: providerId },
         },
       })
     );
@@ -168,21 +242,34 @@ async function checkAccountStatus(providerId: string, headers: any) {
     const account = await stripe.accounts.retrieve(result.Item.stripeAccountId.S);
     
     // Update onboarding status if complete
-    if (account.charges_enabled && account.payouts_enabled) {
-      await dynamodb.send(
-        new UpdateItemCommand({
-          TableName: PROVIDER_TABLE,
-          Key: {
-            userId: { S: providerId },
-          },
-          UpdateExpression: 'SET stripeOnboardingComplete = :complete, updatedAt = :updatedAt',
-          ExpressionAttributeValues: {
-            ':complete': { BOOL: true },
-            ':updatedAt': { S: new Date().toISOString() },
-          },
-        })
-      );
-    }
+    const accountStatus = account.charges_enabled && account.payouts_enabled ? 'ACTIVE' : 'PENDING';
+    
+    await dynamodb.send(
+      new UpdateItemCommand({
+        TableName: USER_PROFILE_TABLE,
+        Key: {
+          id: { S: providerId },
+        },
+        UpdateExpression: `
+          SET stripeOnboardingComplete = :complete, 
+              stripeAccountStatus = :status,
+              stripeChargesEnabled = :chargesEnabled,
+              stripePayoutsEnabled = :payoutsEnabled,
+              stripeDetailsSubmitted = :detailsSubmitted,
+              stripeRequirements = :requirements,
+              updatedAt = :updatedAt
+        `,
+        ExpressionAttributeValues: {
+          ':complete': { BOOL: account.charges_enabled && account.payouts_enabled },
+          ':status': { S: accountStatus },
+          ':chargesEnabled': { BOOL: account.charges_enabled || false },
+          ':payoutsEnabled': { BOOL: account.payouts_enabled || false },
+          ':detailsSubmitted': { BOOL: account.details_submitted || false },
+          ':requirements': { S: JSON.stringify(account.requirements || {}) },
+          ':updatedAt': { S: new Date().toISOString() },
+        },
+      })
+    );
     
     return {
       statusCode: 200,
@@ -276,9 +363,9 @@ async function createPayout(providerId: string, amount: number, headers: any) {
     // Get provider's Stripe account
     const result = await dynamodb.send(
       new GetItemCommand({
-        TableName: PROVIDER_TABLE,
+        TableName: USER_PROFILE_TABLE,
         Key: {
-          userId: { S: providerId },
+          id: { S: providerId },
         },
       })
     );

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
 import ConversationList from '@/components/messaging/ConversationList';
 import ChatWindow from '@/components/messaging/ChatWindow';
+import MessageSearch from '@/components/messaging/MessageSearch';
 import { Card } from '@/components/ui/card';
 import { messageApi, getOtherParticipant } from '@/lib/api';
 import { Conversation, Message } from '@/lib/types';
@@ -12,6 +13,7 @@ import { MessageCircle } from 'lucide-react';
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string>('');
@@ -32,6 +34,14 @@ export default function MessagesPage() {
 
     fetchUser();
   }, [router]);
+
+  // Handle URL parameters (direct conversation links)
+  useEffect(() => {
+    const conversationParam = searchParams.get('conversation');
+    if (conversationParam) {
+      setSelectedConversationId(conversationParam);
+    }
+  }, [searchParams]);
 
   // Load conversations
   useEffect(() => {
@@ -130,6 +140,10 @@ export default function MessagesPage() {
     setSelectedConversationId('');
   };
 
+  const handleSearchResultSelect = (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -147,10 +161,21 @@ export default function MessagesPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
-        <p className="text-gray-600 mt-1">
-          Communicate with your customers and providers
-        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Messages</h1>
+            <p className="text-gray-600 mt-1">
+              Communicate with your customers and providers
+            </p>
+          </div>
+          
+          <div className="w-full sm:w-80">
+            <MessageSearch 
+              currentUserEmail={currentUserEmail}
+              onSelectResult={handleSearchResultSelect}
+            />
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[calc(100vh-200px)]">

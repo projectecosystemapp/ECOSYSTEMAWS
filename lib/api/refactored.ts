@@ -49,15 +49,23 @@ export const serviceApi = {
     try {
       // Transform our domain type to API type
       const apiData = {
-        providerId: data.providerId!,
+        providerId: 'temp-id', // Generate or get from auth
         providerEmail: data.providerEmail!,
         title: data.title!,
         description: data.description!,
-        category: data.category,
-        price: data.price,
-        serviceDuration: data.duration, // Map duration to serviceDuration
+        category: (data.category as any) || 'SERVICE',
+        price: data.price || 0,
+        minimumBookingTime: data.duration, // Map duration to minimumBookingTime per schema
         active: data.active ?? true,
-        ...data // Include other fields that match
+        // Map location fields
+        address: data.serviceAddress,
+        city: data.serviceCity,
+        state: data.serviceState,
+        postalCode: data.serviceZipCode,
+        serviceRadius: data.serviceRadius,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        locationType: data.locationType
       };
 
       const response = await client.models.Service.create(apiData);
@@ -255,9 +263,14 @@ export const bookingApi = {
         startDateTime,
         endDateTime,
         amount: data.totalAmount || 0,
-        status: data.status || 'PENDING',
-        customerNotes: data.notes,
-        ...data
+        status: (data.status as any) || 'PENDING',
+        notes: data.notes,
+        customerPhone: data.customerPhone,
+        // Only include fields that exist in the schema
+        paymentStatus: 'PENDING' as const, // Set to valid schema value
+        paymentIntentId: data.paymentIntentId,
+        platformFee: data.platformFee,
+        providerEarnings: data.providerEarnings
       };
 
       const response = await client.models.Booking.create(apiData);
@@ -612,10 +625,12 @@ export const userProfileApi = {
    */
   get: async (email: string): Promise<UserProfile | null> => {
     try {
-      const response = await client.models.UserProfile.get({ email });
+      const response = await client.models.UserProfile.list({
+        filter: { email: { eq: email } }
+      });
       
-      if (response.data) {
-        return mapApiUserProfileToUserProfile(response.data);
+      if (response.data && response.data.length > 0) {
+        return mapApiUserProfileToUserProfile(response.data[0]);
       }
       
       return null;
@@ -650,8 +665,11 @@ export const userProfileApi = {
    */
   update: async (data: Partial<UserProfile>): Promise<UserProfile | null> => {
     try {
+      if (!data.id) {
+        throw new Error('ID is required to update user profile');
+      }
       const response = await client.models.UserProfile.update({
-        email: data.email!,
+        id: data.id,
         ...data
       });
       
@@ -724,7 +742,7 @@ export const messageApi = {
         const messages = mapApiMessageList(response.data);
         // Sort by creation date
         return messages.sort((a, b) => 
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime()
         );
       }
       

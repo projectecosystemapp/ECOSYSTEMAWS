@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/style.css';
-import { serviceApi, bookingApi } from '@/lib/api';
+import { refactoredApi } from '@/lib/api/refactored';
 import { 
   Service, 
   BookingFormData, 
@@ -16,6 +16,112 @@ import {
   formatTimeSlot 
 } from '@/lib/types';
 import { useAuthenticator } from '@aws-amplify/ui-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Calendar,
+  Clock,
+  User,
+  CreditCard,
+  CheckCircle,
+  ArrowLeft,
+  ArrowRight,
+  Shield,
+  Info
+} from 'lucide-react';
+
+// Stripe Elements for payment processing (we'll simulate this for now)
+const StripePaymentForm = ({ 
+  amount, 
+  onPaymentSuccess, 
+  loading 
+}: { 
+  amount: number; 
+  onPaymentSuccess: (paymentIntentId: string) => void; 
+  loading: boolean;
+}) => {
+  const [processing, setProcessing] = useState(false);
+
+  const handlePayment = async () => {
+    setProcessing(true);
+    
+    try {
+      // Simulate Stripe payment processing
+      // In real implementation, this would integrate with Stripe Elements
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Mock successful payment intent
+      const mockPaymentIntentId = `pi_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      onPaymentSuccess(mockPaymentIntentId);
+      
+    } catch (error) {
+      console.error('Payment failed:', error);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Mock Credit Card Form */}
+      <div className="border rounded-lg p-4 bg-gray-50">
+        <div className="flex items-center gap-2 mb-3">
+          <CreditCard className="w-5 h-5 text-gray-600" />
+          <span className="font-medium">Payment Information</span>
+        </div>
+        
+        {/* Mock form fields */}
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="1234 5678 9012 3456"
+            className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            disabled
+          />
+          <div className="grid grid-cols-2 gap-3">
+            <input
+              type="text"
+              placeholder="MM/YY"
+              className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled
+            />
+            <input
+              type="text"
+              placeholder="CVC"
+              className="px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              disabled
+            />
+          </div>
+        </div>
+        
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
+          <p className="text-sm text-blue-800">
+            <Shield className="w-4 h-4 inline mr-1" />
+            Demo mode: This is a simulated payment form. In production, real Stripe Elements would be integrated here.
+          </p>
+        </div>
+      </div>
+
+      <Button
+        onClick={handlePayment}
+        disabled={processing || loading}
+        className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3"
+        size="lg"
+      >
+        {processing ? (
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            Processing Payment...
+          </div>
+        ) : (
+          `Pay $${amount.toFixed(2)}`
+        )}
+      </Button>
+    </div>
+  );
+};
 
 export default function BookServicePage() {
   const params = useParams();
@@ -29,7 +135,8 @@ export default function BookServicePage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
-  const [step, setStep] = useState<'date' | 'time' | 'confirm'>('date');
+  const [step, setStep] = useState<'date' | 'time' | 'payment' | 'confirm'>('date');
+  const [paymentIntentId, setPaymentIntentId] = useState<string>('');
 
   useEffect(() => {
     const fetchService = async () => {
@@ -37,8 +144,12 @@ export default function BookServicePage() {
       
       try {
         setLoading(true);
-        const serviceData = await serviceApi.get(params.id as string);
-        setService(serviceData as any);
+        const serviceData = await refactoredApi.service.get(params.id as string);
+        if (serviceData) {
+          setService(serviceData);
+        } else {
+          setError('Service not found');
+        }
       } catch (err) {
         console.error('Error fetching service:', err);
         setError('Failed to load service details');
@@ -66,40 +177,61 @@ export default function BookServicePage() {
 
   const handleTimeSelect = (time: string) => {
     setSelectedTime(time);
+    setStep('payment');
+  };
+
+  const handlePaymentSuccess = (intentId: string) => {
+    setPaymentIntentId(intentId);
     setStep('confirm');
   };
 
   const handleBookingSubmit = async () => {
-    if (!service || !selectedDate || !selectedTime || !user) return;
+    if (!service || !selectedDate || !selectedTime || !user || !paymentIntentId) return;
     
     try {
       setSubmitting(true);
       setError(null);
 
+      const priceBreakdown = calculatePriceBreakdown(service.price);
+      const customerEmail = user.signInDetails?.loginId || user.username || '';
+
       const bookingData = {
         serviceId: service.id,
-        customerEmail: user.signInDetails?.loginId || user.username || '',
+        providerId: service.providerEmail, // Using email as ID for now
         providerEmail: service.providerEmail,
+        customerId: customerEmail, // Using email as ID for now
+        customerEmail: customerEmail,
         scheduledDate: formatDateForAPI(selectedDate),
         scheduledTime: selectedTime,
-        status: 'PENDING' as const,
-        totalAmount: service.price,
+        duration: service.duration || 60,
+        status: 'CONFIRMED' as const, // Since payment is processed
+        totalAmount: priceBreakdown.totalAmount,
+        platformFee: priceBreakdown.platformCommission,
+        providerEarnings: priceBreakdown.providerAmount,
         notes: notes || undefined,
+        paymentIntentId: paymentIntentId,
       };
 
-      await bookingApi.create(bookingData);
+      const booking = await refactoredApi.booking.create(bookingData);
       
-      // Mock notification (console log as requested)
-      console.log('🎉 Booking Created Successfully!', {
-        service: service.title,
-        date: selectedDate.toLocaleDateString(),
-        time: formatTimeSlot(selectedTime),
-        customer: bookingData.customerEmail,
-        provider: bookingData.providerEmail,
-      });
+      if (booking) {
+        // Success notification
+        console.log('🎉 Booking Created Successfully!', {
+          bookingId: booking.id,
+          service: service.title,
+          date: selectedDate.toLocaleDateString(),
+          time: formatTimeSlot(selectedTime),
+          customer: customerEmail,
+          provider: service.providerEmail,
+          amount: priceBreakdown.totalAmount,
+          paymentIntentId: paymentIntentId
+        });
 
-      // Redirect to bookings page
-      router.push('/bookings?success=true');
+        // Redirect to success page
+        router.push(`/bookings/${booking.id}?success=true`);
+      } else {
+        throw new Error('Failed to create booking');
+      }
       
     } catch (err) {
       console.error('Error creating booking:', err);
@@ -113,8 +245,11 @@ export default function BookServicePage() {
     if (step === 'time') {
       setStep('date');
       setSelectedTime('');
-    } else if (step === 'confirm') {
+    } else if (step === 'payment') {
       setStep('time');
+    } else if (step === 'confirm') {
+      setStep('payment');
+      setPaymentIntentId('');
     }
   };
 
@@ -122,7 +257,7 @@ export default function BookServicePage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading booking form...</p>
         </div>
       </div>
@@ -136,11 +271,10 @@ export default function BookServicePage() {
           <div className="text-red-600 text-6xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Booking Error</h1>
           <p className="text-gray-600 mb-6">{error || 'Unable to load booking form.'}</p>
-          <Link 
-            href="/dashboard" 
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Back to Dashboard
+          <Link href="/services">
+            <Button className="bg-purple-600 hover:bg-purple-700">
+              Browse Services
+            </Button>
           </Link>
         </div>
       </div>
@@ -149,246 +283,379 @@ export default function BookServicePage() {
 
   const priceBreakdown = calculatePriceBreakdown(service.price);
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Navigation */}
-        <div className="mb-6">
-          <Link 
-            href={`/services/${params.id}`}
-            className="text-blue-600 hover:text-blue-800 font-medium"
-          >
-            ← Back to Service Details
-          </Link>
-        </div>
+  const steps = [
+    { key: 'date', label: 'Select Date', icon: Calendar },
+    { key: 'time', label: 'Select Time', icon: Clock },
+    { key: 'payment', label: 'Payment', icon: CreditCard },
+    { key: 'confirm', label: 'Confirm', icon: CheckCircle }
+  ];
 
+  const currentStepIndex = steps.findIndex(s => s.key === step);
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                onClick={() => router.push(`/services/${params.id}`)}
+                className="flex items-center gap-2"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Service
+              </Button>
+            </div>
+            <div className="text-right">
+              <h1 className="font-semibold text-gray-900">Book Service</h1>
+              <p className="text-sm text-gray-600">{service.title}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress Steps */}
         <div className="mb-8">
           <div className="flex items-center justify-center">
-            <div className="flex items-center space-x-4">
-              <div className={`flex items-center ${step === 'date' ? 'text-blue-600' : 'text-green-600'}`}>
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold
-                  ${step === 'date' ? 'border-blue-600 bg-blue-600 text-white' : 'border-green-600 bg-green-600 text-white'}`}>
-                  1
+            {steps.map((stepItem, index) => (
+              <div key={stepItem.key} className="flex items-center">
+                <div className={`flex items-center ${
+                  index <= currentStepIndex ? 'text-purple-600' : 'text-gray-400'
+                }`}>
+                  <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center text-sm font-semibold
+                    ${index < currentStepIndex 
+                      ? 'border-green-600 bg-green-600 text-white' 
+                      : index === currentStepIndex
+                      ? 'border-purple-600 bg-purple-600 text-white'
+                      : 'border-gray-300 bg-white'
+                    }`}>
+                    {index < currentStepIndex ? (
+                      <CheckCircle className="w-5 h-5" />
+                    ) : (
+                      <stepItem.icon className="w-5 h-5" />
+                    )}
+                  </div>
+                  <span className="ml-2 font-medium hidden sm:block">{stepItem.label}</span>
                 </div>
-                <span className="ml-2 font-medium">Select Date</span>
+                {index < steps.length - 1 && (
+                  <div className={`w-8 h-1 mx-4 ${
+                    index < currentStepIndex ? 'bg-green-600' : 'bg-gray-300'
+                  }`}></div>
+                )}
               </div>
-              <div className={`w-8 h-1 ${step !== 'date' ? 'bg-green-600' : 'bg-gray-300'}`}></div>
-              <div className={`flex items-center ${step === 'time' ? 'text-blue-600' : step === 'confirm' ? 'text-green-600' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold
-                  ${step === 'time' ? 'border-blue-600 bg-blue-600 text-white' : 
-                    step === 'confirm' ? 'border-green-600 bg-green-600 text-white' : 'border-gray-300'}`}>
-                  2
-                </div>
-                <span className="ml-2 font-medium">Select Time</span>
-              </div>
-              <div className={`w-8 h-1 ${step === 'confirm' ? 'bg-green-600' : 'bg-gray-300'}`}></div>
-              <div className={`flex items-center ${step === 'confirm' ? 'text-blue-600' : 'text-gray-400'}`}>
-                <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center text-sm font-semibold
-                  ${step === 'confirm' ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300'}`}>
-                  3
-                </div>
-                <span className="ml-2 font-medium">Confirm</span>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              {/* Date Selection */}
-              {step === 'date' && (
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-4">Select a Date</h2>
-                  <p className="text-gray-600 mb-6">Choose your preferred date for the service.</p>
-                  
-                  <div className="flex justify-center">
-                    <DayPicker
-                      mode="single"
-                      selected={selectedDate}
-                      onSelect={handleDateSelect}
-                      disabled={(date) => !isDateAvailable(date)}
-                      modifiersClassNames={{
-                        selected: 'bg-blue-600 text-white',
-                        disabled: 'text-gray-400 cursor-not-allowed',
-                      }}
-                      className="border rounded-lg p-4"
-                    />
-                  </div>
-                  
-                  <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-blue-800 text-sm">
-                      <strong>Available days:</strong> Monday through Friday<br />
-                      <strong>Note:</strong> Weekends and past dates are not available for booking.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Time Selection */}
-              {step === 'time' && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">Select a Time</h2>
-                    <button
-                      onClick={goBack}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      ← Change Date
-                    </button>
-                  </div>
-                  <p className="text-gray-600 mb-6">
-                    Available time slots for {selectedDate?.toLocaleDateString()}
-                  </p>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {TIME_SLOTS.map((slot) => (
-                      <button
-                        key={slot.time}
-                        onClick={() => handleTimeSelect(slot.time)}
-                        className={`p-3 rounded-lg border-2 text-center transition-colors font-medium
-                          ${slot.available 
-                            ? 'border-gray-200 hover:border-blue-600 hover:bg-blue-50' 
-                            : 'border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed'
-                          }`}
-                        disabled={!slot.available}
-                      >
-                        {formatTimeSlot(slot.time)}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Confirmation */}
-              {step === 'confirm' && (
-                <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl font-bold text-gray-900">Confirm Your Booking</h2>
-                    <button
-                      onClick={goBack}
-                      className="text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      ← Change Time
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-6">
-                    {/* Booking Summary */}
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-900 mb-3">Booking Details</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-600">Date</p>
-                          <p className="font-medium">{selectedDate?.toLocaleDateString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Time</p>
-                          <p className="font-medium">{formatTimeSlot(selectedTime)}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Duration</p>
-                          <p className="font-medium">{service.duration} minutes</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600">Provider</p>
-                          <p className="font-medium">{service.providerName}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Notes */}
-                    <div>
-                      <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
-                        Additional Notes (Optional)
-                      </label>
-                      <textarea
-                        id="notes"
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Any special requirements or notes for the service provider..."
+            <Card>
+              <CardContent className="p-6">
+                {/* Date Selection */}
+                {step === 'date' && (
+                  <div>
+                    <CardHeader className="px-0 pt-0">
+                      <CardTitle className="flex items-center gap-2">
+                        <Calendar className="w-5 h-5 text-purple-600" />
+                        Select a Date
+                      </CardTitle>
+                      <p className="text-gray-600">Choose your preferred date for the service.</p>
+                    </CardHeader>
+                    
+                    <div className="flex justify-center">
+                      <DayPicker
+                        mode="single"
+                        selected={selectedDate}
+                        onSelect={handleDateSelect}
+                        disabled={(date) => !isDateAvailable(date)}
+                        modifiersClassNames={{
+                          selected: 'bg-purple-600 text-white',
+                          disabled: 'text-gray-400 cursor-not-allowed',
+                        }}
+                        className="border rounded-lg p-4"
                       />
                     </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex gap-3">
-                      <button
-                        onClick={handleBookingSubmit}
-                        disabled={submitting}
-                        className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {submitting ? 'Creating Booking...' : 'Confirm Booking'}
-                      </button>
-                      <button
-                        onClick={goBack}
-                        disabled={submitting}
-                        className="px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-semibold disabled:opacity-50"
-                      >
-                        Back
-                      </button>
-                    </div>
-
-                    {error && (
-                      <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                        <p className="text-red-600">{error}</p>
+                    
+                    <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex gap-2">
+                        <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div className="text-blue-800 text-sm">
+                          <p className="font-medium mb-1">Availability Information</p>
+                          <p>• Available days: Monday through Friday</p>
+                          <p>• Weekends and past dates are not available</p>
+                          <p>• Book up to 30 days in advance</p>
+                        </div>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+
+                {/* Time Selection */}
+                {step === 'time' && (
+                  <div>
+                    <CardHeader className="px-0 pt-0">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="w-5 h-5 text-purple-600" />
+                          Select a Time
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          onClick={goBack}
+                          className="flex items-center gap-1 text-purple-600"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Change Date
+                        </Button>
+                      </div>
+                      <p className="text-gray-600">
+                        Available time slots for <span className="font-medium">{selectedDate?.toLocaleDateString()}</span>
+                      </p>
+                    </CardHeader>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                      {TIME_SLOTS.map((slot) => (
+                        <Button
+                          key={slot.time}
+                          onClick={() => handleTimeSelect(slot.time)}
+                          variant={slot.available ? "outline" : "secondary"}
+                          className={`p-4 h-auto ${
+                            slot.available 
+                              ? 'hover:bg-purple-50 hover:border-purple-300' 
+                              : 'opacity-50 cursor-not-allowed'
+                          }`}
+                          disabled={!slot.available}
+                        >
+                          <div className="text-center">
+                            <div className="font-medium">{formatTimeSlot(slot.time)}</div>
+                            <div className="text-xs text-gray-500">
+                              {slot.available ? 'Available' : 'Unavailable'}
+                            </div>
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Payment */}
+                {step === 'payment' && (
+                  <div>
+                    <CardHeader className="px-0 pt-0">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <CreditCard className="w-5 h-5 text-purple-600" />
+                          Payment Information
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          onClick={goBack}
+                          className="flex items-center gap-1 text-purple-600"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Change Time
+                        </Button>
+                      </div>
+                      <p className="text-gray-600">
+                        Secure payment processing powered by Stripe
+                      </p>
+                    </CardHeader>
+
+                    <StripePaymentForm
+                      amount={priceBreakdown.totalAmount}
+                      onPaymentSuccess={handlePaymentSuccess}
+                      loading={submitting}
+                    />
+                  </div>
+                )}
+
+                {/* Confirmation */}
+                {step === 'confirm' && (
+                  <div>
+                    <CardHeader className="px-0 pt-0">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          Confirm Your Booking
+                        </CardTitle>
+                        <Button
+                          variant="ghost"
+                          onClick={goBack}
+                          className="flex items-center gap-1 text-purple-600"
+                          disabled={submitting}
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                          Back to Payment
+                        </Button>
+                      </div>
+                      <p className="text-gray-600">
+                        Please review your booking details and confirm
+                      </p>
+                    </CardHeader>
+                    
+                    <div className="space-y-6">
+                      {/* Booking Summary */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <h3 className="font-semibold text-gray-900 mb-3">Booking Details</h3>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-sm text-gray-600">Date</p>
+                            <p className="font-medium">{selectedDate?.toLocaleDateString()}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Time</p>
+                            <p className="font-medium">{formatTimeSlot(selectedTime)}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Duration</p>
+                            <p className="font-medium">{service.duration} minutes</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-600">Provider</p>
+                            <p className="font-medium">{service.providerName}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Payment Confirmation */}
+                      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          <span className="font-medium text-green-900">Payment Processed</span>
+                        </div>
+                        <p className="text-sm text-green-800">
+                          Payment of ${priceBreakdown.totalAmount.toFixed(2)} has been successfully processed.
+                        </p>
+                        <p className="text-xs text-green-700 mt-1">
+                          Payment ID: {paymentIntentId}
+                        </p>
+                      </div>
+
+                      {/* Notes */}
+                      <div>
+                        <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-2">
+                          Additional Notes (Optional)
+                        </label>
+                        <textarea
+                          id="notes"
+                          value={notes}
+                          onChange={(e) => setNotes(e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+                          placeholder="Any special requirements or notes for the service provider..."
+                        />
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={handleBookingSubmit}
+                          disabled={submitting}
+                          className="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3"
+                          size="lg"
+                        >
+                          {submitting ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              Creating Booking...
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4" />
+                              Confirm Booking
+                            </div>
+                          )}
+                        </Button>
+                      </div>
+
+                      {error && (
+                        <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-600">{error}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
           {/* Sidebar - Service Summary */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-lg p-6 sticky top-8">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Service Summary</h3>
-              
-              <div className="space-y-4">
+          <div className="space-y-6">
+            <Card className="sticky top-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="w-5 h-5" />
+                  Service Summary
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div>
-                  <h4 className="font-medium text-gray-900">{service.title}</h4>
-                  <p className="text-sm text-gray-600 mt-1">{service.description}</p>
+                  <h4 className="font-semibold text-gray-900">{service.title}</h4>
+                  <p className="text-sm text-gray-600 mt-1">{service.category}</p>
                 </div>
                 
-                <div className="border-t border-gray-200 pt-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Service Price:</span>
-                      <span className="font-medium">${priceBreakdown.servicePrice.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm text-gray-500">
-                      <span>Platform Fee (8%):</span>
-                      <span>${priceBreakdown.platformCommission.toFixed(2)}</span>
-                    </div>
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="flex justify-between">
-                        <span className="font-semibold text-gray-900">Total:</span>
-                        <span className="font-bold text-blue-600">${priceBreakdown.totalAmount.toFixed(2)}</span>
-                      </div>
-                    </div>
+                <Separator />
+                
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Service Price:</span>
+                    <span className="font-medium">${priceBreakdown.servicePrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-500">
+                    <span>Platform Fee (8%):</span>
+                    <span>${priceBreakdown.platformCommission.toFixed(2)}</span>
+                  </div>
+                  <Separator />
+                  <div className="flex justify-between font-semibold">
+                    <span className="text-gray-900">Total:</span>
+                    <span className="text-purple-600">${priceBreakdown.totalAmount.toFixed(2)}</span>
                   </div>
                 </div>
 
                 {selectedDate && selectedTime && (
-                  <div className="border-t border-gray-200 pt-4">
-                    <p className="text-sm font-medium text-gray-900 mb-2">Selected Slot:</p>
-                    <p className="text-sm text-gray-600">
-                      {selectedDate.toLocaleDateString()} at {formatTimeSlot(selectedTime)}
-                    </p>
-                  </div>
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 mb-2">Selected Slot:</p>
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                        <p className="text-sm text-purple-900 font-medium">
+                          📅 {selectedDate.toLocaleDateString()}
+                        </p>
+                        <p className="text-sm text-purple-900 font-medium">
+                          🕒 {formatTimeSlot(selectedTime)}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {paymentIntentId && (
+                  <>
+                    <Separator />
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-900">Payment Confirmed</span>
+                      </div>
+                    </div>
+                  </>
                 )}
                 
-                <div className="border-t border-gray-200 pt-4">
+                <Separator />
+                
+                <div>
                   <p className="text-xs text-gray-500">
-                    By booking, you agree to our terms of service. You will receive a confirmation email once the provider accepts your booking.
+                    <Shield className="w-3 h-3 inline mr-1" />
+                    Secure booking powered by Stripe. Your payment information is encrypted and protected.
                   </p>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>

@@ -6,6 +6,7 @@ import { getCurrentUser } from 'aws-amplify/auth';
 import { refactoredApi } from '@/lib/api/refactored';
 import type { Booking } from '@/lib/types';
 import { Button } from '@/components/ui/button';
+import MessageProviderButton from '@/components/messaging/MessageProviderButton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -27,6 +28,7 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('all');
+  const [currentUserEmail, setCurrentUserEmail] = useState<string>('');
 
   useEffect(() => {
     loadBookings();
@@ -38,6 +40,7 @@ export default function BookingsPage() {
       const email = user.signInDetails?.loginId;
       
       if (email) {
+        setCurrentUserEmail(email);
         const data = await refactoredApi.booking.listByCustomer(email);
         
         // Add mock data if no bookings exist
@@ -45,72 +48,29 @@ export default function BookingsPage() {
           {
             id: '1',
             serviceId: 'service-1',
-            serviceTitle: 'Professional Home Cleaning',
-            providerName: 'Sparkle Clean Co.',
             providerId: 'provider-1',
-            providerEmail: 'provider@example.com',
             customerId: 'customer-1',
-            customerName: 'Customer Name',
             customerEmail: email,
-            customerPhone: undefined,
+            providerEmail: 'provider@example.com',
             scheduledDate: '2024-09-05',
             scheduledTime: '10:00 AM',
-            duration: 120,
             status: 'CONFIRMED',
             totalAmount: 80,
-            platformFee: undefined,
-            providerEarnings: undefined,
             notes: 'Please use eco-friendly products',
-            providerNotes: undefined,
-            cancellationReason: undefined,
-            cancelledBy: undefined,
-            cancelledAt: undefined,
-            completedAt: undefined,
-            paymentIntentId: undefined,
-            paymentStatus: undefined,
-            refundAmount: undefined,
-            refundedAt: undefined,
-            location: undefined,
-            reviewId: undefined,
-            reviewed: false,
-            reminderSent: false,
-            metadata: {},
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           },
           {
             id: '2',
             serviceId: 'service-2',
-            serviceTitle: 'Personal Training Session',
-            providerName: 'FitLife Trainers',
             providerId: 'provider-2',
-            providerEmail: 'trainer@example.com',
             customerId: 'customer-1',
-            customerName: 'Customer Name',
             customerEmail: email,
-            customerPhone: undefined,
+            providerEmail: 'trainer@example.com',
             scheduledDate: '2024-09-03',
             scheduledTime: '6:00 PM',
-            duration: 60,
             status: 'PENDING',
             totalAmount: 65,
-            platformFee: undefined,
-            providerEarnings: undefined,
-            notes: undefined,
-            providerNotes: undefined,
-            cancellationReason: undefined,
-            cancelledBy: undefined,
-            cancelledAt: undefined,
-            completedAt: undefined,
-            paymentIntentId: undefined,
-            paymentStatus: undefined,
-            refundAmount: undefined,
-            refundedAt: undefined,
-            location: undefined,
-            reviewId: undefined,
-            reviewed: false,
-            reminderSent: false,
-            metadata: {},
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           },
@@ -134,9 +94,6 @@ export default function BookingsPage() {
     }
   };
 
-  const handleContactProvider = (providerEmail: string) => {
-    window.location.href = `/messages?to=${providerEmail}`;
-  };
 
   const handleReschedule = (bookingId: string) => {
     window.location.href = `/bookings/${bookingId}/reschedule`;
@@ -250,10 +207,10 @@ export default function BookingsPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <CardTitle className="text-xl">
-                        {booking.serviceTitle}
+                        Service Booking
                       </CardTitle>
                       <CardDescription className="mt-1">
-                        Provided by {booking.providerName}
+                        Provider: {booking.providerEmail}
                       </CardDescription>
                     </div>
                     <Badge className={getStatusColor(booking.status)}>
@@ -315,14 +272,15 @@ export default function BookingsPage() {
                     )}
                     {booking.status === 'CONFIRMED' && (
                       <>
-                        <Button
-                          variant="outline"
+                        <MessageProviderButton
+                          providerEmail={booking.providerEmail}
+                          providerName="Provider"
+                          currentUserEmail={currentUserEmail}
+                          bookingId={booking.id}
+                          serviceId={booking.serviceId}
                           size="sm"
-                          onClick={() => handleContactProvider(booking.providerEmail)}
-                        >
-                          <MessageCircle className="h-4 w-4 mr-1" />
-                          Contact Provider
-                        </Button>
+                          variant="outline"
+                        />
                         <Button
                           variant="outline"
                           size="sm"

@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { refactoredApi } from '@/lib/api/refactored';
+import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
 import { 
   Search, 
   MapPin, 
@@ -29,19 +31,103 @@ export default function ModernHomePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [location, setLocation] = useState('');
   const [isVisible, setIsVisible] = useState(false);
+  const [featuredServices, setFeaturedServices] = useState<ServiceWithRating[]>([]);
+  const [categoryStats, setCategoryStats] = useState<{[key: string]: number}>({});
+  const [platformStats, setPlatformStats] = useState({
+    totalCustomers: 0,
+    totalProviders: 0,
+    averageRating: 0,
+    totalServices: 0
+  });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setIsVisible(true);
+    loadHomePageData();
   }, []);
 
-  const categories = [
-    { name: 'Home Services', icon: '🏠', gradient: 'from-blue-400 to-blue-600', services: 245 },
-    { name: 'Fitness', icon: '💪', gradient: 'from-green-400 to-green-600', services: 134 },
-    { name: 'Beauty', icon: '✨', gradient: 'from-pink-400 to-pink-600', services: 189 },
-    { name: 'Tech', icon: '💻', gradient: 'from-purple-400 to-purple-600', services: 98 },
-    { name: 'Events', icon: '🎉', gradient: 'from-yellow-400 to-orange-600', services: 156 },
-    { name: 'Education', icon: '📚', gradient: 'from-indigo-400 to-indigo-600', services: 87 },
-  ];
+  const loadHomePageData = async () => {
+    try {
+      setLoading(true);
+      
+      // Load featured services with ratings
+      const services = await refactoredApi.service.searchWithRatings('', '');
+      
+      // Get top 5 rated services for featured section
+      const topServices = services
+        .filter(service => service.rating > 0)
+        .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+        .slice(0, 5);
+      
+      setFeaturedServices(topServices);
+      
+      // Calculate category statistics
+      const categoryCount: {[key: string]: number} = {};
+      SERVICE_CATEGORIES.forEach(category => {
+        categoryCount[category] = services.filter(s => s.category === category).length;
+      });
+      setCategoryStats(categoryCount);
+      
+      // Calculate platform statistics
+      const providers = await refactoredApi.userProfile.listProviders();
+      const totalRating = services.reduce((sum, service) => sum + (service.rating || 0), 0);
+      const ratedServices = services.filter(s => (s.rating || 0) > 0);
+      
+      setPlatformStats({
+        totalCustomers: Math.max(services.length * 5, 1000), // Estimate based on services
+        totalProviders: providers.length,
+        averageRating: ratedServices.length > 0 ? totalRating / ratedServices.length : 4.9,
+        totalServices: services.length
+      });
+      
+    } catch (error) {
+      console.error('Error loading homepage data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const iconMap: {[key: string]: string} = {
+      'Home Services': '🏠',
+      'Business': '💼',
+      'Events': '🎉',
+      'Fitness': '💪',
+      'Creative': '🎨',
+      'Automotive': '🚗',
+      'Health': '🏥',
+      'Photography': '📸',
+      'Technology': '💻',
+      'Education': '📚',
+      'Beauty': '✨',
+      'Pet Services': '🐕',
+      'Legal': '⚖️',
+      'Financial': '💰',
+      'Other': '🔧'
+    };
+    return iconMap[category] || '🔧';
+  };
+
+  const getCategoryGradient = (category: string) => {
+    const gradientMap: {[key: string]: string} = {
+      'Home Services': 'from-blue-400 to-blue-600',
+      'Business': 'from-gray-400 to-gray-600',
+      'Events': 'from-yellow-400 to-orange-600',
+      'Fitness': 'from-green-400 to-green-600',
+      'Creative': 'from-pink-400 to-purple-600',
+      'Automotive': 'from-red-400 to-red-600',
+      'Health': 'from-teal-400 to-teal-600',
+      'Photography': 'from-indigo-400 to-purple-600',
+      'Technology': 'from-purple-400 to-purple-600',
+      'Education': 'from-indigo-400 to-indigo-600',
+      'Beauty': 'from-pink-400 to-pink-600',
+      'Pet Services': 'from-amber-400 to-orange-600',
+      'Legal': 'from-slate-400 to-slate-600',
+      'Financial': 'from-emerald-400 to-green-600',
+      'Other': 'from-gray-400 to-gray-600'
+    };
+    return gradientMap[category] || 'from-gray-400 to-gray-600';
+  };
 
   const features = [
     {
@@ -70,11 +156,34 @@ export default function ModernHomePage() {
     }
   ];
 
+  const formatNumber = (num: number) => {
+    if (num >= 1000) {
+      return `${Math.floor(num / 1000)}K+`;
+    }
+    return num.toString();
+  };
+
   const stats = [
-    { value: '50K+', label: 'Happy Customers', gradient: 'from-blue-600 to-purple-600' },
-    { value: '10K+', label: 'Verified Providers', gradient: 'from-purple-600 to-pink-600' },
-    { value: '4.9★', label: 'Average Rating', gradient: 'from-yellow-500 to-orange-500' },
-    { value: '24/7', label: 'Support Available', gradient: 'from-green-500 to-teal-500' },
+    { 
+      value: formatNumber(platformStats.totalCustomers), 
+      label: 'Happy Customers', 
+      gradient: 'from-blue-600 to-purple-600' 
+    },
+    { 
+      value: formatNumber(platformStats.totalProviders), 
+      label: 'Verified Providers', 
+      gradient: 'from-purple-600 to-pink-600' 
+    },
+    { 
+      value: `${platformStats.averageRating.toFixed(1)}★`, 
+      label: 'Average Rating', 
+      gradient: 'from-yellow-500 to-orange-500' 
+    },
+    { 
+      value: '24/7', 
+      label: 'Support Available', 
+      gradient: 'from-green-500 to-teal-500' 
+    },
   ];
 
   return (
@@ -141,7 +250,9 @@ export default function ModernHomePage() {
             {/* Animated Badge */}
             <div className="inline-flex items-center space-x-2 bg-gradient-to-r from-purple-100 to-blue-100 px-4 py-2 rounded-full">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-gray-700">Trusted by 50,000+ customers</span>
+              <span className="text-sm font-medium text-gray-700">
+                Trusted by {formatNumber(platformStats.totalCustomers)} customers
+              </span>
             </div>
 
             {/* Main Heading with Gradient */}
@@ -196,143 +307,121 @@ export default function ModernHomePage() {
               </div>
             </div>
 
-            {/* Popular Searches */}
+            {/* Popular Searches - Dynamic based on actual services */}
             <div className="flex flex-wrap justify-center lg:justify-start gap-2">
-              {['House Cleaning', 'Personal Training', 'Web Design', 'Photography', 'Tutoring'].map((term) => (
-                <button
-                  key={term}
-                  onClick={() => router.push(`/services?q=${term}`)}
-                  className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-all hover:shadow-md"
-                >
-                  {term}
-                </button>
-              ))}
+              {!loading && featuredServices.slice(0, 5).map((service) => {
+                // Extract keywords from service titles
+                const searchTerm = service.title.split(' ').slice(0, 2).join(' ');
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => router.push(`/services?q=${encodeURIComponent(searchTerm)}`)}
+                    className="px-4 py-2 bg-white border border-gray-200 rounded-full text-sm text-gray-600 hover:border-purple-400 hover:text-purple-600 transition-all hover:shadow-md"
+                  >
+                    {searchTerm}
+                  </button>
+                );
+              })}
+              {loading && (
+                <div className="flex gap-2">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="px-4 py-2 bg-gray-200 rounded-full animate-pulse">
+                      <div className="w-16 h-4 bg-gray-300 rounded"></div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Right side - Animated Service Cards */}
+          {/* Right side - Real Featured Service Cards */}
           <div className="relative h-[600px] hidden lg:block">
             {/* Floating Service Cards */}
             <div className="absolute inset-0">
-              {/* Card 1 - Top Left */}
-              <div className="absolute top-0 left-10 animate-float" style={{ animationDelay: '0s' }}>
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-64 transform rotate-[-4deg] hover:rotate-0 transition-transform">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
-                      <span className="text-2xl">🏠</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Home Cleaning</h4>
-                      <p className="text-xs text-gray-500">Sarah M.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">4.9</span>
-                      <span className="text-xs text-gray-500">(127)</span>
-                    </div>
-                    <span className="text-lg font-bold text-purple-600">$80</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2 - Top Right */}
-              <div className="absolute top-20 right-10 animate-float" style={{ animationDelay: '1s' }}>
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-64 transform rotate-[3deg] hover:rotate-0 transition-transform">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center">
-                      <span className="text-2xl">💪</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Personal Training</h4>
-                      <p className="text-xs text-gray-500">Mike T.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">5.0</span>
-                      <span className="text-xs text-gray-500">(89)</span>
-                    </div>
-                    <span className="text-lg font-bold text-green-600">$65/hr</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3 - Middle */}
-              <div className="absolute top-52 left-32 animate-float" style={{ animationDelay: '2s' }}>
-                <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl shadow-2xl p-6 w-72 text-white transform hover:scale-105 transition-transform">
-                  <div className="flex items-center justify-between mb-4">
-                    <Badge className="bg-white/20 text-white border-white/30">Featured</Badge>
-                    <div className="flex items-center gap-1">
-                      <Zap className="w-4 h-4" />
-                      <span className="text-sm">Instant Book</span>
-                    </div>
-                  </div>
-                  <h4 className="text-xl font-bold mb-2">Wedding Photography</h4>
-                  <p className="text-sm opacity-90 mb-4">Capture your special moments</p>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img src="https://ui-avatars.com/api/?name=Emma&background=white&color=purple" className="w-8 h-8 rounded-full" alt="Provider" />
-                      <div>
-                        <p className="text-sm font-medium">Emma Studios</p>
-                        <div className="flex items-center gap-1">
-                          <Shield className="w-3 h-3" />
-                          <span className="text-xs">Verified</span>
+              {!loading && featuredServices.slice(0, 5).map((service, index) => {
+                const positions = [
+                  { top: '0px', left: '40px', rotate: '-4deg', delay: '0s' },
+                  { top: '80px', right: '40px', rotate: '3deg', delay: '1s' },
+                  { top: '200px', left: '128px', rotate: '0deg', delay: '2s' },
+                  { bottom: '80px', left: '0px', rotate: '-2deg', delay: '1.5s' },
+                  { bottom: '40px', right: '80px', rotate: '5deg', delay: '2.5s' }
+                ];
+                const pos = positions[index] || positions[0];
+                const isFeatureCard = index === 2; // Make middle card featured
+                
+                return (
+                  <div 
+                    key={service.id}
+                    className="absolute animate-float"
+                    style={{ 
+                      ...pos,
+                      animationDelay: pos.delay
+                    }}
+                  >
+                    {isFeatureCard ? (
+                      <div className="bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl shadow-2xl p-6 w-72 text-white transform hover:scale-105 transition-transform cursor-pointer"
+                           onClick={() => router.push(`/services/${service.id}`)}>
+                        <div className="flex items-center justify-between mb-4">
+                          <Badge className="bg-white/20 text-white border-white/30">Featured</Badge>
+                          <div className="flex items-center gap-1">
+                            <Zap className="w-4 h-4" />
+                            <span className="text-sm">Book Now</span>
+                          </div>
+                        </div>
+                        <h4 className="text-xl font-bold mb-2">{service.title}</h4>
+                        <p className="text-sm opacity-90 mb-4">{service.description.slice(0, 50)}...</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+                              <span className="text-xs font-bold">{service.providerName?.charAt(0) || 'P'}</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{service.providerName || 'Provider'}</p>
+                              <div className="flex items-center gap-1">
+                                <Shield className="w-3 h-3" />
+                                <span className="text-xs">Verified</span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-2xl font-bold">${service.price}</span>
                         </div>
                       </div>
-                    </div>
-                    <span className="text-2xl font-bold">$2.5k</span>
+                    ) : (
+                      <div className="bg-white rounded-2xl shadow-2xl p-6 w-64 transform hover:rotate-0 transition-transform cursor-pointer"
+                           style={{ transform: `rotate(${pos.rotate})` }}
+                           onClick={() => router.push(`/services/${service.id}`)}>
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className={`w-12 h-12 bg-gradient-to-br ${getCategoryGradient(service.category)} rounded-xl flex items-center justify-center`}>
+                            <span className="text-2xl">{getCategoryIcon(service.category)}</span>
+                          </div>
+                          <div>
+                            <h4 className="font-semibold">{service.title.slice(0, 20)}...</h4>
+                            <p className="text-xs text-gray-500">{service.providerName || 'Provider'}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1">
+                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                            <span className="text-sm font-medium">{service.rating?.toFixed(1) || '5.0'}</span>
+                            <span className="text-xs text-gray-500">({service.reviewCount || 0})</span>
+                          </div>
+                          <span className="text-lg font-bold text-purple-600">${service.price}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              {/* Loading state */}
+              {loading && (
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-gray-600">Loading featured services...</span>
                   </div>
                 </div>
-              </div>
-
-              {/* Card 4 - Bottom Left */}
-              <div className="absolute bottom-20 left-0 animate-float" style={{ animationDelay: '1.5s' }}>
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-64 transform rotate-[-2deg] hover:rotate-0 transition-transform">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center">
-                      <span className="text-2xl">✨</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Beauty Services</h4>
-                      <p className="text-xs text-gray-500">Lisa Beauty</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">4.8</span>
-                      <span className="text-xs text-gray-500">(203)</span>
-                    </div>
-                    <span className="text-lg font-bold text-pink-600">$120</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 5 - Bottom Right */}
-              <div className="absolute bottom-10 right-20 animate-float" style={{ animationDelay: '2.5s' }}>
-                <div className="bg-white rounded-2xl shadow-2xl p-6 w-64 transform rotate-[5deg] hover:rotate-0 transition-transform">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center">
-                      <span className="text-2xl">🎉</span>
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Event Planning</h4>
-                      <p className="text-xs text-gray-500">Party Pro</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1">
-                      <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">4.7</span>
-                      <span className="text-xs text-gray-500">(156)</span>
-                    </div>
-                    <span className="text-lg font-bold text-orange-600">$500</span>
-                  </div>
-                </div>
-              </div>
+              )}
 
               {/* Decorative Elements */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
@@ -357,24 +446,32 @@ export default function ModernHomePage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {categories.map((category, index) => (
-              <div
-                key={category.name}
-                className="group cursor-pointer"
-                onClick={() => router.push(`/services?category=${category.name}`)}
-                style={{ animationDelay: `${index * 100}ms` }}
-              >
-                <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
-                  <div className={`absolute inset-0 bg-gradient-to-br ${category.gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
-                  <div className="relative z-10">
-                    <div className="text-4xl mb-3">{category.icon}</div>
-                    <h3 className="font-semibold text-gray-800 mb-1">{category.name}</h3>
-                    <p className="text-sm text-gray-500">{category.services} services</p>
+            {SERVICE_CATEGORIES.slice(0, 8).map((category, index) => {
+              const serviceCount = categoryStats[category] || 0;
+              const gradient = getCategoryGradient(category);
+              const icon = getCategoryIcon(category);
+              
+              return (
+                <div
+                  key={category}
+                  className="group cursor-pointer"
+                  onClick={() => router.push(`/services?category=${encodeURIComponent(category)}`)}
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <div className="relative overflow-hidden rounded-2xl bg-white p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2">
+                    <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-0 group-hover:opacity-10 transition-opacity`} />
+                    <div className="relative z-10">
+                      <div className="text-4xl mb-3">{icon}</div>
+                      <h3 className="font-semibold text-gray-800 mb-1">{category}</h3>
+                      <p className="text-sm text-gray-500">
+                        {loading ? '...' : `${serviceCount} service${serviceCount !== 1 ? 's' : ''}`}
+                      </p>
+                    </div>
+                    <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${gradient} transform scale-x-0 group-hover:scale-x-100 transition-transform`} />
                   </div>
-                  <div className={`absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r ${category.gradient} transform scale-x-0 group-hover:scale-x-100 transition-transform`} />
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

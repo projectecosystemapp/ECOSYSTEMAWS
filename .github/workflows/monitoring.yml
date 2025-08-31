@@ -1,0 +1,332 @@
+name: Application Monitoring
+
+on:
+  schedule:
+    # Run health checks every 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+    
+    steps:
+      - name: Set environment URLs
+        id: urls
+        run: |
+          if [[ "${{ matrix.environment }}" == "staging" ]]; then
+            echo "url=${{ secrets.STAGING_API_URL }}" >> $GITHUB_OUTPUT
+            echo "app_url=https://develop.${{ secrets.AMPLIFY_APP_ID }}.amplifyapp.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=${{ secrets.PROD_API_URL }}" >> $GITHUB_OUTPUT
+            echo "app_url=https://main.${{ secrets.AMPLIFY_APP_ID }}.amplifyapp.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check application health
+        id: health_check
+        run: |
+          echo "Checking ${{ matrix.environment }} environment..."
+          
+          # Check main application
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.urls.outputs.app_url }}" || echo "000")
+          echo "App status: $HTTP_STATUS"
+          
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "❌ Application is down (HTTP $HTTP_STATUS)"
+            echo "healthy=false" >> $GITHUB_OUTPUT
+            echo "app_status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Application is healthy"
+            echo "healthy=true" >> $GITHUB_OUTPUT
+            echo "app_status=$HTTP_STATUS" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check API health endpoint if available
+          API_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.urls.outputs.app_url }}/api/health" || echo "000")
+          echo "API health status: $API_STATUS"
+          echo "api_status=$API_STATUS" >> $GITHUB_OUTPUT
+
+      - name: Check response time
+        id: response_time
+        run: |
+          RESPONSE_TIME=$(curl -w "%{time_total}" -s -o /dev/null "${{ steps.urls.outputs.app_url }}")
+          echo "Response time: ${RESPONSE_TIME}s"
+          echo "response_time=$RESPONSE_TIME" >> $GITHUB_OUTPUT
+          
+          # Alert if response time > 5 seconds
+          if (( $(echo "$RESPONSE_TIME > 5.0" | bc -l) )); then
+            echo "⚠️ Slow response time detected: ${RESPONSE_TIME}s"
+            echo "slow_response=true" >> $GITHUB_OUTPUT
+          else
+            echo "slow_response=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Test critical user flows
+        if: steps.health_check.outputs.healthy == 'true'
+        run: |
+          echo "Testing critical user flows for ${{ matrix.environment }}..."
+          
+          # Test service listing page
+          SERVICES_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.urls.outputs.app_url }}/services")
+          echo "Services page: $SERVICES_STATUS"
+          
+          # Test provider listing page  
+          PROVIDERS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.urls.outputs.app_url }}/providers")
+          echo "Providers page: $PROVIDERS_STATUS"
+          
+          # Test auth pages
+          AUTH_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.urls.outputs.app_url }}/auth/signin")
+          echo "Auth page: $AUTH_STATUS"
+
+      - name: Create health check status
+        id: status
+        run: |
+          if [[ "${{ steps.health_check.outputs.healthy }}" == "true" ]]; then
+            echo "overall_status=✅ Healthy" >> $GITHUB_OUTPUT
+            echo "status_color=28a745" >> $GITHUB_OUTPUT
+          else
+            echo "overall_status=❌ Down" >> $GITHUB_OUTPUT  
+            echo "status_color=d73a49" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update status badge
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const environment = '${{ matrix.environment }}';
+            const status = '${{ steps.status.outputs.overall_status }}';
+            const color = '${{ steps.status.outputs.status_color }}';
+            const responseTime = '${{ steps.response_time.outputs.response_time }}';
+            
+            // Create status file
+            const statusData = {
+              environment,
+              status,
+              color,
+              responseTime,
+              lastCheck: new Date().toISOString(),
+              appStatus: '${{ steps.health_check.outputs.app_status }}',
+              apiStatus: '${{ steps.response_time.outputs.api_status }}'
+            };
+            
+            console.log(`Status for ${environment}:`, statusData);
+
+      - name: Alert on failure
+        if: steps.health_check.outputs.healthy == 'false'
+        run: |
+          echo "🚨 ALERT: ${{ matrix.environment }} environment is down!"
+          echo "Status: ${{ steps.health_check.outputs.app_status }}"
+          echo "URL: ${{ steps.urls.outputs.app_url }}"
+          echo "Time: $(date)"
+          
+          # Here you would typically send alerts to:
+          # - Slack
+          # - Discord  
+          # - Email
+          # - PagerDuty
+          # - Monitoring system
+
+  ssl-certificate-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [staging, production]
+    
+    steps:
+      - name: Set URLs
+        id: urls
+        run: |
+          if [[ "${{ matrix.environment }}" == "staging" ]]; then
+            echo "url=develop.${{ secrets.AMPLIFY_APP_ID }}.amplifyapp.com" >> $GITHUB_OUTPUT
+          else
+            echo "url=main.${{ secrets.AMPLIFY_APP_ID }}.amplifyapp.com" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check SSL certificate
+        run: |
+          echo "Checking SSL certificate for ${{ steps.urls.outputs.url }}..."
+          
+          # Check certificate expiration
+          CERT_INFO=$(echo | openssl s_client -servername "${{ steps.urls.outputs.url }}" -connect "${{ steps.urls.outputs.url }}":443 2>/dev/null | openssl x509 -noout -dates 2>/dev/null)
+          
+          if [[ -n "$CERT_INFO" ]]; then
+            echo "Certificate info:"
+            echo "$CERT_INFO"
+            
+            # Extract expiry date
+            EXPIRY_DATE=$(echo "$CERT_INFO" | grep "notAfter=" | cut -d= -f2)
+            echo "Certificate expires: $EXPIRY_DATE"
+            
+            # Check if expiry is within 30 days
+            EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s)
+            CURRENT_EPOCH=$(date +%s)
+            DAYS_UNTIL_EXPIRY=$(( (EXPIRY_EPOCH - CURRENT_EPOCH) / 86400 ))
+            
+            echo "Days until expiry: $DAYS_UNTIL_EXPIRY"
+            
+            if [[ $DAYS_UNTIL_EXPIRY -lt 30 ]]; then
+              echo "⚠️ Certificate expires in $DAYS_UNTIL_EXPIRY days!"
+            else
+              echo "✅ Certificate is valid"
+            fi
+          else
+            echo "❌ Could not retrieve certificate information"
+          fi
+
+  performance-monitoring:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: |
+          npm install -g lighthouse
+          npm install -g @lhci/cli
+
+      - name: Run Lighthouse audit
+        run: |
+          echo "Running Lighthouse audit..."
+          
+          # Audit production
+          lighthouse "https://main.${{ secrets.AMPLIFY_APP_ID }}.amplifyapp.com" \
+            --output json \
+            --output-path lighthouse-prod.json \
+            --chrome-flags="--headless --no-sandbox" \
+            --quiet
+
+      - name: Parse Lighthouse results
+        run: |
+          PERF_SCORE=$(cat lighthouse-prod.json | jq -r '.categories.performance.score * 100 | floor')
+          ACCESSIBILITY_SCORE=$(cat lighthouse-prod.json | jq -r '.categories.accessibility.score * 100 | floor')
+          
+          echo "Performance Score: $PERF_SCORE"
+          echo "Accessibility Score: $ACCESSIBILITY_SCORE"
+          
+          # Alert if scores drop below thresholds
+          if [[ $PERF_SCORE -lt 80 ]]; then
+            echo "⚠️ Performance score below threshold: $PERF_SCORE"
+          fi
+          
+          if [[ $ACCESSIBILITY_SCORE -lt 95 ]]; then
+            echo "⚠️ Accessibility score below threshold: $ACCESSIBILITY_SCORE"
+          fi
+
+      - name: Upload Lighthouse results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-monitoring-results
+          path: lighthouse-*.json
+          retention-days: 30
+
+  dependency-security-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        run: |
+          echo "Running security audit..."
+          
+          # Run npm audit and capture results
+          npm audit --json > audit-results.json || true
+          
+          # Parse results
+          TOTAL_VULNS=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.total // 0')
+          CRITICAL_VULNS=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.critical // 0')
+          HIGH_VULNS=$(cat audit-results.json | jq -r '.metadata.vulnerabilities.high // 0')
+          
+          echo "Total vulnerabilities: $TOTAL_VULNS"
+          echo "Critical vulnerabilities: $CRITICAL_VULNS"  
+          echo "High vulnerabilities: $HIGH_VULNS"
+          
+          # Alert on critical vulnerabilities
+          if [[ $CRITICAL_VULNS -gt 0 ]]; then
+            echo "🚨 Critical vulnerabilities found: $CRITICAL_VULNS"
+            exit 1
+          fi
+          
+          # Warn on high vulnerabilities
+          if [[ $HIGH_VULNS -gt 0 ]]; then
+            echo "⚠️ High severity vulnerabilities found: $HIGH_VULNS"
+          fi
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit-results
+          path: audit-results.json
+          retention-days: 30
+
+  summary:
+    runs-on: ubuntu-latest
+    needs: [health-check, ssl-certificate-check, performance-monitoring, dependency-security-check]
+    if: always()
+    
+    steps:
+      - name: Generate monitoring summary
+        run: |
+          echo "# Monitoring Summary - $(date)" > monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          # Health check results
+          echo "## Health Check Results" >> monitoring-summary.md
+          echo "- Staging: ${{ needs.health-check.result }}" >> monitoring-summary.md
+          echo "- Production: ${{ needs.health-check.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          # SSL check results  
+          echo "## SSL Certificate Check" >> monitoring-summary.md
+          echo "- Status: ${{ needs.ssl-certificate-check.result }}" >> monitoring-summary.md
+          echo "" >> monitoring-summary.md
+          
+          # Performance results
+          if [[ "${{ needs.performance-monitoring.result }}" != "skipped" ]]; then
+            echo "## Performance Monitoring" >> monitoring-summary.md
+            echo "- Status: ${{ needs.performance-monitoring.result }}" >> monitoring-summary.md
+            echo "" >> monitoring-summary.md
+          fi
+          
+          # Security results
+          if [[ "${{ needs.dependency-security-check.result }}" != "skipped" ]]; then
+            echo "## Security Check" >> monitoring-summary.md
+            echo "- Status: ${{ needs.dependency-security-check.result }}" >> monitoring-summary.md
+            echo "" >> monitoring-summary.md
+          fi
+          
+          # Overall status
+          if [[ "${{ needs.health-check.result }}" == "success" && "${{ needs.ssl-certificate-check.result }}" == "success" ]]; then
+            echo "## 🟢 Overall Status: All Systems Operational" >> monitoring-summary.md
+          else
+            echo "## 🔴 Overall Status: Issues Detected" >> monitoring-summary.md
+          fi
+
+      - name: Upload monitoring summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-summary
+          path: monitoring-summary.md
+          retention-days: 7

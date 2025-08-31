@@ -4,174 +4,119 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a service marketplace platform built with Next.js 14 (App Router) and AWS Amplify Gen2. The platform will connect service providers with customers across multiple categories (Services, Spaces, Events, Experiences) with an 8-10% commission structure.
+Service marketplace platform connecting providers with customers across multiple categories (Services, Spaces, Events, Experiences) with 8-10% commission structure. Built with Next.js 14 (App Router), TypeScript, and AWS Amplify Gen2.
 
 ## Development Commands
 
 ```bash
-# Install dependencies
-npm install
+# Development
+npm run dev                  # Start Next.js dev server (port 3000)
+npx ampx sandbox            # Start AWS Amplify sandbox (run in separate terminal)
 
-# Run development server
-npm run dev
+# Testing
+npm run test                # Run Vitest unit tests
+npm run test:ui             # Open Vitest UI for interactive testing
+npm run test:coverage       # Generate test coverage report
 
-# Build for production
-npm run build
+# Production
+npm run build               # Build for production
+npm run start               # Start production server
+npm run lint                # Run ESLint
 
-# Start production server
-npm run start
-
-# Run linting
-npm run lint
-
-# Deploy to AWS Amplify (requires AWS credentials)
-npx ampx pipeline-deploy --branch [branch-name] --app-id [app-id]
+# AWS Deployment
+npx ampx sandbox            # Local development with AWS sandbox
+npx ampx pipeline-deploy --branch [branch-name] --app-id [app-id]  # Deploy to AWS
 ```
 
-## Architecture Overview
+## High-level Architecture
 
-### Current Implementation
-- **Frontend**: Next.js 14 with App Router, TypeScript, React 18
-- **Backend**: AWS Amplify Gen2 backend with:
-  - Authentication via Cognito (email-based)
-  - GraphQL API via AppSync
-  - DynamoDB for data storage
-  - Public API key authorization (30-day expiration)
+### Frontend Architecture
+- **Next.js 14 App Router** with TypeScript, React 18
+- **Route Structure**:
+  - `/app/auth/*` - Authentication flows (login, register, signout)
+  - `/app/provider/*` - Provider dashboard and service management
+  - `/app/admin/*` - Admin dashboard for platform management
+  - `/app/bookings/*` - Booking flows and payment processing
+  - `/app/messages/*` - In-app messaging system
+- **UI Components**: Shadcn/UI components in `/components/ui/`
+- **State Management**: React hooks with AWS Amplify data stores
+- **Form Handling**: React Hook Form with Zod validation
 
-### Planned AWS Architecture
+### Backend Architecture (AWS Amplify Gen2)
+- **Authentication**: Amazon Cognito with email-based auth and user groups (Providers, Customers, Admins)
+- **Data Layer**: `/amplify/data/resource.ts` defines comprehensive GraphQL schema with:
+  - UserProfile, Service, Booking, Review, Transaction models
+  - Real-time subscriptions for live updates
+  - Public API key (30-day expiry) + UserPool auth modes
+- **Functions**: Lambda functions in `/amplify/functions/` (e.g., stripe-connect)
+- **Auth Triggers**: Pre-signup and post-confirmation hooks in `/amplify/auth/`
 
-#### Core Services Structure
-- **Frontend Layer**: AWS Amplify hosting, CloudFront CDN, S3 for static assets
-- **Authentication**: Amazon Cognito with Groups (Providers/Customers) and IAM roles
-- **API Layer**: 
-  - API Gateway (REST + WebSocket) for complex business logic
-  - AppSync for simple CRUD operations (hybrid approach)
-  - Lambda functions with Provisioned Concurrency for latency-sensitive operations
-- **Database**: 
-  - RDS PostgreSQL (primary relational data)
-  - DynamoDB (transaction logs, audit trails)
-  - ElastiCache Redis (caching)
-- **Real-time**: 
-  - API Gateway WebSocket APIs for messaging
-  - AWS IoT Core for future scaling (10k+ concurrent connections)
-  - SNS/SQS for asynchronous notifications
-- **Payments**: Stripe Connect integration via Lambda (8-10% commission)
-- **Location**: Amazon Location Service for maps/geocoding
-- **Search**: Amazon OpenSearch for advanced service/provider search
-- **Observability**: CloudWatch Logs, X-Ray for distributed tracing
+### Key API Integration Points
+- **Service API** (`/lib/api.ts`): CRUD operations for services, bookings, reviews
+- **Data Mappers** (`/lib/api/mappers.ts`): Transform between frontend/backend types
+- **Stripe Integration**: Payment processing with Stripe Connect (8% commission)
+- **Type Definitions** (`/lib/types.ts`): Comprehensive TypeScript interfaces
 
-#### Key Features to Implement
-1. **Booking System**: Real-time calendar with WebSocket updates
-2. **Commission Processing**: Automated 8% commission via Stripe webhooks
-3. **Multi-category Support**: Services, Spaces, Events, Experiences
-4. **Provider Profiles**: Verification system with 5-star reviews
-5. **Real-time Messaging**: In-app chat between providers and customers
-6. **Location Services**: Provider matching based on proximity
+### Testing Strategy
+- **Vitest Configuration** (`/vitest.config.ts`): Happy-DOM environment with React Testing Library
+- **Test Structure**: `/test/` directory with setup files
+- **Path Aliases**: `@/lib`, `@/components`, `@/app`, `@/amplify`
 
-## Project Structure
+## Current Implementation Status
 
-```
-/
-├── amplify/              # AWS Amplify backend configuration
-│   ├── auth/            # Cognito authentication setup
-│   ├── data/            # GraphQL schema and data models
-│   └── backend.ts       # Backend resource definitions
-├── app/                 # Next.js App Router pages
-│   ├── layout.tsx       # Root layout
-│   └── page.tsx         # Main page (currently Todo demo)
-├── public/              # Static assets
-└── amplify_outputs.json # Generated Amplify configuration (gitignored)
-```
+### ✅ Completed Features
+- Provider dashboard with service management (`/app/provider/*`)
+- Admin interfaces for users, services, bookings, analytics
+- Authentication system with Cognito integration
+- Comprehensive data models with relationships
+- Service CRUD operations with validation
+- Basic booking system structure
 
-## Data Models
-
-Current schema uses a simple Todo model. This needs to be replaced with:
-- User profiles (providers/customers)
-- Service listings
-- Bookings
-- Reviews
-- Transactions
-- Messages
-
-## Implementation Roadmap
-
-**Phase 1: Foundation (Current)**
-- ✅ AWS Amplify setup
-- ✅ Next.js application structure
-- ✅ Basic authentication configuration
-- 🔄 Replace Todo model with marketplace data models
-
-**Phase 2: Core Features**
-- User registration with role selection (provider/customer)
-- Service listing creation and management
-- Search and filter functionality
-- Booking system implementation
-
-**Phase 3: Advanced Features**
-- Stripe Connect integration
-- Real-time messaging system
+### 🔄 In Progress
+- Payment integration with Stripe Connect
+- Real-time messaging implementation
 - Review and rating system
-- Location-based services
+- Location-based service matching
 
-**Phase 4: Scale & Optimize**
-- Performance optimization
-- Security hardening
-- Analytics implementation
-- Multi-region deployment
+### Data Model Highlights
+The GraphQL schema (`/amplify/data/resource.ts`) includes:
+- **UserProfile**: Multi-role support (CUSTOMER, PROVIDER, BOTH, ADMIN) with verification
+- **Service**: Flexible pricing models, availability schedules, location types
+- **Booking**: Complete workflow from PENDING to COMPLETED with escrow support
+- **Transaction**: Payment tracking with platform fee calculations
+- **Review**: Two-way review system between customers and providers
+- **Message**: Real-time chat with conversation threading
+- **Dispute**: Conflict resolution workflow
 
-## Key Considerations
+## Security & Performance Considerations
 
-### Authentication Flow
-- Current: Email-based authentication only
-- Required: Add social logins, phone verification for providers
-- **Cognito Groups**: Create 'Providers' and 'Customers' groups with distinct IAM roles
-- JWT tokens will include group membership for role-based access control
+- **Authentication**: All provider/admin routes require Cognito authentication
+- **Authorization**: GraphQL resolvers enforce owner-based and group-based access
+- **Validation**: Zod schemas for form validation, server-side validation in Lambda
+- **Commission**: 8% platform fee automatically calculated in transactions
+- **Error Handling**: Comprehensive try-catch blocks with user-friendly error messages
+- **TypeScript**: Strict typing throughout for compile-time safety
 
-### Data Architecture
-- Transition from simple DynamoDB to RDS PostgreSQL for relational data
-- Keep DynamoDB for high-velocity transaction logs
-- Implement proper data partitioning for multi-tenancy
-- **GraphQL Schema Design**:
-  - Use @manyToMany for Service-Category relationships
-  - Define indexes on frequently queried fields (providerId, status, location)
-  - Consider using AppSync for simple CRUD, API Gateway for complex operations
+## Environment Variables Required
 
-### Lambda Configuration
-- **VPC Considerations**: Lambda functions in VPC will have longer cold starts
-- Use Provisioned Concurrency for payment processing and other latency-sensitive functions
-- Configure NAT Gateways for Lambda functions needing external API access (Stripe)
-- Apply IAM Least Privilege principle - each function gets minimal required permissions
+```env
+# AWS Configuration
+NEXT_PUBLIC_AWS_REGION=us-east-1
 
-### Payment Integration
-- Stripe Connect for marketplace payments
-- Implement split payments (92% to provider, 8% platform fee)
-- Store sensitive keys in AWS Secrets Manager
-- Webhook processing with idempotency checks
+# Stripe Keys
+STRIPE_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
 
-### Real-time Features
-- WebSocket connections for live updates
-- Implement connection pooling and rate limiting
-- Use SQS for reliable message delivery
-- Consider AWS IoT Core for scaling beyond 10k concurrent connections
+# App Configuration
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
-## Testing Approach
-- Unit tests for Lambda functions
-- Integration tests for API endpoints
-- E2E tests for critical user flows
-- Load testing before production launch
+## AWS Infrastructure Notes
 
-## Security Requirements
-- **API Protection**: Enable WAF for API Gateway with rate limiting
-- **Network Security**: Use VPC for database isolation with proper security groups
-- **IAM**: Implement Least Privilege principle, use IAM Access Analyzer
-- **Input Validation**: Use Zod/Yup for all API inputs to prevent injection attacks
-- **Dependency Management**: 
-  - Automated scanning with npm audit, Dependabot, or Snyk
-  - Regular dependency updates in CI/CD pipeline
-- **Monitoring & Compliance**:
-  - CloudTrail for audit logging
-  - GuardDuty for threat detection
-  - Structured JSON logging in Lambda functions
-  - CloudWatch alarms for unusual activity (4xx/5xx spikes)
-  - X-Ray for request tracing and performance monitoring
-- **Secrets Management**: AWS Secrets Manager for all API keys and credentials
+- **Cognito Groups**: Create 'Providers', 'Customers', 'Admins' groups with IAM roles
+- **API Gateway**: Use for complex business logic beyond AppSync capabilities
+- **Lambda VPC**: Consider cold start implications for payment processing functions
+- **DynamoDB Indexes**: Configure GSIs for providerId, status, location queries
+- **CloudWatch**: Set up alarms for 4xx/5xx error rate monitoring
+- **Secrets Manager**: Store all sensitive keys (Stripe, third-party APIs)

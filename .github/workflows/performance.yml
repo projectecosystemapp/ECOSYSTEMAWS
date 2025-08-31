@@ -1,0 +1,217 @@
+name: Performance Monitoring
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run performance tests weekly on Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+jobs:
+  lighthouse-ci:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3000/api
+
+      - name: Start application
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Install Lighthouse CI
+        run: npm install -g @lhci/cli@0.13.x
+
+      - name: Run Lighthouse CI
+        run: lhci autorun --upload.target=temporary-public-storage
+        env:
+          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
+
+      - name: Comment PR with Lighthouse results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = '.lighthouseci/lhr-*.json';
+            const glob = require('glob');
+            
+            const reports = glob.sync(path);
+            if (reports.length > 0) {
+              const report = JSON.parse(fs.readFileSync(reports[0]));
+              const scores = {
+                performance: Math.round(report.categories.performance.score * 100),
+                accessibility: Math.round(report.categories.accessibility.score * 100),
+                bestPractices: Math.round(report.categories['best-practices'].score * 100),
+                seo: Math.round(report.categories.seo.score * 100)
+              };
+              
+              const comment = `## 🔍 Lighthouse Performance Report
+              
+              | Category | Score |
+              |----------|-------|
+              | Performance | ${scores.performance}/100 |
+              | Accessibility | ${scores.accessibility}/100 |
+              | Best Practices | ${scores.bestPractices}/100 |
+              | SEO | ${scores.seo}/100 |
+              
+              ${scores.performance < 90 ? '⚠️ Performance score is below recommended threshold (90)' : '✅ Performance looks good!'}
+              ${scores.accessibility < 95 ? '⚠️ Accessibility could be improved' : '✅ Accessibility is excellent!'}
+              `;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+  bundle-analysis:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install bundle analyzer
+        run: npm install -g @next/bundle-analyzer
+
+      - name: Build with bundle analysis
+        run: |
+          ANALYZE=true npm run build
+        env:
+          ANALYZE: true
+
+      - name: Upload bundle analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analysis
+          path: |
+            .next/analyze/
+          retention-days: 30
+
+  load-testing:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Start application
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000 --timeout 60000
+
+      - name: Install Artillery
+        run: npm install -g artillery
+
+      - name: Create load test config
+        run: |
+          cat > loadtest.yml << 'EOF'
+          config:
+            target: 'http://localhost:3000'
+            phases:
+              - duration: 60
+                arrivalRate: 10
+                name: "Warm up"
+              - duration: 120  
+                arrivalRate: 50
+                name: "Sustained load"
+              - duration: 60
+                arrivalRate: 100
+                name: "Peak load"
+          scenarios:
+            - name: "Browse marketplace"
+              weight: 70
+              flow:
+                - get:
+                    url: "/"
+                - think: 2
+                - get:
+                    url: "/services"
+                - think: 3
+                - get:
+                    url: "/providers"
+            - name: "Service details"
+              weight: 30
+              flow:
+                - get:
+                    url: "/services"
+                - think: 1
+                - get:
+                    url: "/services/{{ $randomString() }}"
+                    expect:
+                      - statusCode: [200, 404]
+          EOF
+
+      - name: Run load test
+        run: |
+          artillery run loadtest.yml --output report.json
+          artillery report report.json --output report.html
+
+      - name: Upload load test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-test-results
+          path: |
+            report.json
+            report.html
+          retention-days: 30
+
+      - name: Check load test thresholds
+        run: |
+          if [ -f report.json ]; then
+            # Extract key metrics and fail if thresholds are exceeded
+            response_time_p95=$(cat report.json | jq -r '.aggregate.latency.p95')
+            error_rate=$(cat report.json | jq -r '.aggregate.errors | length')
+            
+            echo "P95 Response Time: ${response_time_p95}ms"
+            echo "Error Count: ${error_rate}"
+            
+            # Fail if P95 > 2000ms or any errors occurred
+            if [ "${response_time_p95}" -gt 2000 ] || [ "${error_rate}" -gt 0 ]; then
+              echo "❌ Load test thresholds exceeded!"
+              exit 1
+            else
+              echo "✅ Load test passed all thresholds"
+            fi
+          fi

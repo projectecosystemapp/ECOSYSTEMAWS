@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { signOut, getCurrentUser } from 'aws-amplify/auth';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import NotificationBadge from '@/components/notifications/NotificationBadge';
 import { 
   Home,
   User,
@@ -254,6 +255,14 @@ export default function UnifiedNav() {
                   </Button>
                 )}
               </div>
+
+              {/* Notifications */}
+              {user && (
+                <NotificationBadge 
+                  userEmail={user.signInDetails?.loginId || user.username}
+                  className="hidden sm:flex mr-2"
+                />
+              )}
 
               {/* Sign out button */}
               <Button

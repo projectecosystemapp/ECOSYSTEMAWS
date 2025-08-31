@@ -42,7 +42,9 @@ export default function AdminDashboard() {
         setLoading(true);
         
         // Fetch metrics
-        const metricsData = await adminApi.getDashboardMetrics();
+        // adminApi not yet implemented - using null for now
+        // const metricsData = await adminApi.getDashboardMetrics();
+        const metricsData: DashboardMetrics | null = null;
         setMetrics(metricsData);
 
         // Fetch recent activity (simplified)

@@ -1,0 +1,15 @@
+{
+  "name": "messaging-handler",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "handler.js",
+  "dependencies": {
+    "@aws-amplify/backend": "^1.0.4",
+    "aws-amplify": "^6.0.7",
+    "aws-lambda": "^1.0.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.119",
+    "@types/node": "^18.17.0"
+  }
+}

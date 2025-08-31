@@ -37,54 +37,79 @@ export default function ChatWindow({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Mark messages as read with enhanced API
+  const handleMarkAsRead = useCallback(async () => {
+    try {
+      const response = await fetch('/api/messaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'MARK_MESSAGES_READ',
+          data: { conversationId, userEmail: currentUserEmail },
+          userEmail: currentUserEmail
+        })
+      });
+      
+      if (!response.ok) {
+        console.error('Failed to mark messages as read');
+      }
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  }, [conversationId, currentUserEmail]);
+
   // Load conversation messages
   const loadMessages = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const conversationMessages = await messageApi.getConversationMessages(conversationId);
-      setMessages(conversationMessages as any);
+      setMessages(conversationMessages as Message[]);
+      
+      // Mark messages as read when loading
+      setTimeout(() => {
+        handleMarkAsRead();
+      }, 500);
     } catch (err) {
       console.error('Error loading messages:', err);
       setError('Failed to load messages');
     } finally {
       setLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, handleMarkAsRead]);
 
-  // Mark messages as read
-  const handleMarkAsRead = useCallback(async () => {
-    try {
-      await messageApi.markAsRead(conversationId, currentUserEmail);
-      // Update local state to reflect read status
-      setMessages(prevMessages => 
-        prevMessages.map(msg => 
-          msg.recipientEmail === currentUserEmail 
-            ? { ...msg, read: true }
-            : msg
-        )
-      );
-    } catch (error) {
-      console.error('Error marking messages as read:', error);
-    }
-  }, [conversationId, currentUserEmail]);
 
-  // Send message
-  const handleSendMessage = async (content: string) => {
+  // Send message with enhanced API
+  const handleSendMessage = async (content: string, attachments?: string[]) => {
     if (!content.trim()) return;
 
     setSending(true);
     try {
-      const newMessage = await messageApi.sendMessage({
-        senderEmail: currentUserEmail,
-        recipientEmail: otherParticipantEmail,
-        content: content.trim(),
-        bookingId,
-        serviceId
+      const response = await fetch('/api/messaging', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'SEND_MESSAGE',
+          data: {
+            senderEmail: currentUserEmail,
+            recipientEmail: otherParticipantEmail,
+            content: content.trim(),
+            messageType: attachments?.length ? 'FILE' : 'TEXT',
+            bookingId,
+            serviceId,
+            attachments: attachments || []
+          },
+          userEmail: currentUserEmail
+        })
       });
 
-      if (newMessage) {
-        setMessages(prev => [...prev, newMessage as any]);
+      if (!response.ok) {
+        throw new Error('Failed to send message');
+      }
+
+      const result = await response.json();
+      if (result.message) {
+        setMessages(prev => [...prev, result.message as Message]);
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -194,11 +219,12 @@ export default function ChatWindow({
         onMarkAsRead={handleMarkAsRead}
       />
 
-      {/* Message Input */}
+      {/* Message Input with file support */}
       <MessageInput
         onSendMessage={handleSendMessage}
         disabled={sending}
         placeholder={`Message ${displayName}...`}
+        supportAttachments={true}
       />
     </Card>
   );

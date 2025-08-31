@@ -529,6 +529,23 @@ export const messageApi = {
 };
 
 // Helper function to generate consistent conversation IDs
+// Helper function for formatting message timestamps
+export const formatMessageTime = (timestamp: string | Date): string => {
+  const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
 export const generateConversationId = (email1: string, email2: string): string => {
   const emails = [email1, email2].sort();
   return `${emails[0]}_${emails[1]}`;
@@ -551,8 +568,11 @@ export const providerApi = {
   },
   
   get: async (email: string) => {
-    const response = await client.models.UserProfile.get({ email });
-    return response.data;
+    // Get user by email - need to list and filter since get() expects ID
+    const response = await client.models.UserProfile.list({ 
+      filter: { email: { eq: email } }
+    });
+    return response.data?.[0] || null;
   },
   
   list: async (filter?: any) => {
@@ -568,27 +588,35 @@ export const providerApi = {
   },
   
   delete: async (email: string) => {
-    const response = await client.models.UserProfile.delete({ email });
+    // First get the user by email to get the ID
+    const userResponse = await client.models.UserProfile.list({ 
+      filter: { email: { eq: email } }
+    });
+    const user = userResponse.data?.[0];
+    if (!user) return null;
+    
+    // Now delete by ID
+    const response = await client.models.UserProfile.delete({ id: user.id });
     return response.data;
   },
 
   // Get provider by email
   getByEmail: async (email: string) => {
-    const response = await client.models.Provider.list({
+    const response = await client.models.UserProfile.list({
       filter: { email: { eq: email } }
     });
     return response.data?.[0];
   },
 
   // Update verification status
-  updateVerificationStatus: async (id: string, status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
-    const response = await client.models.Provider.update({ id, verificationStatus: status });
+  updateVerificationStatus: async (id: string, status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
+    const response = await client.models.UserProfile.update({ id, verificationStatus: status });
     return response.data;
   },
 
   // Get providers by verification status
-  listByVerificationStatus: async (status: 'PENDING' | 'APPROVED' | 'REJECTED') => {
-    const response = await client.models.Provider.list({
+  listByVerificationStatus: async (status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
+    const response = await client.models.UserProfile.list({
       filter: { verificationStatus: { eq: status } }
     });
     return response.data;
@@ -600,28 +628,29 @@ export const adminApi = {
   // Dashboard metrics
   getDashboardMetrics: async () => {
     try {
-      const [users, services, bookings, providers] = await Promise.all([
+      const [users, services, bookingsResponse, providers] = await Promise.all([
         userProfileApi.list(),
         serviceApi.list(),
         client.models.Booking.list(),
         providerApi.list()
       ]);
 
-      const totalRevenue = bookings?.reduce((sum, booking) => 
-        sum + (booking.totalAmount || 0), 0) || 0;
+      const bookings = bookingsResponse?.data || [];
+      const totalRevenue = bookings.reduce((sum, booking) => 
+        sum + (booking.amount || 0), 0);
       const platformCommission = totalRevenue * 0.08;
 
       return {
         totalUsers: users?.length || 0,
         totalServices: services?.length || 0,
-        totalBookings: bookings?.length || 0,
+        totalBookings: bookings.length,
         totalProviders: providers?.length || 0,
         totalRevenue,
         platformCommission,
         activeServices: services?.filter(s => s.active)?.length || 0,
-        pendingBookings: bookings?.filter(b => b.status === 'PENDING')?.length || 0,
-        completedBookings: bookings?.filter(b => b.status === 'COMPLETED')?.length || 0,
-        verifiedProviders: providers?.filter(p => p.verificationStatus === 'APPROVED')?.length || 0,
+        pendingBookings: bookings.filter(b => b.status === 'PENDING').length,
+        completedBookings: bookings.filter(b => b.status === 'COMPLETED').length,
+        verifiedProviders: providers?.filter(p => p.verificationStatus === 'VERIFIED')?.length || 0,
         pendingProviders: providers?.filter(p => p.verificationStatus === 'PENDING')?.length || 0
       };
     } catch (error) {
@@ -633,19 +662,22 @@ export const adminApi = {
   // User management
   getUsersWithStats: async () => {
     try {
-      const [users, bookings, services, reviews] = await Promise.all([
+      const [users, bookingsResponse, services, reviewsResponse] = await Promise.all([
         userProfileApi.list(),
         client.models.Booking.list(),
         serviceApi.list(),
         client.models.Review.list()
       ]);
 
+      const bookings = bookingsResponse?.data || [];
+      const reviews = reviewsResponse?.data || [];
+
       return users?.map(user => {
-        const userBookings = bookings?.filter(b => 
-          b.customerEmail === user.email || b.providerEmail === user.email) || [];
+        const userBookings = bookings.filter(b => 
+          b.customerEmail === user.email || b.providerEmail === user.email);
         const userServices = services?.filter(s => s.providerEmail === user.email) || [];
-        const userReviews = reviews?.filter(r => 
-          r.customerEmail === user.email || r.providerEmail === user.email) || [];
+        const userReviews = reviews.filter(r => 
+          r.reviewerEmail === user.email || r.revieweeEmail === user.email);
 
         return {
           ...user,
@@ -654,10 +686,10 @@ export const adminApi = {
           reviewsCount: userReviews.length,
           totalSpent: userBookings
             .filter(b => b.customerEmail === user.email)
-            .reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+            .reduce((sum, b) => sum + (b.amount || 0), 0),
           totalEarned: userBookings
             .filter(b => b.providerEmail === user.email)
-            .reduce((sum, b) => sum + ((b.totalAmount || 0) * 0.92), 0), // After commission
+            .reduce((sum, b) => sum + ((b.amount || 0) * 0.92), 0), // After commission
           lastActivity: user.updatedAt || user.createdAt
         };
       }) || [];
@@ -670,15 +702,18 @@ export const adminApi = {
   // Service management
   getServicesWithStats: async () => {
     try {
-      const [services, bookings, reviews] = await Promise.all([
+      const [services, bookingsResponse, reviewsResponse] = await Promise.all([
         serviceApi.list(),
         client.models.Booking.list(),
         client.models.Review.list()
       ]);
 
+      const bookings = bookingsResponse?.data || [];
+      const reviews = reviewsResponse?.data || [];
+
       return services?.map(service => {
-        const serviceBookings = bookings?.filter(b => b.serviceId === service.id) || [];
-        const serviceReviews = reviews?.filter(r => r.serviceId === service.id) || [];
+        const serviceBookings = bookings.filter(b => b.serviceId === service.id);
+        const serviceReviews = reviews.filter(r => r.serviceId === service.id);
         const averageRating = serviceReviews.length > 0 
           ? serviceReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / serviceReviews.length 
           : 0;
@@ -688,7 +723,7 @@ export const adminApi = {
           bookingsCount: serviceBookings.length,
           reviewsCount: serviceReviews.length,
           averageRating: Math.round(averageRating * 10) / 10,
-          totalRevenue: serviceBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+          totalRevenue: serviceBookings.reduce((sum, b) => sum + (b.amount || 0), 0),
           pendingBookings: serviceBookings.filter(b => b.status === 'PENDING').length,
           completedBookings: serviceBookings.filter(b => b.status === 'COMPLETED').length
         };
@@ -702,13 +737,15 @@ export const adminApi = {
   // Booking management
   getAllBookingsWithDetails: async () => {
     try {
-      const [bookings, services, users] = await Promise.all([
+      const [bookingsResponse, services, users] = await Promise.all([
         client.models.Booking.list(),
         serviceApi.list(),
         userProfileApi.list()
       ]);
 
-      return bookings?.map(booking => {
+      const bookings = bookingsResponse?.data || [];
+
+      return bookings.map(booking => {
         const service = services?.find(s => s.id === booking.serviceId);
         const customer = users?.find(u => u.email === booking.customerEmail);
         const provider = users?.find(u => u.email === booking.providerEmail);
@@ -718,8 +755,8 @@ export const adminApi = {
           service,
           customer,
           provider,
-          platformCommission: (booking.totalAmount || 0) * 0.08,
-          providerAmount: (booking.totalAmount || 0) * 0.92
+          platformCommission: (booking.amount || 0) * 0.08,
+          providerAmount: (booking.amount || 0) * 0.92
         };
       }) || [];
     } catch (error) {
@@ -731,19 +768,22 @@ export const adminApi = {
   // Provider management
   getProvidersWithStats: async () => {
     try {
-      const [providers, services, bookings, reviews] = await Promise.all([
+      const [providers, services, bookingsResponse, reviewsResponse] = await Promise.all([
         providerApi.list(),
         serviceApi.list(),
         client.models.Booking.list(),
         client.models.Review.list()
       ]);
 
+      const bookings = bookingsResponse?.data || [];
+      const reviews = reviewsResponse?.data || [];
+
       return providers?.map(provider => {
         const providerServices = services?.filter(s => s.providerEmail === provider.email) || [];
-        const providerBookings = bookings?.filter(b => b.providerEmail === provider.email) || [];
-        const providerReviews = reviews?.filter(r => r.providerEmail === provider.email) || [];
+        const providerBookings = bookings.filter(b => b.providerEmail === provider.email);
+        const providerReviews = reviews.filter(r => r.revieweeEmail === provider.email);
         
-        const totalRevenue = providerBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        const totalRevenue = providerBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
         const averageRating = providerReviews.length > 0 
           ? providerReviews.reduce((sum, r) => sum + (r.rating || 0), 0) / providerReviews.length 
           : 0;
@@ -770,15 +810,18 @@ export const adminApi = {
   // Analytics
   getAnalyticsData: async () => {
     try {
-      const [bookings, services, reviews, users] = await Promise.all([
+      const [bookingsResponse, services, reviewsResponse, users] = await Promise.all([
         client.models.Booking.list(),
         serviceApi.list(),
         client.models.Review.list(),
         userProfileApi.list()
       ]);
 
+      const bookings = bookingsResponse?.data || [];
+      const reviews = reviewsResponse?.data || [];
+
       // Revenue analytics
-      const totalRevenue = bookings?.reduce((sum, b) => sum + (b.totalAmount || 0), 0) || 0;
+      const totalRevenue = bookings.reduce((sum, b) => sum + (b.amount || 0), 0);
       const platformCommission = totalRevenue * 0.08;
 
       // Category performance
@@ -793,9 +836,9 @@ export const adminApi = {
         }
         acc[category].servicesCount++;
         
-        const serviceBookings = bookings?.filter(b => b.serviceId === service.id) || [];
+        const serviceBookings = bookings.filter(b => b.serviceId === service.id);
         acc[category].bookingsCount += serviceBookings.length;
-        acc[category].revenue += serviceBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+        acc[category].revenue += serviceBookings.reduce((sum, b) => sum + (b.amount || 0), 0);
         
         return acc;
       }, {} as Record<string, any>) || {};

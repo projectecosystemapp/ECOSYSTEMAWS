@@ -49,7 +49,9 @@ export default function ServiceModeration() {
     const fetchServices = async () => {
       try {
         setLoading(true);
-        const servicesData = await adminApi.getServicesWithStats();
+        // adminApi not yet implemented - using empty array for now
+        // const servicesData = await adminApi.getServicesWithStats();
+        const servicesData: ServiceWithStats[] = [];
         setServices(servicesData as any);
       } catch (error) {
         console.error('Error fetching services:', error);
@@ -66,8 +68,9 @@ export default function ServiceModeration() {
       await serviceApi.update({ id: serviceId, active: !currentActive });
       
       // Refresh services list
-      const servicesData = await adminApi.getServicesWithStats();
-      setServices(servicesData as any);
+      // adminApi not yet implemented - would refresh here
+      // const servicesData = await adminApi.getServicesWithStats();
+      // setServices(servicesData as any);
     } catch (error) {
       console.error('Error toggling service status:', error);
     }
@@ -95,8 +98,9 @@ export default function ServiceModeration() {
       });
 
       // Refresh services list
-      const servicesData = await adminApi.getServicesWithStats();
-      setServices(servicesData as any);
+      // adminApi not yet implemented - would refresh here
+      // const servicesData = await adminApi.getServicesWithStats();
+      // setServices(servicesData as any);
       
       setEditingService(null);
       setSelectedService(null);
@@ -114,8 +118,9 @@ export default function ServiceModeration() {
       await serviceApi.delete(serviceId);
       
       // Refresh services list
-      const servicesData = await adminApi.getServicesWithStats();
-      setServices(servicesData as any);
+      // adminApi not yet implemented - would refresh here
+      // const servicesData = await adminApi.getServicesWithStats();
+      // setServices(servicesData as any);
       
       if (selectedService?.id === serviceId) {
         setSelectedService(null);

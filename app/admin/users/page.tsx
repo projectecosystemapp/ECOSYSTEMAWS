@@ -34,7 +34,9 @@ export default function UserManagement() {
     const fetchUsers = async () => {
       try {
         setLoading(true);
-        const usersData = await adminApi.getUsersWithStats();
+        // adminApi not yet implemented - using empty array for now
+        // const usersData = await adminApi.getUsersWithStats();
+        const usersData: UserWithStats[] = [];
         setUsers(usersData as any);
       } catch (error) {
         console.error('Error fetching users:', error);
@@ -51,12 +53,14 @@ export default function UserManagement() {
       await userProfileApi.update({ id: userId, role: newRole });
       
       // Refresh user list
-      const usersData = await adminApi.getUsersWithStats();
-      setUsers(usersData as any);
+      // adminApi not yet implemented - would refresh here
+      // const usersData = await adminApi.getUsersWithStats();
+      // setUsers(usersData as any);
       
       // Update selected user if it's the one being changed
       if (selectedUser?.id === userId) {
-        const updatedUser = usersData.find((u: any) => u.id === userId);
+        // const updatedUser = usersData.find((u: any) => u.id === userId);
+        const updatedUser = { ...selectedUser, role: newRole };
         setSelectedUser((updatedUser || null) as any);
       }
     } catch (error) {

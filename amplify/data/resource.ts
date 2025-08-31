@@ -24,6 +24,13 @@ const schema = a.schema({
       businessType: a.enum(['INDIVIDUAL', 'BUSINESS']),
       stripeAccountId: a.string(),
       stripeOnboardingComplete: a.boolean().default(false),
+      stripeAccountStatus: a.enum(['PENDING', 'ACTIVE', 'RESTRICTED', 'REJECTED']),
+      stripeChargesEnabled: a.boolean().default(false),
+      stripePayoutsEnabled: a.boolean().default(false),
+      stripeDetailsSubmitted: a.boolean().default(false),
+      stripeRequirements: a.json(), // Store any pending requirements from Stripe
+      stripeCapabilities: a.json(), // Store enabled capabilities
+      stripeOnboardingUrl: a.url(), // Current onboarding link if needed
       verificationStatus: a.enum(['PENDING', 'VERIFIED', 'REJECTED']),
       verificationDocuments: a.string().array(),
       // Reputation

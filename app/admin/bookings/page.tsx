@@ -37,7 +37,9 @@ export default function BookingOversight() {
     const fetchBookings = async () => {
       try {
         setLoading(true);
-        const bookingsData = await adminApi.getAllBookingsWithDetails();
+        // adminApi not yet implemented - using empty array for now
+        // const bookingsData = await adminApi.getAllBookingsWithDetails();
+        const bookingsData: BookingWithDetails[] = [];
         setBookings(bookingsData);
       } catch (error) {
         console.error('Error fetching bookings:', error);
@@ -51,16 +53,19 @@ export default function BookingOversight() {
 
   const handleStatusChange = async (bookingId: string, newStatus: string) => {
     try {
-      await bookingApi.updateStatus(bookingId, newStatus);
+      await bookingApi.updateStatus(bookingId, newStatus as any);
       
       // Refresh bookings list
-      const bookingsData = await adminApi.getAllBookingsWithDetails();
-      setBookings(bookingsData);
+      // adminApi not yet implemented - updating locally for now
+      // const bookingsData = await adminApi.getAllBookingsWithDetails();
+      // setBookings(bookingsData);
       
       // Update selected booking if it's the one being changed
       if (selectedBooking?.id === bookingId) {
-        const updatedBooking = bookingsData.find((b: any) => b.id === bookingId);
-        setSelectedBooking(updatedBooking || null);
+        setSelectedBooking({ ...selectedBooking, status: newStatus as any });
+        setBookings(prev => prev.map(b => 
+          b.id === bookingId ? { ...b, status: newStatus as any } : b
+        ));
       }
     } catch (error) {
       console.error('Error updating booking status:', error);

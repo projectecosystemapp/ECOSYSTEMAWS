@@ -49,47 +49,45 @@ function withDefault<T>(value: T | null | undefined, defaultValue: T): T {
  */
 export function mapApiUserProfileToUserProfile(apiUser: ApiUserProfile): UserProfile {
   return {
+    id: apiUser.id,
     email: apiUser.email,
     firstName: nullToUndefined(apiUser.firstName),
     lastName: nullToUndefined(apiUser.lastName),
-    role: withDefault(apiUser.role, 'CUSTOMER'),
-    businessName: nullToUndefined(apiUser.businessName),
-    businessDescription: nullToUndefined(apiUser.businessDescription),
     phone: nullToUndefined(apiUser.phone),
-    profileImage: nullToUndefined(apiUser.profileImage),
-    coverImage: nullToUndefined(apiUser.coverImage),
-    location: nullToUndefined(apiUser.location),
+    role: withDefault(apiUser.role, 'CUSTOMER'),
+    profilePicture: nullToUndefined(apiUser.profilePicture),
+    bio: nullToUndefined(apiUser.bio),
     city: nullToUndefined(apiUser.city),
     state: nullToUndefined(apiUser.state),
-    zipCode: nullToUndefined(apiUser.zipCode),
+    country: nullToUndefined(apiUser.country),
+    postalCode: nullToUndefined(apiUser.postalCode),
     latitude: nullToUndefined(apiUser.latitude),
     longitude: nullToUndefined(apiUser.longitude),
-    servicesOffered: apiUser.servicesOffered?.filter(Boolean) ?? [],
-    specializations: apiUser.specializations?.filter(Boolean) ?? [],
-    yearsOfExperience: nullToUndefined(apiUser.yearsOfExperience),
-    certifications: apiUser.certifications?.filter(Boolean) ?? [],
-    insuranceVerified: withDefault(apiUser.insuranceVerified, false),
-    backgroundCheckCompleted: withDefault(apiUser.backgroundCheckCompleted, false),
-    identityVerified: withDefault(apiUser.identityVerified, false),
-    averageRating: withDefault(apiUser.averageRating, 0),
-    totalReviews: withDefault(apiUser.totalReviews, 0),
-    completedBookings: withDefault(apiUser.completedBookings, 0),
-    responseRate: nullToUndefined(apiUser.responseRate),
-    responseTime: nullToUndefined(apiUser.responseTime),
-    stripeAccountId: nullToUndefined(apiUser.stripeAccountId),
-    stripeAccountStatus: nullToUndefined(apiUser.stripeAccountStatus),
-    stripeOnboardingCompleted: withDefault(apiUser.stripeOnboardingCompleted, false),
-    notificationSettings: apiUser.notificationSettings ?? {},
-    availability: apiUser.availability ?? {},
-    socialLinks: apiUser.socialLinks ?? {},
-    languages: apiUser.languages?.filter(Boolean) ?? [],
     timezone: nullToUndefined(apiUser.timezone),
-    joinedAt: apiUser.joinedAt ?? new Date().toISOString(),
+    language: withDefault(apiUser.language, 'en'),
+    // Provider-specific fields
+    businessName: nullToUndefined(apiUser.businessName),
+    businessType: nullToUndefined(apiUser.businessType),
+    stripeAccountId: nullToUndefined(apiUser.stripeAccountId),
+    stripeOnboardingComplete: withDefault(apiUser.stripeOnboardingComplete, false),
+    verificationStatus: nullToUndefined(apiUser.verificationStatus),
+    verificationDocuments: apiUser.verificationDocuments?.filter((doc): doc is string => doc !== null) ?? [],
+    // Reputation
+    totalRatings: withDefault(apiUser.totalRatings, 0),
+    averageRating: withDefault(apiUser.averageRating, 0),
+    completedServices: withDefault(apiUser.completedServices, 0),
+    responseTime: nullToUndefined(apiUser.responseTime),
+    // Preferences
+    notificationPreferences: apiUser.notificationPreferences ?? {},
+    availabilitySettings: apiUser.availabilitySettings ?? {},
+    searchRadius: withDefault(apiUser.searchRadius, 10),
+    instantBooking: withDefault(apiUser.instantBooking, false),
+    // Account status
+    active: withDefault(apiUser.active, true),
     lastActive: nullToUndefined(apiUser.lastActive),
-    isActive: withDefault(apiUser.isActive, true),
-    isPremium: withDefault(apiUser.isPremium, false),
-    createdAt: apiUser.createdAt,
-    updatedAt: apiUser.updatedAt
+    joinedAt: nullToUndefined(apiUser.joinedAt),
+    createdAt: nullToUndefined(apiUser.createdAt),
+    updatedAt: nullToUndefined(apiUser.updatedAt)
   };
 }
 
@@ -100,45 +98,25 @@ export function mapApiUserProfileToUserProfile(apiUser: ApiUserProfile): UserPro
 export function mapApiServiceToService(apiService: ApiService): Service {
   return {
     id: apiService.id,
-    providerId: apiService.providerId,
-    providerEmail: apiService.providerEmail,
-    // Map providerEmail to providerName as a fallback
-    providerName: apiService.providerEmail.split('@')[0], // Extract username from email
     title: apiService.title,
     description: apiService.description,
-    category: withDefault(apiService.category, 'SERVICE'),
-    subcategory: nullToUndefined(apiService.subcategory),
-    tags: apiService.tags?.filter(Boolean) ?? [],
     price: withDefault(apiService.price, 0),
-    priceType: withDefault(apiService.priceType, 'FIXED'),
-    // Map serviceDuration to duration
-    duration: withDefault(apiService.serviceDuration, 60),
-    images: apiService.images?.filter(Boolean) ?? [],
-    video: nullToUndefined(apiService.video),
-    serviceLocation: nullToUndefined(apiService.serviceLocation),
-    serviceCity: nullToUndefined(apiService.serviceCity),
-    serviceState: nullToUndefined(apiService.serviceState),
-    serviceZipCode: nullToUndefined(apiService.serviceZipCode),
+    category: withDefault(apiService.category, 'SERVICE'),
+    providerName: apiService.providerEmail.split('@')[0], // Extract username from email
+    providerEmail: apiService.providerEmail,
+    duration: withDefault(apiService.minimumBookingTime, 60), // Use minimumBookingTime as duration
+    active: withDefault(apiService.active, true),
+    // Location fields
+    serviceAddress: nullToUndefined(apiService.address),
+    serviceCity: nullToUndefined(apiService.city),
+    serviceState: nullToUndefined(apiService.state),
+    serviceZipCode: nullToUndefined(apiService.postalCode),
     serviceRadius: nullToUndefined(apiService.serviceRadius),
     latitude: nullToUndefined(apiService.latitude),
     longitude: nullToUndefined(apiService.longitude),
-    availability: apiService.availability ?? {},
-    instantBooking: withDefault(apiService.instantBooking, false),
-    cancellationPolicy: nullToUndefined(apiService.cancellationPolicy),
-    requirements: nullToUndefined(apiService.requirements),
-    included: apiService.included?.filter(Boolean) ?? [],
-    excluded: apiService.excluded?.filter(Boolean) ?? [],
-    faqs: apiService.faqs ?? [],
-    minimumNotice: nullToUndefined(apiService.minimumNotice),
-    maximumBookingAdvance: nullToUndefined(apiService.maximumBookingAdvance),
-    totalBookings: withDefault(apiService.totalBookings, 0),
-    completedBookings: withDefault(apiService.completedBookings, 0),
-    averageRating: withDefault(apiService.averageRating, 0),
-    totalReviews: withDefault(apiService.totalReviews, 0),
-    featured: withDefault(apiService.featured, false),
-    active: withDefault(apiService.active, true),
-    createdAt: apiService.createdAt,
-    updatedAt: apiService.updatedAt
+    locationType: nullToUndefined(apiService.locationType),
+    createdAt: nullToUndefined(apiService.createdAt),
+    updatedAt: nullToUndefined(apiService.updatedAt)
   };
 }
 
@@ -215,23 +193,23 @@ export function mapApiBookingToBooking(apiBooking: ApiBooking): Booking {
     totalAmount: withDefault(apiBooking.amount, 0),
     platformFee: nullToUndefined(apiBooking.platformFee),
     providerEarnings: nullToUndefined(apiBooking.providerEarnings),
-    notes: nullToUndefined(apiBooking.customerNotes),
-    providerNotes: nullToUndefined(apiBooking.providerNotes),
+    notes: nullToUndefined(apiBooking.notes),
+    providerNotes: nullToUndefined(apiBooking.specialRequests),
     cancellationReason: nullToUndefined(apiBooking.cancellationReason),
     cancelledBy: nullToUndefined(apiBooking.cancelledBy),
     cancelledAt: nullToUndefined(apiBooking.cancelledAt),
     completedAt: nullToUndefined(apiBooking.completedAt),
     paymentIntentId: nullToUndefined(apiBooking.paymentIntentId),
     paymentStatus: nullToUndefined(apiBooking.paymentStatus),
-    refundAmount: nullToUndefined(apiBooking.refundAmount),
-    refundedAt: nullToUndefined(apiBooking.refundedAt),
-    location: nullToUndefined(apiBooking.serviceLocation),
-    reviewId: nullToUndefined(apiBooking.reviewId),
-    reviewed: withDefault(apiBooking.hasReview, false),
-    reminderSent: withDefault(apiBooking.reminderSent, false),
-    metadata: apiBooking.metadata ?? {},
-    createdAt: apiBooking.createdAt,
-    updatedAt: apiBooking.updatedAt
+    refundAmount: 0, // Not in current schema
+    refundedAt: undefined, // Not in current schema
+    location: nullToUndefined(apiBooking.locationAddress),
+    reviewId: nullToUndefined(apiBooking.customerReviewId),
+    reviewed: !!apiBooking.customerReviewId,
+    reminderSent: false, // Field not in schema
+    metadata: {}, // Not in current schema
+    createdAt: nullToUndefined(apiBooking.createdAt),
+    updatedAt: nullToUndefined(apiBooking.updatedAt)
   };
 }
 
@@ -255,13 +233,13 @@ export function mapApiReviewToReview(apiReview: ApiReview): Review {
     // Map 'response' to 'providerResponse'
     providerResponse: nullToUndefined(apiReview.response),
     providerResponseDate: nullToUndefined(apiReview.responseDate),
-    images: apiReview.images?.filter(Boolean) ?? [],
+    images: apiReview.images?.filter((img): img is string => img !== null) ?? [],
     verified: withDefault(apiReview.verified, false),
-    helpful: withDefault(apiReview.helpful, 0),
-    reported: withDefault(apiReview.reported, false),
-    hidden: withDefault(apiReview.hidden, false),
-    createdAt: apiReview.createdAt,
-    updatedAt: apiReview.updatedAt
+    helpful: 0, // Not in schema
+    reported: withDefault(apiReview.flagged, false),
+    hidden: !withDefault(apiReview.visible, true),
+    createdAt: nullToUndefined(apiReview.createdAt),
+    updatedAt: nullToUndefined(apiReview.updatedAt)
   };
 }
 
@@ -278,7 +256,7 @@ export function mapApiMessageToMessage(apiMessage: ApiMessage): Message {
     recipientEmail: apiMessage.recipientEmail,
     content: apiMessage.content,
     messageType: withDefault(apiMessage.messageType, 'TEXT'),
-    attachments: apiMessage.attachments?.filter(Boolean) ?? [],
+    attachments: apiMessage.attachments?.filter((att): att is string => att !== null) ?? [],
     bookingId: nullToUndefined(apiMessage.bookingId),
     serviceId: nullToUndefined(apiMessage.serviceId),
     read: withDefault(apiMessage.read, false),
@@ -286,10 +264,10 @@ export function mapApiMessageToMessage(apiMessage: ApiMessage): Message {
     edited: withDefault(apiMessage.edited, false),
     editedAt: nullToUndefined(apiMessage.editedAt),
     deleted: withDefault(apiMessage.deleted, false),
-    deletedAt: nullToUndefined(apiMessage.deletedAt),
-    metadata: apiMessage.metadata ?? {},
-    createdAt: apiMessage.createdAt,
-    updatedAt: apiMessage.updatedAt
+    deletedAt: undefined, // Not in schema
+    metadata: {}, // Not in schema
+    createdAt: nullToUndefined(apiMessage.createdAt),
+    updatedAt: nullToUndefined(apiMessage.updatedAt)
   };
 }
 
@@ -300,31 +278,31 @@ export function mapApiTransactionToTransaction(apiTransaction: ApiTransaction): 
   return {
     id: apiTransaction.id,
     bookingId: apiTransaction.bookingId,
-    serviceId: apiTransaction.serviceId,
+    serviceId: undefined, // Not in schema
     customerId: apiTransaction.customerId,
-    customerEmail: apiTransaction.customerEmail,
+    customerEmail: '', // Not in schema
     providerId: apiTransaction.providerId,
-    providerEmail: apiTransaction.providerEmail,
+    providerEmail: '', // Not in schema
     type: withDefault(apiTransaction.type, 'PAYMENT'),
     status: withDefault(apiTransaction.status, 'PENDING'),
     amount: withDefault(apiTransaction.amount, 0),
     currency: withDefault(apiTransaction.currency, 'USD'),
     platformFee: nullToUndefined(apiTransaction.platformFee),
-    providerEarnings: nullToUndefined(apiTransaction.providerEarnings),
-    stripePaymentIntentId: nullToUndefined(apiTransaction.stripePaymentIntentId),
-    stripeTransferId: nullToUndefined(apiTransaction.stripeTransferId),
-    stripeRefundId: nullToUndefined(apiTransaction.stripeRefundId),
-    paymentMethod: nullToUndefined(apiTransaction.paymentMethod),
-    last4: nullToUndefined(apiTransaction.last4),
-    receiptUrl: nullToUndefined(apiTransaction.receiptUrl),
-    escrowEnabled: withDefault(apiTransaction.escrowEnabled, false),
-    escrowReleaseDate: nullToUndefined(apiTransaction.escrowReleaseDate),
-    escrowReleaseConditions: apiTransaction.escrowReleaseConditions ?? {},
+    providerEarnings: nullToUndefined(apiTransaction.netAmount),
+    stripePaymentIntentId: nullToUndefined(apiTransaction.paymentIntentId),
+    stripeTransferId: nullToUndefined(apiTransaction.transferId),
+    stripeRefundId: nullToUndefined(apiTransaction.refundId),
+    paymentMethod: undefined, // Not in schema
+    last4: undefined, // Not in schema
+    receiptUrl: undefined, // Not in schema
+    escrowEnabled: false, // Not in schema
+    escrowReleaseDate: undefined, // Not in schema
+    escrowReleaseConditions: {}, // Not in schema
     metadata: apiTransaction.metadata ?? {},
-    failureReason: nullToUndefined(apiTransaction.failureReason),
+    failureReason: nullToUndefined(apiTransaction.description),
     processedAt: nullToUndefined(apiTransaction.processedAt),
-    createdAt: apiTransaction.createdAt,
-    updatedAt: apiTransaction.updatedAt
+    createdAt: nullToUndefined(apiTransaction.createdAt),
+    updatedAt: nullToUndefined(apiTransaction.updatedAt)
   };
 }
 
@@ -335,19 +313,19 @@ export function mapApiNotificationToNotification(apiNotification: ApiNotificatio
   return {
     id: apiNotification.id,
     userId: apiNotification.userId,
-    userEmail: apiNotification.userEmail,
+    userEmail: '', // Not in schema
     type: withDefault(apiNotification.type, 'INFO'),
     title: apiNotification.title,
     message: apiNotification.message,
     actionUrl: nullToUndefined(apiNotification.actionUrl),
-    actionLabel: nullToUndefined(apiNotification.actionLabel),
-    icon: nullToUndefined(apiNotification.icon),
+    actionLabel: nullToUndefined(apiNotification.actionText),
+    icon: undefined, // Not in schema
     read: withDefault(apiNotification.read, false),
     readAt: nullToUndefined(apiNotification.readAt),
-    metadata: apiNotification.metadata ?? {},
+    metadata: {}, // Not in schema
     expiresAt: nullToUndefined(apiNotification.expiresAt),
-    createdAt: apiNotification.createdAt,
-    updatedAt: apiNotification.updatedAt
+    createdAt: nullToUndefined(apiNotification.createdAt),
+    updatedAt: undefined // Not in schema
   };
 }
 

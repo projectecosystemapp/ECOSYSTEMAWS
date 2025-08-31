@@ -76,7 +76,8 @@ process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = 'pk_test_mock';
 
 // Suppress console errors during tests
 const originalError = console.error;
-beforeAll(() => {
+if (typeof (globalThis as any).beforeAll !== 'undefined') {
+  (globalThis as any).beforeAll(() => {
   console.error = (...args: any[]) => {
     if (
       typeof args[0] === 'string' &&
@@ -87,8 +88,11 @@ beforeAll(() => {
     }
     originalError.call(console, ...args);
   };
-});
+  });
+}
 
-afterAll(() => {
-  console.error = originalError;
-});
+if (typeof (globalThis as any).afterAll !== 'undefined') {
+  (globalThis as any).afterAll(() => {
+    console.error = originalError;
+  });
+}

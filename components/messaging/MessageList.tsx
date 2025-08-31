@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 import { Message, formatMessageTime, formatFullMessageTime } from '@/lib/types';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Download, Image, FileText, AlertCircle } from 'lucide-react';
 
 interface MessageListProps {
   messages: Message[];
@@ -89,14 +91,38 @@ export default function MessageList({
             <div className={`max-w-[70%] ${isOwnMessage ? 'order-2' : ''}`}>
               <div
                 className={`rounded-lg px-3 py-2 ${
-                  isOwnMessage
+                  message.messageType === 'SYSTEM'
+                    ? 'bg-yellow-50 text-yellow-800 border border-yellow-200'
+                    : isOwnMessage
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-900'
                 }`}
               >
+                {/* Message content */}
                 <p className="text-sm whitespace-pre-wrap break-words">
                   {message.content}
                 </p>
+                
+                {/* Attachments */}
+                {message.attachments && message.attachments.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {message.attachments.map((attachment, attachmentIndex) => (
+                      <AttachmentPreview
+                        key={attachmentIndex}
+                        url={attachment}
+                        isOwnMessage={isOwnMessage}
+                      />
+                    ))}
+                  </div>
+                )}
+                
+                {/* System message styling */}
+                {message.messageType === 'SYSTEM' && (
+                  <div className="flex items-center gap-1 text-xs opacity-75">
+                    <AlertCircle className="h-3 w-3" />
+                    <span>System message</span>
+                  </div>
+                )}
               </div>
               
               <div className={`flex items-center gap-1 mt-1 text-xs text-gray-500 ${
@@ -127,6 +153,74 @@ export default function MessageList({
         );
       })}
       <div ref={bottomRef} />
+    </div>
+  );
+}
+
+// Attachment preview component
+interface AttachmentPreviewProps {
+  url: string;
+  isOwnMessage: boolean;
+}
+
+function AttachmentPreview({ url, isOwnMessage }: AttachmentPreviewProps) {
+  const fileName = url.split('/').pop() || 'file';
+  const isPlaceholder = url.startsWith('placeholder://');
+  const actualFileName = isPlaceholder ? url.replace('placeholder://', '') : fileName;
+  
+  const isImage = /\.(jpg|jpeg|png|gif|webp)$/i.test(actualFileName);
+  
+  if (isImage && !isPlaceholder) {
+    return (
+      <div className="max-w-[200px]">
+        <img 
+          src={url} 
+          alt="Attachment" 
+          className="rounded-lg max-w-full h-auto cursor-pointer hover:opacity-90"
+          onClick={() => window.open(url, '_blank')}
+        />
+        <div className="text-xs mt-1 opacity-70">{actualFileName}</div>
+      </div>
+    );
+  }
+  
+  return (
+    <div className={`flex items-center gap-2 p-2 rounded border ${
+      isOwnMessage 
+        ? 'bg-white/10 border-white/20 text-white' 
+        : 'bg-white border-gray-200'
+    }`}>
+      {isImage ? (
+        <Image className="h-4 w-4 flex-shrink-0" />
+      ) : (
+        <FileText className="h-4 w-4 flex-shrink-0" />
+      )}
+      
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-medium truncate">
+          {actualFileName}
+        </div>
+        {isPlaceholder && (
+          <div className="text-xs opacity-60">
+            File upload pending
+          </div>
+        )}
+      </div>
+      
+      {!isPlaceholder && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className={`h-6 w-6 p-0 ${
+            isOwnMessage 
+              ? 'text-white hover:bg-white/10' 
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+          onClick={() => window.open(url, '_blank')}
+        >
+          <Download className="h-3 w-3" />
+        </Button>
+      )}
     </div>
   );
 }
