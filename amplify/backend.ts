@@ -10,6 +10,7 @@ import { bookingProcessor } from './functions/booking-processor/resource.js';
 import { messagingHandler } from './functions/messaging-handler/resource.js';
 import { notificationHandler } from './functions/notification-handler/resource.js';
 import { profileEventsFunction } from './functions/profile-events/resource.js';
+import { bedrockAiFunction } from './functions/bedrock-ai/resource.js';
 
 /**
  * AWS Amplify Backend Definition
@@ -42,7 +43,7 @@ import { profileEventsFunction } from './functions/profile-events/resource.js';
  * 1. messagingHandler: Manages conversation threads and message delivery
  * 2. notificationHandler: Processes push/email notifications for messages
  */
-const backend = defineBackend({
+defineBackend({
   auth,
   data,
   storage,
@@ -54,17 +55,5 @@ const backend = defineBackend({
   messagingHandler,
   notificationHandler,
   profileEventsFunction,
+  bedrockAiFunction,
 });
-
-// Configure DynamoDB Stream trigger for ProviderProfile changes
-backend.data.resources.tables['ProviderProfile'].addEventSourceMapping({
-  target: backend.profileEventsFunction.resources.lambda,
-  startingPosition: 'LATEST',
-  batchSize: 10,
-  maxBatchingWindowInSeconds: 5,
-});
-
-// Grant the profile events function read access to ProviderProfile table
-backend.data.resources.tables['ProviderProfile'].grantReadData(
-  backend.profileEventsFunction.resources.lambda
-);
