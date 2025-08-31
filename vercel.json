@@ -1,0 +1,11 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY": "pk_test_51RxWCID905P0bnNcQc985pyBmuLFRbouYDLFadXXaPpK3ECsCuHrzew8T1D0Lpkh8VblNLzEVGUfuTWv2HImM7hr00E4ECXRir",
+      "NEXT_PUBLIC_APP_URL": "https://marketplace-mvp.vercel.app"
+    }
+  }
+}

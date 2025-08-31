@@ -263,7 +263,7 @@ async function getRefundStatus(bookingId: string, headers: any) {
         status: booking.status,
         paymentStatus: booking.paymentStatus,
         refunds,
-        totalRefunded: refunds.reduce((sum, r) => sum + r.amount, 0),
+        totalRefunded: refunds.reduce((sum, r: any) => sum + (r.amount || 0), 0),
       }),
     };
   } catch (error) {
@@ -341,7 +341,7 @@ async function validateRefundEligibility(booking: any, refundAmount: number) {
 
   // Check for existing refunds
   const existingRefunds = await getRefundTransactions(booking.id || '');
-  const totalRefunded = existingRefunds.reduce((sum, r) => sum + r.amount, 0);
+  const totalRefunded = existingRefunds.reduce((sum, r: any) => sum + (r.amount || 0), 0);
   
   if (totalRefunded + refundAmount > booking.amount) {
     return { eligible: false, reason: 'Total refunds would exceed booking amount' };
