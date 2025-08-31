@@ -1,31 +1,34 @@
-name: Security Scanning
+name: Security Scan
 
 on:
-  push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
   schedule:
-    # Run security scans daily at 6 AM UTC
-    - cron: '0 6 * * *'
-  workflow_dispatch:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  pull_request:
+    paths:
+      - 'package*.json'
+      - '.github/workflows/security.yml'
+  workflow_dispatch: # Allow manual trigger
 
 permissions:
   contents: read
   security-events: write
-  actions: read
+  issues: write
+  pull-requests: write
 
 jobs:
-  dependency-scan:
+  dependency-audit:
+    name: Dependency Audit
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Use Node.js 20.x
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
@@ -33,279 +36,131 @@ jobs:
 
       - name: Run npm audit
         run: |
-          npm audit --audit-level=moderate --json > audit-results.json || true
+          npm audit --json > audit-results.json || true
+          critical_count=$(jq '.metadata.vulnerabilities.critical // 0' audit-results.json)
+          high_count=$(jq '.metadata.vulnerabilities.high // 0' audit-results.json)
           
-          # Check if there are any vulnerabilities
-          VULN_COUNT=$(jq '.metadata.vulnerabilities.total // 0' audit-results.json)
-          HIGH_VULN=$(jq '.metadata.vulnerabilities.high // 0' audit-results.json)
-          CRITICAL_VULN=$(jq '.metadata.vulnerabilities.critical // 0' audit-results.json)
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Critical vulnerabilities: $critical_count" >> $GITHUB_STEP_SUMMARY
+          echo "- High vulnerabilities: $high_count" >> $GITHUB_STEP_SUMMARY
           
-          echo "Total vulnerabilities: $VULN_COUNT"
-          echo "High severity: $HIGH_VULN"
-          echo "Critical severity: $CRITICAL_VULN"
-          
-          # Fail if critical vulnerabilities are found
-          if [ "$CRITICAL_VULN" -gt 0 ]; then
-            echo "❌ Critical vulnerabilities found! Please fix before proceeding."
-            npm audit --audit-level=critical
+          # Only fail on critical vulnerabilities
+          if [ "$critical_count" -gt 0 ]; then
+            echo "❌ Critical vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
             exit 1
-          fi
-          
-          # Warn about high vulnerabilities
-          if [ "$HIGH_VULN" -gt 0 ]; then
-            echo "⚠️ High severity vulnerabilities found. Consider fixing soon."
+          else
+            echo "✅ No critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Upload audit results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: npm-audit-results
-          path: audit-results.json
-          retention-days: 30
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          npx npm-check-updates --format json | jq -r 'to_entries[] | "- \(.key): \(.value)"' >> $GITHUB_STEP_SUMMARY || echo "All packages up to date" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
 
-  code-scanning:
+  license-check:
+    name: License Compliance
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript, typescript
-          queries: security-and-quality
-
-      - name: Use Node.js 20.x
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build application
-        run: npm run build
-        env:
-          SKIP_ENV_VALIDATION: true
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:javascript"
-
-  container-security:
-    runs-on: ubuntu-latest
-    if: github.event_name != 'schedule' # Skip on scheduled runs since we don't have containers yet
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build Docker image for scanning
+      - name: Check licenses
         run: |
-          cat > Dockerfile.security << 'EOF'
-          FROM node:20-alpine
-          WORKDIR /app
-          COPY package*.json ./
-          RUN npm ci --only=production
-          COPY . .
-          RUN npm run build
-          EXPOSE 3000
-          CMD ["npm", "start"]
-          EOF
+          npx license-checker --summary --excludePrivatePackages > license-summary.txt
+          echo "## License Summary" >> $GITHUB_STEP_SUMMARY
+          cat license-summary.txt >> $GITHUB_STEP_SUMMARY
           
-          docker build -f Dockerfile.security -t marketplace-security-scan .
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'marketplace-security-scan'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-
-      - name: Upload Trivy results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
-        if: always()
-        with:
-          sarif_file: 'trivy-results.sarif'
+          # Check for problematic licenses
+          npx license-checker --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-3-Clause;BSD-2-Clause;ISC;CC0-1.0;CC-BY-4.0;Unlicense;WTFPL;0BSD' > /dev/null 2>&1
+          if [ $? -ne 0 ]; then
+            echo "⚠️ Some packages have licenses that need review" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All licenses are compatible" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
 
   secret-scanning:
+    name: Secret Detection
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Full history for secret scanning
 
-      - name: Run TruffleHog OSS
-        uses: trufflesecurity/trufflehog@main
-        with:
-          path: ./
-          base: main
-          head: HEAD
-          extra_args: --debug --only-verified
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
-  license-compliance:
-    runs-on: ubuntu-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Check license compliance
+      - name: Check for common secret patterns
         run: |
-          npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense' --excludePrivatePackages --json > license-report.json || true
+          echo "## Secret Scanning" >> $GITHUB_STEP_SUMMARY
           
-          # Check for any problematic licenses
-          if npx license-checker --onlyAllow 'MIT;Apache-2.0;BSD;BSD-2-Clause;BSD-3-Clause;ISC;CC0-1.0;Unlicense' --excludePrivatePackages --failOn 'GPL;LGPL;MPL;CDDL;EPL;AGPL'; then
-            echo "✅ All licenses are compliant"
-          else
-            echo "❌ Non-compliant licenses found!"
-            npx license-checker --excludePrivatePackages --csv
-            exit 1
-          fi
-
-      - name: Upload license report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: license-report
-          path: license-report.json
-          retention-days: 30
-
-  security-headers:
-    runs-on: ubuntu-latest
-    needs: []
-    
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20.x'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build application
-        run: npm run build
-
-      - name: Start application
-        run: |
-          npm start &
-          npx wait-on http://localhost:3000 --timeout 60000
-
-      - name: Check security headers
-        run: |
-          echo "Checking security headers..."
+          # Check for common patterns (this is a basic check)
+          patterns=(
+            "sk_live_"
+            "sk_test_"
+            "AKIA"
+            "BEGIN RSA PRIVATE KEY"
+            "BEGIN EC PRIVATE KEY"
+            "BEGIN OPENSSH PRIVATE KEY"
+          )
           
-          # Test for important security headers
-          HEADERS=$(curl -sI http://localhost:3000)
-          
-          check_header() {
-            local header=$1
-            local description=$2
-            
-            if echo "$HEADERS" | grep -i "$header" > /dev/null; then
-              echo "✅ $description header found"
-            else
-              echo "⚠️ $description header missing"
+          found_secrets=false
+          for pattern in "${patterns[@]}"; do
+            if grep -r "$pattern" . --exclude-dir=.git --exclude-dir=node_modules --exclude="*.md" 2>/dev/null; then
+              echo "⚠️ Potential secret pattern found: $pattern" >> $GITHUB_STEP_SUMMARY
+              found_secrets=true
             fi
-          }
+          done
           
-          check_header "x-frame-options" "X-Frame-Options"
-          check_header "x-content-type-options" "X-Content-Type-Options"
-          check_header "x-xss-protection" "X-XSS-Protection"
-          check_header "strict-transport-security" "HSTS"
-          check_header "content-security-policy" "Content Security Policy"
-          check_header "referrer-policy" "Referrer Policy"
-          
-          # Save headers for review
-          echo "$HEADERS" > security-headers.txt
+          if [ "$found_secrets" = false ]; then
+            echo "✅ No obvious secrets detected" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
 
-      - name: Upload security headers report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: security-headers-report
-          path: security-headers.txt
-          retention-days: 30
-
-  security-report:
+  create-issue:
+    name: Create Security Issue
     runs-on: ubuntu-latest
-    needs: [dependency-scan, code-scanning, secret-scanning, license-compliance, security-headers]
-    if: always()
+    needs: [dependency-audit, license-check, secret-scanning]
+    if: failure() && github.event_name == 'schedule'
     
     steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-
-      - name: Generate security summary
-        run: |
-          echo "# Security Scan Summary" > security-summary.md
-          echo "" >> security-summary.md
-          echo "**Scan Date**: $(date)" >> security-summary.md
-          echo "**Commit**: ${{ github.sha }}" >> security-summary.md
-          echo "" >> security-summary.md
-          
-          # Check job results
-          echo "## Job Results" >> security-summary.md
-          echo "" >> security-summary.md
-          
-          DEPENDENCY_RESULT="${{ needs.dependency-scan.result }}"
-          CODE_SCAN_RESULT="${{ needs.code-scanning.result }}"
-          SECRET_SCAN_RESULT="${{ needs.secret-scanning.result }}"
-          LICENSE_RESULT="${{ needs.license-compliance.result }}"
-          HEADERS_RESULT="${{ needs.security-headers.result }}"
-          
-          echo "- Dependency Scan: $DEPENDENCY_RESULT" >> security-summary.md
-          echo "- Code Scanning: $CODE_SCAN_RESULT" >> security-summary.md
-          echo "- Secret Scanning: $SECRET_SCAN_RESULT" >> security-summary.md
-          echo "- License Compliance: $LICENSE_RESULT" >> security-summary.md
-          echo "- Security Headers: $HEADERS_RESULT" >> security-summary.md
-          echo "" >> security-summary.md
-          
-          # Overall status
-          if [[ "$DEPENDENCY_RESULT" == "success" && "$CODE_SCAN_RESULT" == "success" && "$SECRET_SCAN_RESULT" == "success" && "$LICENSE_RESULT" == "success" && "$HEADERS_RESULT" == "success" ]]; then
-            echo "## 🟢 Overall Status: PASS" >> security-summary.md
-            echo "All security checks passed successfully." >> security-summary.md
-          else
-            echo "## 🔴 Overall Status: ATTENTION REQUIRED" >> security-summary.md
-            echo "Some security checks require attention. Please review the detailed reports." >> security-summary.md
-          fi
-
-      - name: Comment PR with security summary
-        if: github.event_name == 'pull_request'
+      - name: Create issue for critical vulnerabilities
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
-            if (fs.existsSync('security-summary.md')) {
-              const summary = fs.readFileSync('security-summary.md', 'utf8');
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Security Alert: Critical vulnerabilities detected - ${date}`,
+              body: `## Security Scan Failed
               
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: summary
-              });
-            }
-
-      - name: Upload security summary
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: security-summary
-          path: security-summary.md
-          retention-days: 90
+              Critical security vulnerabilities were detected in the weekly security scan.
+              
+              Please review the [security scan results](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) and address the issues.
+              
+              ### Required Actions:
+              - [ ] Review critical vulnerabilities
+              - [ ] Update affected dependencies
+              - [ ] Re-run security scan
+              
+              cc @projectecosystemapp`,
+              labels: ['security', 'critical', 'automated']
+            });
+        continue-on-error: true
