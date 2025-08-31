@@ -1,6 +1,7 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource.js';
 import { data } from './data/resource.js';
+import { storage } from './storage/resource.js';
 import { stripeConnect } from './functions/stripe-connect/resource.js';
 import { stripeWebhook } from './functions/stripe-webhook/resource.js';
 import { payoutManager } from './functions/payout-manager/resource.js';
@@ -8,6 +9,7 @@ import { refundProcessor } from './functions/refund-processor/resource.js';
 import { bookingProcessor } from './functions/booking-processor/resource.js';
 import { messagingHandler } from './functions/messaging-handler/resource.js';
 import { notificationHandler } from './functions/notification-handler/resource.js';
+import { profileEventsFunction } from './functions/profile-events/resource.js';
 
 /**
  * AWS Amplify Backend Definition
@@ -40,9 +42,10 @@ import { notificationHandler } from './functions/notification-handler/resource.j
  * 1. messagingHandler: Manages conversation threads and message delivery
  * 2. notificationHandler: Processes push/email notifications for messages
  */
-defineBackend({
+const backend = defineBackend({
   auth,
   data,
+  storage,
   stripeConnect,
   stripeWebhook,
   payoutManager,
@@ -50,4 +53,18 @@ defineBackend({
   bookingProcessor,
   messagingHandler,
   notificationHandler,
+  profileEventsFunction,
 });
+
+// Configure DynamoDB Stream trigger for ProviderProfile changes
+backend.data.resources.tables['ProviderProfile'].addEventSourceMapping({
+  target: backend.profileEventsFunction.resources.lambda,
+  startingPosition: 'LATEST',
+  batchSize: 10,
+  maxBatchingWindowInSeconds: 5,
+});
+
+// Grant the profile events function read access to ProviderProfile table
+backend.data.resources.tables['ProviderProfile'].grantReadData(
+  backend.profileEventsFunction.resources.lambda
+);

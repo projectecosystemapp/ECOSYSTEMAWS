@@ -1,4 +1,5 @@
 import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
+import { profileEventsFunction } from "../functions/profile-events/resource";
 
 const schema = a.schema({
   // Enhanced User Profile (Both Customers and Providers)
@@ -457,7 +458,59 @@ const schema = a.schema({
       allow.groups(['Admins']),
       allow.owner(),
     ]),
-});
+
+  // Provider Profile Model - Enhanced marketplace profile
+  ProviderProfile: a
+    .model({
+      userId: a.id().required(),
+      // Business Information
+      businessName: a.string().required(),
+      bio: a.string(),
+      tagline: a.string(),
+      profileImageUrl: a.url(),
+      coverImageUrl: a.url(),
+      galleryImages: a.url().array(),
+      // Professional Details
+      yearsInBusiness: a.integer(),
+      certifications: a.string().array(),
+      specializations: a.string().array(),
+      languages: a.string().array(),
+      // Portfolio
+      portfolioItems: a.json(), // Array of portfolio items with images and descriptions
+      // Social Proof
+      socialLinks: a.json(), // Social media links
+      testimonials: a.json(), // Featured testimonials
+      // SEO
+      slug: a.string(), // URL-friendly identifier
+      keywords: a.string().array(),
+      // Status
+      profileComplete: a.boolean().default(false),
+      featured: a.boolean().default(false),
+      verified: a.boolean().default(false),
+      lastUpdated: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.owner().to(['create', 'read', 'update', 'delete']),
+      allow.publicApiKey().to(['read']),
+      allow.authenticated().to(['read']),
+    ]),
+
+  // AI Generation Route for Business Bio
+  generateBio: a
+    .generation({
+      aiModel: a.ai.model('Claude 3.5 Sonnet'),
+      systemPrompt: 'You are a helpful business assistant specializing in creating compelling and professional service provider bios. Based on the keywords and business details provided, write a engaging one-paragraph bio that highlights the provider\'s expertise, experience, and unique value proposition. Keep the tone professional yet approachable, and limit the response to 150-200 words.',
+    })
+    .arguments({
+      keywords: a.string(),
+      businessName: a.string(),
+      specializations: a.string().array(),
+      yearsExperience: a.integer(),
+    })
+    .returns(a.string())
+    .authorization((allow) => [allow.authenticated()]),
+})
+  .authorization((allow) => [allow.resource(profileEventsFunction)]);
 
 export type Schema = ClientSchema<typeof schema>;
 
