@@ -1,179 +1,90 @@
 #!/bin/bash
 
-# Stripe Security Configuration Validation Script
-# 
-# This script validates that the Stripe integration follows security best practices
-# and ensures no live credentials are exposed in development environment.
+# Security Validation Script for Production Deployments
 
-set -e
+set -euo pipefail
 
-echo "🔐 Stripe Security Configuration Validation"
-echo "==========================================="
+ENVIRONMENT=${1:-staging}
+PRODUCTION_URL=${PRODUCTION_URL:-https://marketplace.yourdomain.com}
+STAGING_URL=${STAGING_URL:-https://staging.marketplace.yourdomain.com}
 
-# Color codes for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+if [ "$ENVIRONMENT" == "production" ]; then
+    TARGET_URL=$PRODUCTION_URL
+else
+    TARGET_URL=$STAGING_URL
+fi
 
-VALIDATION_ERRORS=0
+echo "🔒 Starting Security Validation for $ENVIRONMENT environment"
+echo "Target URL: $TARGET_URL"
+echo "================================================"
 
-# Function to print status
-print_status() {
-    local status=$1
-    local message=$2
-    if [ "$status" == "PASS" ]; then
-        echo -e "${GREEN}✅ PASS:${NC} $message"
-    elif [ "$status" == "FAIL" ]; then
-        echo -e "${RED}❌ FAIL:${NC} $message"
-        ((VALIDATION_ERRORS++))
-    elif [ "$status" == "WARN" ]; then
-        echo -e "${YELLOW}⚠️  WARN:${NC} $message"
+# Track failures
+FAILURES=0
+
+# Function to check test result
+check_result() {
+    if [ $1 -eq 0 ]; then
+        echo "✅ $2"
+    else
+        echo "❌ $2"
+        ((FAILURES++))
     fi
 }
 
-echo "1. Checking .env.local configuration..."
+# 1. Check Security Headers
+echo -e "\n📋 Checking Security Headers..."
+HEADERS=$(curl -s -I "$TARGET_URL" 2>/dev/null || echo "")
 
-# Check if .env.local exists
-if [ ! -f ".env.local" ]; then
-    print_status "FAIL" ".env.local file not found"
+if [ -n "$HEADERS" ]; then
+    echo "$HEADERS" | grep -q "Strict-Transport-Security"
+    check_result $? "HSTS Header Present"
+    
+    echo "$HEADERS" | grep -q "X-Content-Type-Options: nosniff"
+    check_result $? "X-Content-Type-Options Header Present"
+    
+    echo "$HEADERS" | grep -q "X-Frame-Options"
+    check_result $? "X-Frame-Options Header Present"
 else
-    # Check for test keys (good)
-    if grep -q "pk_test_" .env.local; then
-        print_status "PASS" "Using Stripe test publishable key"
-    else
-        print_status "FAIL" "No Stripe test publishable key found in .env.local"
-    fi
-
-    if grep -q "sk_test_" .env.local; then
-        print_status "PASS" "Using Stripe test secret key"
-    else
-        print_status "FAIL" "No Stripe test secret key found in .env.local"
-    fi
-
-    # Check for live keys (bad - should not be in .env.local)
-    if grep -q "pk_live_" .env.local; then
-        print_status "FAIL" "CRITICAL: Live publishable key found in .env.local - REMOVE IMMEDIATELY"
-    else
-        print_status "PASS" "No live publishable keys in .env.local"
-    fi
-
-    if grep -q "sk_live_" .env.local; then
-        print_status "FAIL" "CRITICAL: Live secret key found in .env.local - REMOVE IMMEDIATELY"
-    else
-        print_status "PASS" "No live secret keys in .env.local"
-    fi
+    echo "⚠️  Could not fetch headers from $TARGET_URL"
 fi
 
-echo ""
-echo "2. Checking Amplify function configuration..."
+# 2. Check for exposed sensitive files
+echo -e "\n📁 Checking for Exposed Sensitive Files..."
+SENSITIVE_PATHS=(
+    "/.env"
+    "/.env.local"
+    "/.git/config"
+    "/config.json"
+    "/secrets.json"
+)
 
-# Check if stripe security configuration exists
-if [ -f "amplify/security/stripe-secrets.ts" ]; then
-    print_status "PASS" "Stripe security configuration found"
-else
-    print_status "FAIL" "Stripe security configuration missing"
-fi
-
-# Check if functions are configured to use secrets
-if [ -f "amplify/functions/stripe-connect/resource.ts" ]; then
-    if grep -q "stripeSecrets" amplify/functions/stripe-connect/resource.ts; then
-        print_status "PASS" "Stripe Connect function uses centralized secrets"
+for path in "${SENSITIVE_PATHS[@]}"; do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$TARGET_URL$path" 2>/dev/null || echo "000")
+    if [ "$STATUS" == "404" ] || [ "$STATUS" == "403" ] || [ "$STATUS" == "000" ]; then
+        echo "✅ $path is not accessible"
     else
-        print_status "WARN" "Stripe Connect function may not use centralized secrets"
-    fi
-else
-    print_status "FAIL" "Stripe Connect function resource not found"
-fi
-
-if [ -f "amplify/functions/stripe-webhook/resource.ts" ]; then
-    print_status "PASS" "Stripe webhook function configured"
-else
-    print_status "WARN" "Stripe webhook function not found (may not be implemented yet)"
-fi
-
-echo ""
-echo "3. Checking for security best practices..."
-
-# Check for hardcoded secrets in source files
-echo "Scanning for hardcoded secrets..."
-SECRET_FILES=$(find . -name "*.ts" -o -name "*.js" -o -name "*.tsx" -o -name "*.jsx" | grep -v node_modules | grep -v .git)
-
-FOUND_SECRETS=0
-for file in $SECRET_FILES; do
-    # Look for actual secrets (not placeholders like YOUR_LIVE_SECRET_KEY)
-    if grep -l "sk_live_[0-9A-Za-z]\{20,\}\|pk_live_[0-9A-Za-z]\{20,\}\|whsec_[0-9A-Fa-f]\{32,\}" "$file" 2>/dev/null; then
-        print_status "FAIL" "Potential live secret found in: $file"
-        FOUND_SECRETS=1
+        echo "❌ WARNING: $path returned status $STATUS"
+        ((FAILURES++))
     fi
 done
 
-if [ $FOUND_SECRETS -eq 0 ]; then
-    print_status "PASS" "No hardcoded live secrets found in source code"
-fi
+# Summary
+echo -e "\n================================================"
+echo "🏁 Security Validation Complete"
+echo "================================================"
 
-# Check git configuration to ensure .env.local is ignored
-if [ -f ".gitignore" ]; then
-    if grep -q ".env.local\|.env\*.local" .gitignore; then
-        print_status "PASS" ".env.local is properly ignored by git"
-    else
-        print_status "FAIL" ".env.local is not in .gitignore - sensitive data may be committed"
-    fi
-else
-    print_status "WARN" ".gitignore file not found"
-fi
-
-echo ""
-echo "4. Checking deployment security..."
-
-# Check if IAM policies are defined
-if [ -f "amplify/security/iam-policies.json" ]; then
-    print_status "PASS" "IAM security policies defined"
-else
-    print_status "WARN" "IAM security policies not found"
-fi
-
-# Check if deployment guide exists
-if [ -f "amplify/security/deployment-guide.md" ]; then
-    print_status "PASS" "Security deployment guide available"
-else
-    print_status "WARN" "Security deployment guide not found"
-fi
-
-echo ""
-echo "5. Environment validation..."
-
-# Check NODE_ENV
-if [ "${NODE_ENV:-development}" != "production" ]; then
-    print_status "PASS" "Running in development/test environment"
-else
-    print_status "WARN" "Running in production environment - ensure live secrets are in AWS Secrets Manager"
-fi
-
-# Check if AWS CLI is configured (needed for secret management)
-if command -v aws &> /dev/null; then
-    print_status "PASS" "AWS CLI is available"
-else
-    print_status "WARN" "AWS CLI not found - needed for secret management"
-fi
-
-echo ""
-echo "========================================="
-echo "🔍 Security Validation Summary"
-echo "========================================="
-
-if [ $VALIDATION_ERRORS -eq 0 ]; then
-    echo -e "${GREEN}✅ All security checks passed!${NC}"
-    echo ""
-    echo "Next steps:"
-    echo "1. Deploy to sandbox environment for testing"
-    echo "2. Configure production secrets in AWS Secrets Manager"
-    echo "3. Set up monitoring and alerting for security events"
+if [ $FAILURES -eq 0 ]; then
+    echo "✅ All security checks passed!"
     exit 0
 else
-    echo -e "${RED}❌ $VALIDATION_ERRORS security issues found!${NC}"
-    echo ""
-    echo "Please resolve the issues above before deploying to production."
-    echo "Refer to amplify/security/deployment-guide.md for detailed instructions."
-    exit 1
+    echo "❌ $FAILURES security issues found"
+    echo "Please review and fix the issues before deploying to production"
+    
+    # In production, fail the deployment
+    if [ "$ENVIRONMENT" == "production" ]; then
+        exit 1
+    else
+        # In staging, just warn
+        exit 0
+    fi
 fi

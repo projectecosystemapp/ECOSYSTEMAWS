@@ -1,7 +1,8 @@
-import type { Handler } from 'aws-lambda';
+import type { Handler, Context } from 'aws-lambda';
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../data/resource.js';
+import { createLogger } from '../utils/lambda-logger.js';
 
 // Configure Amplify for Lambda environment
 Amplify.configure(
@@ -47,8 +48,10 @@ interface SendEmailNotificationData {
   conversationId: string;
 }
 
-export const handler: Handler = async (event) => {
-  console.log('Notification handler event:', JSON.stringify(event, null, 2));
+export const handler: Handler = async (event, context: Context) => {
+  const logger = createLogger(context);
+  const startTime = Date.now();
+  logger.logInvocation(event);
 
   const { action, data }: NotificationEvent = event;
 
@@ -76,7 +79,9 @@ export const handler: Handler = async (event) => {
         throw new Error(`Unknown action: ${action}`);
     }
   } catch (error) {
-    console.error('Error in notification handler:', error);
+    const duration = Date.now() - startTime;
+    logger.error('Error in notification handler', error as Error);
+    logger.logCompletion(500, duration);
     return {
       statusCode: 500,
       body: JSON.stringify({
@@ -174,10 +179,11 @@ async function sendMessageEmailNotification(data: SendEmailNotificationData) {
   });
 
   // In production, this would use AWS SES
-  console.log('Sending email notification:', {
+  const logger = createLogger();
+  logger.info('Sending email notification', {
     to: recipientEmail,
     subject: `New message from ${senderName}`,
-    content: emailContent
+    hasContent: !!emailContent
   });
 
   // For now, just create an in-app notification as well
@@ -304,7 +310,8 @@ async function sendPushNotification(data: any) {
   // - Firebase Cloud Messaging (FCM) for Android
   // - Web Push API for web browsers
   
-  console.log('Push notification would be sent:', data);
+  const logger = createLogger();
+  logger.info('Push notification queued', { notificationType: data.type });
 
   return {
     statusCode: 200,

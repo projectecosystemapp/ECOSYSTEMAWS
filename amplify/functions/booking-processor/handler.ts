@@ -1,7 +1,8 @@
-import { APIGatewayProxyHandler } from 'aws-lambda';
+import { APIGatewayProxyHandler, Context } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, PutItemCommand, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
+import { createLogger } from '../utils/lambda-logger.js';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -30,13 +31,16 @@ const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
  * - Commission calculation validation
  * - Comprehensive audit logging
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log('Booking processor request received:', {
+export const handler: APIGatewayProxyHandler = async (event, context: Context) => {
+  const logger = createLogger(context);
+  const startTime = Date.now();
+  
+  logger.logInvocation(event);
+  logger.info('Booking processor request received', {
     httpMethod: event.httpMethod,
     path: event.path,
     sourceIP: event.requestContext.identity.sourceIp,
     requestId: event.requestContext.requestId,
-    timestamp: new Date().toISOString(),
   });
 
   const headers = {
