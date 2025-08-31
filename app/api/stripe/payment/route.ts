@@ -1,53 +1,94 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStripeLambdaUrl, isLambdaAvailable } from '@/lib/stripe-config';
+import { generateClient } from 'aws-amplify/data/server';
+import { type Schema } from '@/amplify/data/resource';
+import { cookies } from 'next/headers';
+
+const client = generateClient<Schema>({
+  authMode: 'apiKey',
+});
+
+// Get the Lambda function URL from environment
+const STRIPE_LAMBDA_URL = process.env.STRIPE_CONNECT_LAMBDA_URL || process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL;
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action = 'CREATE_PAYMENT_INTENT' } = body;
     
-    // Validate required fields for payment intent
+    // Validate we have the Lambda URL configured
+    if (!STRIPE_LAMBDA_URL) {
+      console.error('Stripe Lambda URL not configured');
+      return NextResponse.json(
+        { error: 'Payment system not configured. Please contact support.' },
+        { status: 503 }
+      );
+    }
+    
+    // For CREATE_PAYMENT_INTENT, ensure we have provider's Stripe account
     if (action === 'CREATE_PAYMENT_INTENT') {
-      const { amount, bookingId, customerId, providerId, providerStripeAccountId, serviceTitle } = body;
+      const { providerId, amount, bookingId } = body;
       
-      if (!amount || !bookingId || !customerId || !providerId || !providerStripeAccountId || !serviceTitle) {
+      if (!providerId || !amount || !bookingId) {
         return NextResponse.json(
-          { error: 'Missing required fields for payment intent' },
+          { error: 'Missing required fields' },
           { status: 400 }
         );
       }
+      
+      // Get provider's Stripe account ID from database
+      const { data: provider } = await client.models.UserProfile.get({ id: providerId });
+      
+      if (!provider?.stripeAccountId) {
+        return NextResponse.json(
+          { error: 'Provider has not completed payment setup' },
+          { status: 400 }
+        );
+      }
+      
+      // Add the Stripe account ID to the request
+      body.providerStripeAccountId = provider.stripeAccountId;
     }
     
-    // Use development mode if Lambda not available
-    if (!isLambdaAvailable()) {
-      return handleDevelopmentMode(body);
-    }
-    
-    // Forward request to Lambda function
-    const lambdaBody = { action, ...body };
-    const lambdaUrl = getStripeLambdaUrl();
-    const response = await fetch(lambdaUrl!, {
+    // Forward to Lambda function with all necessary data
+    const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.AMPLIFY_API_KEY || ''}`,
+        'x-api-key': process.env.AWS_API_KEY || '',
       },
-      body: JSON.stringify(lambdaBody),
+      body: JSON.stringify({
+        action,
+        ...body,
+      }),
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Lambda function returned ${response.status}: ${errorText}`);
+    if (!lambdaResponse.ok) {
+      const errorText = await lambdaResponse.text();
+      console.error('Lambda error:', errorText);
+      throw new Error(`Payment service error: ${lambdaResponse.status}`);
     }
     
-    const data = await response.json();
-    return NextResponse.json(data);
+    const result = await lambdaResponse.json();
+    
+    // If it's a successful payment intent creation, update the booking
+    if (action === 'CREATE_PAYMENT_INTENT' && result.paymentIntentId) {
+      const { bookingId } = body;
+      
+      // Update booking with payment intent ID
+      await client.models.Booking.update({
+        id: bookingId,
+        paymentIntentId: result.paymentIntentId,
+        paymentStatus: 'PENDING',
+      });
+    }
+    
+    return NextResponse.json(result);
     
   } catch (error) {
     console.error('Payment API error:', error);
     return NextResponse.json(
       { 
-        error: 'Internal server error',
+        error: 'Payment processing failed',
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -64,38 +105,4 @@ export async function OPTIONS(request: NextRequest) {
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
   });
-}
-
-// Development mode handler for testing without Lambda
-async function handleDevelopmentMode(body: any) {
-  const { action, amount = 100, bookingId = 'dev-booking' } = body;
-  
-  switch (action) {
-    case 'CREATE_PAYMENT_INTENT':
-      return NextResponse.json({
-        clientSecret: `pi_dev_${Date.now()}_secret_dev`,
-        paymentIntentId: `pi_dev_${Date.now()}`,
-        amount,
-        platformFee: Math.round(amount * 0.08),
-        providerAmount: Math.round(amount * 0.92),
-      });
-      
-    case 'PROCESS_REFUND':
-      return NextResponse.json({
-        refundId: `re_dev_${Date.now()}`,
-        amount: body.amount || amount,
-        status: 'succeeded',
-      });
-      
-    case 'CREATE_PAYOUT':
-      return NextResponse.json({
-        payoutId: `po_dev_${Date.now()}`,
-        amount: body.amount || amount,
-        arrivalDate: Math.floor(Date.now() / 1000) + 86400, // Tomorrow
-        status: 'in_transit',
-      });
-      
-    default:
-      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
-  }
 }
