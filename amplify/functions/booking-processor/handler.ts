@@ -387,16 +387,16 @@ async function getServiceDetails(serviceId: string) {
   if (!result.Item) return null;
 
   return {
-    id: result.Item.id?.S,
-    title: result.Item.title?.S,
-    providerId: result.Item.providerId?.S,
-    category: result.Item.category?.S,
+    id: result.Item.id?.S || '',
+    title: result.Item.title?.S || '',
+    providerId: result.Item.providerId?.S || '',
+    category: result.Item.category?.S || '',
     price: parseFloat(result.Item.price?.N || '0'),
-    priceType: result.Item.priceType?.S,
+    priceType: result.Item.priceType?.S || 'FIXED',
     currency: result.Item.currency?.S || 'USD',
     maxGroupSize: parseInt(result.Item.maxGroupSize?.N || '1'),
-    address: result.Item.address?.S,
-    active: result.Item.active?.BOOL,
+    address: result.Item.address?.S || '',
+    active: result.Item.active?.BOOL || false,
   };
 }
 
@@ -411,18 +411,18 @@ async function getProviderDetails(providerId: string) {
   if (!result.Item) return null;
 
   return {
-    id: result.Item.id?.S,
-    email: result.Item.email?.S,
-    stripeAccountId: result.Item.stripeAccountId?.S,
-    stripeOnboardingComplete: result.Item.stripeOnboardingComplete?.BOOL,
-    stripeAccountStatus: result.Item.stripeAccountStatus?.S,
+    id: result.Item.id?.S || '',
+    email: result.Item.email?.S || '',
+    stripeAccountId: result.Item.stripeAccountId?.S || '',
+    stripeOnboardingComplete: result.Item.stripeOnboardingComplete?.BOOL || false,
+    stripeAccountStatus: result.Item.stripeAccountStatus?.S || 'PENDING',
   };
 }
 
 async function checkBookingAvailability(serviceId: string, startDateTime: string, endDateTime: string) {
   // This would check against existing bookings and availability schedules
   // For now, assume available
-  return { available: true };
+  return { available: true, reason: 'Service is available' };
 }
 
 function calculateBookingPrice(service: any, startDateTime: string, endDateTime: string, groupSize: number) {
@@ -474,7 +474,7 @@ async function createBookingRecord(bookingData: any) {
     customerId: { S: bookingData.customerId },
     customerEmail: { S: bookingData.customerEmail },
     providerEmail: { S: bookingData.providerEmail },
-    customerPhone: bookingData.customerPhone ? { S: bookingData.customerPhone } : { NULL: true },
+    ...(bookingData.customerPhone ? { customerPhone: { S: bookingData.customerPhone } } : {}),
     startDateTime: { S: bookingData.startDateTime },
     endDateTime: { S: bookingData.endDateTime },
     duration: { N: Math.round((new Date(bookingData.endDateTime).getTime() - new Date(bookingData.startDateTime).getTime()) / (1000 * 60)).toString() },
@@ -486,7 +486,7 @@ async function createBookingRecord(bookingData: any) {
     providerEarnings: { N: bookingData.providerEarnings.toString() },
     currency: { S: 'USD' },
     groupSize: { N: bookingData.groupSize.toString() },
-    specialRequests: bookingData.specialRequests ? { S: bookingData.specialRequests } : { NULL: true },
+    ...(bookingData.specialRequests ? { specialRequests: { S: bookingData.specialRequests } } : {}),
     qrCode: { S: `qr_${bookingData.bookingId}` },
     qrCodeScanned: { BOOL: false },
     createdAt: { S: new Date().toISOString() },
@@ -514,13 +514,13 @@ async function getBooking(bookingId: string) {
   if (!result.Item) return null;
 
   return {
-    id: result.Item.id?.S,
-    status: result.Item.status?.S,
-    paymentStatus: result.Item.paymentStatus?.S,
-    paymentIntentId: result.Item.paymentIntentId?.S,
+    id: result.Item.id?.S || '',
+    status: result.Item.status?.S || 'PENDING',
+    paymentStatus: result.Item.paymentStatus?.S || 'PENDING',
+    paymentIntentId: result.Item.paymentIntentId?.S || '',
     amount: parseFloat(result.Item.amount?.N || '0'),
-    customerId: result.Item.customerId?.S,
-    providerId: result.Item.providerId?.S,
+    customerId: result.Item.customerId?.S || '',
+    providerId: result.Item.providerId?.S || '',
   };
 }
 
@@ -549,7 +549,7 @@ async function checkServiceAvailability(params: any, headers: any) {
         startDateTime,
         endDateTime,
         available: availability.available,
-        reason: availability.reason,
+        reason: availability.reason || 'No specific reason provided',
       }),
     };
   } catch (error) {

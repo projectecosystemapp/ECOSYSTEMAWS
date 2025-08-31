@@ -124,7 +124,7 @@ async function createInAppNotification(data: CreateNotificationData) {
     ...(actionText && { actionText }),
   };
 
-  const response = await client.models.Notification.create(notificationData);
+  const response = await client.models.Notification.create(notificationData as any);
 
   return {
     statusCode: 200,
@@ -218,9 +218,9 @@ async function markNotificationRead(notificationId: string, userId: string) {
 
   const response = await client.models.Notification.update({
     id: notificationId,
-    read: true,
-    readAt: new Date().toISOString()
-  });
+    read: true as any,
+    readAt: [new Date().toISOString()]
+  } as any);
 
   return {
     statusCode: 200,

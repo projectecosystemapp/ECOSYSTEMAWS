@@ -131,7 +131,7 @@ async function createConversationThread(data: ConversationThreadData) {
     ...(serviceId && { serviceId }),
   };
 
-  const response = await client.models.Message.create(systemMessage);
+  const response = await client.models.Message.create(systemMessage as any);
 
   return {
     statusCode: 200,
@@ -190,7 +190,7 @@ async function sendMessage(data: SendMessageData) {
     ...(serviceId && { serviceId }),
   };
 
-  const response = await client.models.Message.create(messageData);
+  const response = await client.models.Message.create(messageData as any);
 
   // Trigger notification (would normally be handled by EventBridge)
   await triggerMessageNotification(response.data);
@@ -212,8 +212,8 @@ async function markMessagesRead(data: MarkReadData) {
     filter: {
       conversationId: { eq: conversationId },
       recipientEmail: { eq: userEmail },
-      read: { eq: false }
-    }
+      read: { eq: false as any }
+    } as any
   });
 
   if (!unreadMessages.data || unreadMessages.data.length === 0) {
@@ -227,9 +227,9 @@ async function markMessagesRead(data: MarkReadData) {
   const updatePromises = unreadMessages.data.map(message =>
     client.models.Message.update({
       id: message.id,
-      read: true,
-      readAt: new Date().toISOString()
-    })
+      read: true as any,
+      readAt: [new Date().toISOString()]
+    } as any)
   );
 
   const results = await Promise.all(updatePromises);
@@ -341,8 +341,8 @@ async function getUnreadCount(userEmail: string) {
   const response = await client.models.Message.list({
     filter: {
       recipientEmail: { eq: userEmail },
-      read: { eq: false }
-    }
+      read: { eq: false as any }
+    } as any
   });
 
   return {
@@ -359,8 +359,8 @@ async function getConversationUnreadCount(conversationId: string, userEmail: str
     filter: {
       conversationId: { eq: conversationId },
       recipientEmail: { eq: userEmail },
-      read: { eq: false }
-    }
+      read: { eq: false as any }
+    } as any
   });
 
   return response.data?.length || 0;

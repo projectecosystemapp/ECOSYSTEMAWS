@@ -168,9 +168,9 @@ async function calculateProviderEarnings(providerId: string, headers: any) {
         totalEarnings += providerEarnings;
         bookingCount++;
         eligibleBookings.push({
-          bookingId: item.id?.S,
+          bookingId: item.id?.S || '',
           amount: providerEarnings,
-          completedAt: item.completedAt?.S,
+          completedAt: item.completedAt?.S || '',
         });
       }
     }
@@ -267,7 +267,7 @@ async function processInstantPayout(providerId: string, amount: number, headers:
       };
     }
 
-    const stripeAccountId = providerResult.Items[0].stripeAccountId.S;
+    const stripeAccountId = providerResult.Items[0].stripeAccountId?.S || '';
 
     // Create instant payout (higher fee)
     const payout = await stripe.payouts.create(
@@ -329,12 +329,12 @@ async function getPayoutHistory(providerId: string, headers: any) {
     );
 
     const payouts = result.Items?.map(item => ({
-      transactionId: item.id?.S,
+      transactionId: item.id?.S || '',
       amount: parseFloat(item.amount?.N || '0'),
-      status: item.status?.S,
-      createdAt: item.createdAt?.S,
-      processedAt: item.processedAt?.S,
-      description: item.description?.S,
+      status: item.status?.S || 'PENDING',
+      createdAt: item.createdAt?.S || '',
+      processedAt: item.processedAt?.S || '',
+      description: item.description?.S || '',
     })) || [];
 
     return {
@@ -370,9 +370,9 @@ async function getProvidersWithPendingEarnings() {
   );
 
   return result.Items?.map(item => ({
-    id: item.id?.S,
-    stripeAccountId: item.stripeAccountId?.S,
-    email: item.email?.S,
+    id: item.id?.S || '',
+    stripeAccountId: item.stripeAccountId?.S || '',
+    email: item.email?.S || '',
   })).filter(provider => provider.id && provider.stripeAccountId) || [];
 }
 
@@ -453,7 +453,7 @@ async function releaseEscrowFunds(providerId: string, totalAmount: number) {
         new UpdateItemCommand({
           TableName: BOOKING_TABLE,
           Key: {
-            id: { S: booking.id!.S },
+            id: { S: booking.id?.S || '' },
           },
           UpdateExpression: 'SET paymentStatus = :status, escrowReleaseDate = :releaseDate',
           ExpressionAttributeValues: {

@@ -157,7 +157,7 @@ async function handleAccountUpdated(event: Stripe.Event) {
     detailsSubmitted: account.details_submitted,
   });
 
-  const providerId = account.metadata?.providerId;
+  const providerId = account.metadata?.providerId || null;
   
   if (providerId) {
     // Determine account status
@@ -218,9 +218,9 @@ async function handlePaymentSucceeded(event: Stripe.Event) {
     bookingId: paymentIntent.metadata.bookingId,
   });
 
-  const bookingId = paymentIntent.metadata.bookingId;
-  const customerId = paymentIntent.metadata.customerId;
-  const providerId = paymentIntent.metadata.providerId;
+  const bookingId = paymentIntent.metadata?.bookingId || null;
+  const customerId = paymentIntent.metadata?.customerId || null;
+  const providerId = paymentIntent.metadata?.providerId || null;
 
   if (bookingId) {
     // Update booking status to confirmed
@@ -269,7 +269,7 @@ async function handlePaymentFailed(event: Stripe.Event) {
   
   console.log('Payment failed:', {
     paymentIntentId: paymentIntent.id,
-    lastPaymentError: paymentIntent.last_payment_error,
+    lastPaymentError: paymentIntent.last_payment_error?.message || 'No error message',
     bookingId: paymentIntent.metadata.bookingId,
   });
 
@@ -306,7 +306,7 @@ async function handlePaymentCreated(event: Stripe.Event) {
     bookingId: paymentIntent.metadata.bookingId,
   });
 
-  const bookingId = paymentIntent.metadata.bookingId;
+  const bookingId = paymentIntent.metadata?.bookingId || null;
   if (bookingId) {
     // Update booking with payment intent ID
     await dynamodb.send(
@@ -425,12 +425,13 @@ async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   
   console.log('Invoice payment succeeded:', {
     invoiceId: invoice.id,
-    subscriptionId: invoice.subscription,
+    subscriptionId: (invoice as any).subscription || null,
     amount: invoice.amount_paid,
   });
 
   // Update subscription record if needed
-  if (invoice.subscription && invoice.metadata?.customerId) {
+  const subscriptionId = (invoice as any).subscription;
+  if (subscriptionId && invoice.metadata?.customerId) {
     // This would update UserSubscription table
     // Implementation depends on subscription tracking needs
   }
@@ -445,7 +446,7 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
   console.log('Subscription updated:', {
     subscriptionId: subscription.id,
     status: subscription.status,
-    customerId: subscription.customer,
+    customerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || 'unknown',
   });
 
   // Update UserSubscription table based on Stripe subscription changes

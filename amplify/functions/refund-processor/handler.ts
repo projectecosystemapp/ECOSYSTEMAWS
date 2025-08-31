@@ -128,7 +128,7 @@ async function processRefund(bookingId: string, params: any, headers: any) {
     const stripeRefund = await stripe.refunds.create({
       payment_intent: booking.paymentIntentId,
       amount: Math.round(refundBreakdown.customerRefund * 100), // Convert to cents
-      reason: mapRefundReason(reason),
+      reason: mapRefundReason(reason) as Stripe.RefundCreateParams.Reason,
       metadata: {
         bookingId,
         refundType,
@@ -309,17 +309,17 @@ async function getBookingDetails(bookingId: string) {
   if (!result.Item) return null;
 
   return {
-    id: result.Item.id?.S,
-    customerId: result.Item.customerId?.S,
-    providerId: result.Item.providerId?.S,
+    id: result.Item.id?.S || '',
+    customerId: result.Item.customerId?.S || '',
+    providerId: result.Item.providerId?.S || '',
     amount: parseFloat(result.Item.amount?.N || '0'),
     platformFee: parseFloat(result.Item.platformFee?.N || '0'),
     providerEarnings: parseFloat(result.Item.providerEarnings?.N || '0'),
-    paymentIntentId: result.Item.paymentIntentId?.S,
-    status: result.Item.status?.S,
-    paymentStatus: result.Item.paymentStatus?.S,
-    startDateTime: result.Item.startDateTime?.S,
-    cancellationPolicy: result.Item.cancellationPolicy?.S,
+    paymentIntentId: result.Item.paymentIntentId?.S || '',
+    status: result.Item.status?.S || 'PENDING',
+    paymentStatus: result.Item.paymentStatus?.S || 'PENDING',
+    startDateTime: result.Item.startDateTime?.S || new Date().toISOString(),
+    cancellationPolicy: result.Item.cancellationPolicy?.S || 'MODERATE',
   };
 }
 
@@ -340,7 +340,7 @@ async function validateRefundEligibility(booking: any, refundAmount: number) {
   }
 
   // Check for existing refunds
-  const existingRefunds = await getRefundTransactions(booking.id);
+  const existingRefunds = await getRefundTransactions(booking.id || '');
   const totalRefunded = existingRefunds.reduce((sum, r) => sum + r.amount, 0);
   
   if (totalRefunded + refundAmount > booking.amount) {
@@ -365,8 +365,8 @@ function calculateRefundBreakdown(booking: any, refundAmount: number, providerCo
   };
 }
 
-function mapRefundReason(reason: string): string {
-  const reasonMap: { [key: string]: string } = {
+function mapRefundReason(reason: string): Stripe.RefundCreateParams.Reason {
+  const reasonMap: { [key: string]: Stripe.RefundCreateParams.Reason } = {
     'customer_request': 'requested_by_customer',
     'service_not_provided': 'requested_by_customer',
     'quality_issue': 'requested_by_customer',
@@ -435,13 +435,13 @@ async function createRefundTransaction(params: any) {
 async function processProviderCompensation(booking: any, compensationAmount: number) {
   // This would create a separate transaction for provider compensation
   // Could be implemented as an immediate transfer or held for next payout
-  console.log(`Provider compensation of $${compensationAmount} processed for booking ${booking.id}`);
+  console.log(`Provider compensation of $${compensationAmount} processed for booking ${booking.id || 'unknown'}`);
 }
 
 async function sendRefundNotifications(booking: any, refundBreakdown: any, reason: string) {
   // This would integrate with a notification service
   // Send emails/push notifications to customer and provider
-  console.log(`Refund notifications sent for booking ${booking.id}`);
+  console.log(`Refund notifications sent for booking ${booking.id || 'unknown'}`);
 }
 
 async function getRefundTransactions(bookingId: string) {
