@@ -37,5 +37,6 @@ next-env.d.ts
 
 # amplify
 .amplify
-amplify_outputs*
+# amplify_outputs.json is needed for deployment
+# amplify_outputs*
 amplifyconfiguration*

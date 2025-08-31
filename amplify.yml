@@ -7,10 +7,12 @@ frontend:
     build:
       commands:
         - npm run build
+        - cp amplify_outputs.json .next/
   artifacts:
     baseDirectory: .next
     files:
       - '**/*'
+      - '../amplify_outputs.json'
   cache:
     paths:
       - node_modules/**/*
