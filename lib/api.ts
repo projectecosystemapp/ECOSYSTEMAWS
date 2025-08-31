@@ -247,7 +247,7 @@ export const reviewApi = {
   },
 
   getByBooking: async (bookingId: string) => {
-    const response = await client.models.Review.list({
+    const response = await getClient().models.Review.list({
       filter: { bookingId: { eq: bookingId } }
     });
     return response.data[0]; // Should only be one review per booking

@@ -412,7 +412,7 @@ export const reviewApi = {
         comment: data.comment
       };
 
-      const response = await client.models.Review.create(apiData);
+      const response = await getClient().models.Review.create(apiData);
       
       if (response.data) {
         return mapApiReviewToReview(response.data);
@@ -430,7 +430,7 @@ export const reviewApi = {
    */
   listByService: async (serviceId: string): Promise<Review[]> => {
     try {
-      const response = await client.models.Review.list({
+      const response = await getClient().models.Review.list({
         filter: { serviceId: { eq: serviceId } }
       });
       
@@ -450,7 +450,7 @@ export const reviewApi = {
    */
   listByCustomer: async (customerEmail: string): Promise<Review[]> => {
     try {
-      const response = await client.models.Review.list({
+      const response = await getClient().models.Review.list({
         filter: { reviewerEmail: { eq: customerEmail } }
       });
       
@@ -470,7 +470,7 @@ export const reviewApi = {
    */
   listByProvider: async (providerEmail: string): Promise<Review[]> => {
     try {
-      const response = await client.models.Review.list({
+      const response = await getClient().models.Review.list({
         filter: { revieweeEmail: { eq: providerEmail } }
       });
       
@@ -493,7 +493,7 @@ export const reviewApi = {
     providerResponse: string
   ): Promise<Review | null> => {
     try {
-      const response = await client.models.Review.update({
+      const response = await getClient().models.Review.update({
         id,
         response: providerResponse,
         responseDate: new Date().toISOString()
@@ -555,7 +555,7 @@ export const reviewApi = {
       }
 
       // Check if review already exists
-      const reviews = await client.models.Review.list({
+      const reviews = await getClient().models.Review.list({
         filter: { bookingId: { eq: bookingId } }
       });
 

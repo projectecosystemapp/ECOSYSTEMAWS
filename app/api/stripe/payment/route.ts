@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { generateClient } from 'aws-amplify/data/server';
+import { generateClient } from 'aws-amplify/data';
 import { type Schema } from '@/amplify/data/resource';
-import { cookies } from 'next/headers';
-
-const client = generateClient<Schema>({
-  authMode: 'apiKey',
-});
 
 // Get the Lambda function URL from environment
 const STRIPE_LAMBDA_URL = process.env.STRIPE_CONNECT_LAMBDA_URL || process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL;
 
 export async function POST(request: NextRequest) {
   try {
+    const client = generateClient<Schema>();
+    
     const body = await request.json();
     const { action = 'CREATE_PAYMENT_INTENT' } = body;
     
@@ -49,7 +46,7 @@ export async function POST(request: NextRequest) {
       body.providerStripeAccountId = provider.stripeAccountId;
     }
     
-    // Forward to Lambda function with all necessary data
+    // Forward request to Lambda function
     const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
       method: 'POST',
       headers: {
@@ -57,15 +54,18 @@ export async function POST(request: NextRequest) {
         'x-api-key': process.env.AWS_API_KEY || '',
       },
       body: JSON.stringify({
-        action,
         ...body,
+        action,
       }),
     });
     
     if (!lambdaResponse.ok) {
       const errorText = await lambdaResponse.text();
-      console.error('Lambda error:', errorText);
-      throw new Error(`Payment service error: ${lambdaResponse.status}`);
+      console.error('Lambda function error:', errorText);
+      return NextResponse.json(
+        { error: 'Payment processing failed', details: errorText },
+        { status: lambdaResponse.status }
+      );
     }
     
     const result = await lambdaResponse.json();

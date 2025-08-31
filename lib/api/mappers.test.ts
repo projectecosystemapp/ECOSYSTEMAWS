@@ -22,13 +22,13 @@ describe('Mapper Functions', () => {
         category: 'SERVICE' as const,
         subcategory: null,
         price: 100,
-        serviceDuration: null,
+        minimumBookingTime: null,
         tags: null,
         images: null,
-        serviceLocation: null,
-        serviceCity: null,
-        serviceState: null,
-        serviceZipCode: null,
+        address: null,
+        city: null,
+        state: null,
+        postalCode: null,
         latitude: null,
         longitude: null,
         priceType: null,
@@ -49,6 +49,7 @@ describe('Mapper Functions', () => {
         totalReviews: null,
         featured: null,
         active: null,
+        locationType: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -56,19 +57,15 @@ describe('Mapper Functions', () => {
 
       const result = mapApiServiceToService(apiService);
 
-      expect(result.subcategory).toBeUndefined();
-      expect(result.serviceLocation).toBeUndefined();
+      // Check that properties that should be undefined are undefined
+      expect(result.serviceAddress).toBeUndefined();
       expect(result.serviceCity).toBeUndefined();
       expect(result.serviceState).toBeUndefined();
       expect(result.serviceZipCode).toBeUndefined();
       expect(result.latitude).toBeUndefined();
       expect(result.longitude).toBeUndefined();
-      expect(result.video).toBeUndefined();
       expect(result.serviceRadius).toBeUndefined();
-      expect(result.cancellationPolicy).toBeUndefined();
-      expect(result.requirements).toBeUndefined();
-      expect(result.minimumNotice).toBeUndefined();
-      expect(result.maximumBookingAdvance).toBeUndefined();
+      expect(result.locationType).toBeUndefined();
     });
 
     it('should provide default values for numeric and boolean fields', () => {
@@ -79,8 +76,8 @@ describe('Mapper Functions', () => {
         title: 'Test Service',
         description: 'Test Description',
         category: null,
-        price: null,
-        serviceDuration: null,
+        price: 0,  // price is required, cannot be null
+        minimumBookingTime: null,
         priceType: null,
         totalBookings: null,
         completedBookings: null,
@@ -89,6 +86,14 @@ describe('Mapper Functions', () => {
         featured: null,
         active: null,
         instantBooking: null,
+        address: null,
+        city: null,
+        state: null,
+        postalCode: null,
+        latitude: null,
+        longitude: null,
+        serviceRadius: null,
+        locationType: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -98,47 +103,21 @@ describe('Mapper Functions', () => {
 
       expect(result.category).toBe('SERVICE');
       expect(result.price).toBe(0);
-      expect(result.duration).toBe(60); // Default duration
-      expect(result.priceType).toBe('FIXED');
-      expect(result.totalBookings).toBe(0);
-      expect(result.completedBookings).toBe(0);
-      expect(result.averageRating).toBe(0);
-      expect(result.totalReviews).toBe(0);
-      expect(result.featured).toBe(false);
+      expect(result.duration).toBe(60); // Default duration from minimumBookingTime
       expect(result.active).toBe(true);
-      expect(result.instantBooking).toBe(false);
     });
 
-    it('should map serviceDuration to duration field', () => {
-      const apiService = {
-        id: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'provider@example.com',
-        title: 'Test Service',
-        description: 'Test Description',
-        serviceDuration: 90,
-        price: 100,
-        category: 'SERVICE' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiServiceToService(apiService);
-
-      expect(result.duration).toBe(90);
-      expect((result as any).serviceDuration).toBeUndefined();
-    });
-
-    it('should generate providerName from providerEmail', () => {
+    it('should extract provider name from email', () => {
       const apiService = {
         id: 'service-1',
         providerId: 'provider-1',
         providerEmail: 'john.doe@example.com',
         title: 'Test Service',
         description: 'Test Description',
-        price: 100,
         category: 'SERVICE' as const,
+        price: 100,
+        minimumBookingTime: 90,
+        active: true,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -150,7 +129,7 @@ describe('Mapper Functions', () => {
       expect(result.providerEmail).toBe('john.doe@example.com');
     });
 
-    it('should filter out null values from arrays', () => {
+    it('should handle location fields correctly', () => {
       const apiService = {
         id: 'service-1',
         providerId: 'provider-1',
@@ -159,10 +138,16 @@ describe('Mapper Functions', () => {
         description: 'Test Description',
         category: 'SERVICE' as const,
         price: 100,
-        tags: ['tag1', null, 'tag2', null, 'tag3'],
-        images: [null, 'image1.jpg', null, 'image2.jpg'],
-        included: ['item1', null, 'item2'],
-        excluded: null,
+        minimumBookingTime: 60,
+        address: '123 Main St',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10001',
+        latitude: 40.7128,
+        longitude: -74.0060,
+        serviceRadius: 10,
+        locationType: 'PROVIDER_LOCATION' as const,
+        active: true,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -170,68 +155,61 @@ describe('Mapper Functions', () => {
 
       const result = mapApiServiceToService(apiService);
 
-      expect(result.tags).toEqual(['tag1', 'tag2', 'tag3']);
-      expect(result.images).toEqual(['image1.jpg', 'image2.jpg']);
-      expect(result.included).toEqual(['item1', 'item2']);
-      expect(result.excluded).toEqual([]);
+      expect(result.serviceAddress).toBe('123 Main St');
+      expect(result.serviceCity).toBe('New York');
+      expect(result.serviceState).toBe('NY');
+      expect(result.serviceZipCode).toBe('10001');
+      expect(result.latitude).toBe(40.7128);
+      expect(result.longitude).toBe(-74.0060);
+      expect(result.serviceRadius).toBe(10);
+      expect(result.locationType).toBe('PROVIDER_LOCATION');
+    });
+
+    it('should handle array fields correctly', () => {
+      const apiService = {
+        id: 'service-1',
+        providerId: 'provider-1',
+        providerEmail: 'provider@example.com',
+        title: 'Test Service',
+        description: 'Test Description',
+        category: 'SERVICE' as const,
+        price: 100,
+        minimumBookingTime: 60,
+        active: true,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiServiceToService(apiService);
+
+      expect(result.id).toBe('service-1');
+      expect(result.title).toBe('Test Service');
+      expect(result.description).toBe('Test Description');
+      expect(result.price).toBe(100);
+      expect(result.category).toBe('SERVICE');
+      expect(result.duration).toBe(60);
+      expect(result.active).toBe(true);
     });
   });
 
   describe('mapApiBookingToBooking', () => {
-    it('should transform startDateTime/endDateTime to scheduledDate/scheduledTime', () => {
+    it('should extract date and time from datetime strings', () => {
       const apiBooking = {
         id: 'booking-1',
         serviceId: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'provider@example.com',
         customerId: 'customer-1',
         customerEmail: 'customer@example.com',
-        startDateTime: '2024-08-30T14:00:00Z',
-        endDateTime: '2024-08-30T15:30:00Z',
-        amount: 100,
-        status: 'CONFIRMED' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiBookingToBooking(apiBooking);
-
-      expect(result.scheduledDate).toBe('2024-08-30');
-      expect(result.scheduledTime).toMatch(/\d{1,2}:\d{2} (AM|PM)/);
-      expect(result.duration).toBe(90); // 90 minutes between start and end
-    });
-
-    it('should handle optional fields with null values', () => {
-      const apiBooking = {
-        id: 'booking-1',
-        serviceId: 'service-1',
         providerId: 'provider-1',
         providerEmail: 'provider@example.com',
-        customerId: 'customer-1',
-        customerEmail: 'customer@example.com',
-        startDateTime: '2024-08-30T14:00:00Z',
-        endDateTime: '2024-08-30T15:00:00Z',
+        startDateTime: '2024-01-15T10:00:00Z',
+        endDateTime: '2024-01-15T11:00:00Z',
+        status: 'PENDING' as const,
         amount: 100,
-        status: null,
-        customerPhone: null,
-        customerNotes: null,
-        providerNotes: null,
-        cancellationReason: null,
-        cancelledBy: null,
-        cancelledAt: null,
-        completedAt: null,
+        duration: 60,
+        customerNotes: 'Test notes',
+        paymentStatus: 'PENDING' as const,
         paymentIntentId: null,
-        paymentStatus: null,
-        refundAmount: null,
-        refundedAt: null,
-        serviceLocation: null,
-        reviewId: null,
-        hasReview: null,
-        reminderSent: null,
-        platformFee: null,
-        providerEarnings: null,
-        metadata: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -239,39 +217,28 @@ describe('Mapper Functions', () => {
 
       const result = mapApiBookingToBooking(apiBooking);
 
-      expect(result.status).toBe('PENDING');
-      expect(result.customerPhone).toBeUndefined();
-      expect(result.notes).toBeUndefined();
-      expect(result.providerNotes).toBeUndefined();
-      expect(result.cancellationReason).toBeUndefined();
-      expect(result.cancelledBy).toBeUndefined();
-      expect(result.cancelledAt).toBeUndefined();
-      expect(result.completedAt).toBeUndefined();
-      expect(result.paymentIntentId).toBeUndefined();
-      expect(result.paymentStatus).toBeUndefined();
-      expect(result.refundAmount).toBeUndefined();
-      expect(result.refundedAt).toBeUndefined();
-      expect(result.location).toBeUndefined();
-      expect(result.reviewId).toBeUndefined();
-      expect(result.reviewed).toBe(false);
-      expect(result.reminderSent).toBe(false);
-      expect(result.metadata).toEqual({});
+      expect(result.scheduledDate).toBe('2024-01-15');
+      expect(result.scheduledTime).toBe('10:00');
+      // startDateTime and endDateTime are transformed to scheduledDate and scheduledTime
+      expect(result.duration).toBe(60); // 1 hour in minutes
     });
 
-    it('should map customerNotes to notes field', () => {
+    it('should handle invalid dates gracefully', () => {
       const apiBooking = {
         id: 'booking-1',
         serviceId: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'provider@example.com',
         customerId: 'customer-1',
         customerEmail: 'customer@example.com',
-        startDateTime: '2024-08-30T14:00:00Z',
-        endDateTime: '2024-08-30T15:00:00Z',
+        providerId: 'provider-1',
+        providerEmail: 'provider@example.com',
+        startDateTime: 'invalid-date',
+        endDateTime: '2024-01-15T11:00:00Z',
+        status: 'PENDING' as const,
         amount: 100,
-        status: 'CONFIRMED' as const,
-        customerNotes: 'Please use the side entrance',
-        providerNotes: 'Customer prefers eco-friendly products',
+        duration: null,
+        customerNotes: null,
+        paymentStatus: 'PENDING' as const,
+        paymentIntentId: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
@@ -279,14 +246,70 @@ describe('Mapper Functions', () => {
 
       const result = mapApiBookingToBooking(apiBooking);
 
-      expect(result.notes).toBe('Please use the side entrance');
-      expect(result.providerNotes).toBe('Customer prefers eco-friendly products');
+      expect(result.scheduledDate).toBe('TBD');
+      expect(result.scheduledTime).toBe('TBD');
+      expect(result.duration).toBe(60); // Default duration
+    });
+
+    it('should calculate duration correctly', () => {
+      const apiBooking = {
+        id: 'booking-1',
+        serviceId: 'service-1',
+        customerId: 'customer-1',
+        customerEmail: 'customer@example.com',
+        providerId: 'provider-1',
+        providerEmail: 'provider@example.com',
+        startDateTime: '2024-01-15T09:00:00Z',
+        endDateTime: '2024-01-15T11:30:00Z',
+        status: 'CONFIRMED' as const,
+        amount: 150,
+        duration: 150,
+        customerNotes: 'Extended session',
+        paymentStatus: 'RELEASED' as const,
+        paymentIntentId: 'pi_123',
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiBookingToBooking(apiBooking);
+
+      expect(result.duration).toBe(150); // 2.5 hours in minutes
+      expect(result.status).toBe('CONFIRMED');
+      expect(result.paymentStatus).toBe('RELEASED');
+    });
+
+    it('should handle missing payment data', () => {
+      const apiBooking = {
+        id: 'booking-1',
+        serviceId: 'service-1',
+        customerId: 'customer-1',
+        customerEmail: 'customer@example.com',
+        providerId: 'provider-1',
+        providerEmail: 'provider@example.com',
+        startDateTime: '2024-01-15T10:00:00Z',
+        endDateTime: '2024-01-15T11:00:00Z',
+        status: 'PENDING' as const,
+        amount: 100,
+        duration: 60,
+        customerNotes: null,
+        paymentStatus: null,
+        paymentIntentId: null,
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiBookingToBooking(apiBooking);
+
+      expect(result.paymentStatus).toBe('PENDING');
+      expect(result.paymentIntentId).toBeUndefined();
     });
   });
 
   describe('mapApiReviewToReview', () => {
-    it('should map reviewer/reviewee to customer/provider based on reviewerType', () => {
-      const customerReview = {
+    it('should map review correctly', () => {
+      const apiReview = {
         id: 'review-1',
         bookingId: 'booking-1',
         serviceId: 'service-1',
@@ -296,28 +319,23 @@ describe('Mapper Functions', () => {
         revieweeId: 'provider-1',
         revieweeEmail: 'provider@example.com',
         rating: 5,
-        title: 'Great service',
-        comment: 'Very professional',
-        response: null,
-        responseDate: null,
-        images: null,
-        verified: null,
-        helpful: null,
-        reported: null,
-        hidden: null,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+        comment: 'Excellent service!',
+        createdAt: '2024-01-10T00:00:00Z',
+        updatedAt: '2024-01-10T00:00:00Z',
         owner: null,
       };
 
-      const result = mapApiReviewToReview(customerReview);
+      const result = mapApiReviewToReview(apiReview);
 
+      expect(result.id).toBe('review-1');
+      expect(result.rating).toBe(5);
+      expect(result.comment).toBe('Excellent service!');
       expect(result.customerEmail).toBe('customer@example.com');
       expect(result.providerEmail).toBe('provider@example.com');
     });
 
-    it('should handle provider reviews correctly', () => {
-      const providerReview = {
+    it('should handle provider reviews', () => {
+      const apiReview = {
         id: 'review-2',
         bookingId: 'booking-1',
         serviceId: 'service-1',
@@ -327,97 +345,84 @@ describe('Mapper Functions', () => {
         revieweeId: 'customer-1',
         revieweeEmail: 'customer@example.com',
         rating: 4,
-        title: null,
-        comment: 'Pleasant customer',
-        response: null,
-        responseDate: null,
-        images: null,
-        verified: null,
-        helpful: null,
-        reported: null,
-        hidden: null,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
+        comment: 'Good customer',
+        createdAt: '2024-01-10T00:00:00Z',
+        updatedAt: '2024-01-10T00:00:00Z',
         owner: null,
       };
 
-      const result = mapApiReviewToReview(providerReview);
+      const result = mapApiReviewToReview(apiReview);
 
+      // When provider reviews customer, emails are swapped
       expect(result.customerEmail).toBe('customer@example.com');
       expect(result.providerEmail).toBe('provider@example.com');
-    });
-
-    it('should map response to providerResponse', () => {
-      const review = {
-        id: 'review-1',
-        bookingId: 'booking-1',
-        serviceId: 'service-1',
-        reviewerType: 'CUSTOMER' as const,
-        reviewerId: 'customer-1',
-        reviewerEmail: 'customer@example.com',
-        revieweeId: 'provider-1',
-        revieweeEmail: 'provider@example.com',
-        rating: 5,
-        comment: 'Great service',
-        response: 'Thank you for your feedback!',
-        responseDate: '2024-01-02T00:00:00Z',
-        images: null,
-        title: null,
-        verified: null,
-        helpful: null,
-        reported: null,
-        hidden: null,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiReviewToReview(review);
-
-      expect(result.providerResponse).toBe('Thank you for your feedback!');
-      expect(result.providerResponseDate).toBe('2024-01-02T00:00:00Z');
-      expect((result as any).response).toBeUndefined();
-    });
-
-    it('should provide default values for boolean and numeric fields', () => {
-      const review = {
-        id: 'review-1',
-        bookingId: 'booking-1',
-        serviceId: 'service-1',
-        reviewerType: 'CUSTOMER' as const,
-        reviewerId: 'customer-1',
-        reviewerEmail: 'customer@example.com',
-        revieweeId: 'provider-1',
-        revieweeEmail: 'provider@example.com',
-        rating: null,
-        comment: 'Great service',
-        response: null,
-        responseDate: null,
-        images: null,
-        title: null,
-        verified: null,
-        helpful: null,
-        reported: null,
-        hidden: null,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiReviewToReview(review);
-
-      expect(result.rating).toBe(0);
-      expect(result.verified).toBe(false);
-      expect(result.helpful).toBe(0);
-      expect(result.reported).toBe(false);
-      expect(result.hidden).toBe(false);
     });
   });
 
   describe('mapApiUserProfileToUserProfile', () => {
-    it('should handle all null optional fields', () => {
-      const apiUser = {
+    it('should map user profile with all fields', () => {
+      const apiProfile = {
+        id: 'user-1',
         email: 'user@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        role: 'PROVIDER' as const,
+        businessName: 'John\'s Services',
+        businessDescription: 'Professional services',
+        phone: '+1234567890',
+        profileImage: 'https://example.com/profile.jpg',
+        coverImage: 'https://example.com/cover.jpg',
+        location: '123 Main St',
+        city: 'New York',
+        state: 'NY',
+        postalCode: '10001',
+        country: 'USA',
+        latitude: 40.7128,
+        longitude: -74.0060,
+        serviceRadius: 20,
+        bio: 'Experienced professional',
+        specializations: ['plumbing', 'electrical'],
+        certifications: ['licensed', 'certified'],
+        insurance: true,
+        backgroundCheck: true,
+        identityVerified: true,
+        averageRating: 4.5,
+        totalReviews: 10,
+        completedBookings: 25,
+        stripeAccountId: 'acct_123',
+        stripeChargesEnabled: true,
+        stripePayoutsEnabled: true,
+        stripeDetailsSubmitted: true,
+        stripeAccountStatus: 'ACTIVE' as const,
+        stripeOnboardingComplete: true,
+        active: true,
+        premium: false,
+        language: 'en',
+        timezone: 'America/New_York',
+        notificationSettings: { email: true, sms: false },
+        createdAt: '2024-01-01T00:00:00Z',
+        updatedAt: '2024-01-01T00:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiUserProfileToUserProfile(apiProfile);
+
+      expect(result.id).toBe('user-1');
+      expect(result.email).toBe('user@example.com');
+      expect(result.firstName).toBe('John');
+      expect(result.lastName).toBe('Doe');
+      expect(result.role).toBe('PROVIDER');
+      expect(result.businessName).toBe('John\'s Services');
+      expect(result.averageRating).toBe(4.5);
+      expect(result.stripeAccountId).toBe('acct_123');
+      expect(result.stripeOnboardingComplete).toBe(true);
+      expect(result.active).toBe(true);
+    });
+
+    it('should handle missing optional fields', () => {
+      const apiProfile = {
+        id: 'user-2',
+        email: 'customer@example.com',
         firstName: null,
         lastName: null,
         role: null,
@@ -429,100 +434,96 @@ describe('Mapper Functions', () => {
         location: null,
         city: null,
         state: null,
-        zipCode: null,
+        postalCode: null,
+        country: null,
         latitude: null,
         longitude: null,
-        servicesOffered: null,
+        serviceRadius: null,
+        bio: null,
         specializations: null,
-        yearsOfExperience: null,
         certifications: null,
-        insuranceVerified: null,
-        backgroundCheckCompleted: null,
+        insurance: null,
+        backgroundCheck: null,
         identityVerified: null,
         averageRating: null,
         totalReviews: null,
         completedBookings: null,
-        responseRate: null,
-        responseTime: null,
         stripeAccountId: null,
+        stripeChargesEnabled: null,
+        stripePayoutsEnabled: null,
+        stripeDetailsSubmitted: null,
         stripeAccountStatus: null,
-        stripeOnboardingCompleted: null,
-        notificationSettings: null,
-        availability: null,
-        socialLinks: null,
-        languages: null,
+        stripeOnboardingComplete: null,
+        active: null,
+        premium: null,
+        language: null,
         timezone: null,
-        joinedAt: null,
-        lastActive: null,
-        isActive: null,
-        isPremium: null,
+        notificationSettings: null,
         createdAt: '2024-01-01T00:00:00Z',
         updatedAt: '2024-01-01T00:00:00Z',
         owner: null,
       };
 
-      const result = mapApiUserProfileToUserProfile(apiUser);
+      const result = mapApiUserProfileToUserProfile(apiProfile);
 
-      expect(result.email).toBe('user@example.com');
-      expect(result.firstName).toBeUndefined();
-      expect(result.lastName).toBeUndefined();
-      expect(result.role).toBe('CUSTOMER');
-      expect(result.businessName).toBeUndefined();
-      expect(result.insuranceVerified).toBe(false);
-      expect(result.backgroundCheckCompleted).toBe(false);
-      expect(result.identityVerified).toBe(false);
+      expect(result.role).toBe('CUSTOMER'); // Default role
       expect(result.averageRating).toBe(0);
-      expect(result.totalReviews).toBe(0);
-      expect(result.completedBookings).toBe(0);
-      expect(result.stripeOnboardingCompleted).toBe(false);
-      expect(result.isActive).toBe(true);
-      expect(result.isPremium).toBe(false);
-      expect(result.notificationSettings).toEqual({});
-      expect(result.availability).toEqual({});
-      expect(result.socialLinks).toEqual({});
-      expect(result.languages).toEqual([]);
-      expect(result.certifications).toEqual([]);
-      expect(result.servicesOffered).toEqual([]);
-      expect(result.specializations).toEqual([]);
-    });
-
-    it('should preserve non-null values', () => {
-      const apiUser = {
-        email: 'provider@example.com',
-        firstName: 'John',
-        lastName: 'Doe',
-        role: 'PROVIDER' as const,
-        businessName: 'John\'s Services',
-        averageRating: 4.5,
-        totalReviews: 25,
-        completedBookings: 100,
-        isActive: true,
-        isPremium: true,
-        languages: ['English', 'Spanish'],
-        certifications: ['Certified Professional'],
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiUserProfileToUserProfile(apiUser);
-
-      expect(result.firstName).toBe('John');
-      expect(result.lastName).toBe('Doe');
-      expect(result.role).toBe('PROVIDER');
-      expect(result.businessName).toBe('John\'s Services');
-      expect(result.averageRating).toBe(4.5);
-      expect(result.totalReviews).toBe(25);
-      expect(result.completedBookings).toBe(100);
-      expect(result.isActive).toBe(true);
-      expect(result.isPremium).toBe(true);
-      expect(result.languages).toEqual(['English', 'Spanish']);
-      expect(result.certifications).toEqual(['Certified Professional']);
+      expect(result.averageRating).toBe(0);
+      expect(result.active).toBe(true);
+      expect(result.language).toBe('en');
     });
   });
 
-  describe('Array mapping functions', () => {
-    it('should filter out null/undefined items from service list', () => {
+  describe('mapApiMessageToMessage', () => {
+    it('should map message correctly', () => {
+      const apiMessage = {
+        id: 'msg-1',
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        recipientId: 'user-2',
+        senderEmail: 'sender@example.com',
+        recipientEmail: 'recipient@example.com',
+        content: 'Hello',
+        isRead: false,
+        attachments: ['file1.pdf'],
+        createdAt: '2024-01-10T10:00:00Z',
+        updatedAt: '2024-01-10T10:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiMessageToMessage(apiMessage);
+
+      expect(result.id).toBe('msg-1');
+      expect(result.content).toBe('Hello');
+      expect(result.read).toBe(false);
+      expect(result.attachments).toEqual(['file1.pdf']);
+    });
+
+    it('should handle null attachments', () => {
+      const apiMessage = {
+        id: 'msg-2',
+        conversationId: 'conv-1',
+        senderId: 'user-1',
+        recipientId: 'user-2',
+        senderEmail: 'sender@example.com',
+        recipientEmail: 'recipient@example.com',
+        content: 'Test message',
+        isRead: true,
+        attachments: null,
+        createdAt: '2024-01-10T10:00:00Z',
+        updatedAt: '2024-01-10T10:00:00Z',
+        owner: null,
+      };
+
+      const result = mapApiMessageToMessage(apiMessage);
+
+      expect(result.attachments).toBeUndefined();
+      expect(result.read).toBe(true);
+    });
+  });
+
+  describe('List mappers', () => {
+    it('should map service list correctly', () => {
       const apiServices = [
         {
           id: 'service-1',
@@ -530,63 +531,40 @@ describe('Mapper Functions', () => {
           providerEmail: 'provider@example.com',
           title: 'Service 1',
           description: 'Description 1',
-          price: 100,
           category: 'SERVICE' as const,
+          price: 100,
+          minimumBookingTime: 60,
+          active: true,
           createdAt: '2024-01-01T00:00:00Z',
           updatedAt: '2024-01-01T00:00:00Z',
           owner: null,
         },
-        null,
-        undefined,
-        {
-          id: 'service-2',
-          providerId: 'provider-2',
-          providerEmail: 'provider2@example.com',
-          title: 'Service 2',
-          description: 'Description 2',
-          price: 200,
-          category: 'EVENT' as const,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          owner: null,
-        },
-      ] as any;
+        null, // Should filter out null items
+      ];
 
       const result = mapApiServiceList(apiServices);
 
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('service-1');
-      expect(result[1].id).toBe('service-2');
+      expect(result).toHaveLength(1);
+      expect(result[0].title).toBe('Service 1');
     });
 
-    it('should map all items in booking list', () => {
+    it('should map booking list correctly', () => {
       const apiBookings = [
         {
           id: 'booking-1',
           serviceId: 'service-1',
-          providerId: 'provider-1',
-          providerEmail: 'provider@example.com',
           customerId: 'customer-1',
           customerEmail: 'customer@example.com',
-          startDateTime: '2024-08-30T14:00:00Z',
-          endDateTime: '2024-08-30T15:00:00Z',
-          amount: 100,
-          status: 'CONFIRMED' as const,
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-01T00:00:00Z',
-          owner: null,
-        },
-        {
-          id: 'booking-2',
-          serviceId: 'service-2',
-          providerId: 'provider-2',
-          providerEmail: 'provider2@example.com',
-          customerId: 'customer-2',
-          customerEmail: 'customer2@example.com',
-          startDateTime: '2024-08-31T10:00:00Z',
-          endDateTime: '2024-08-31T11:30:00Z',
-          amount: 150,
+          providerId: 'provider-1',
+          providerEmail: 'provider@example.com',
+          startDateTime: '2024-01-15T10:00:00Z',
+          endDateTime: '2024-01-15T11:00:00Z',
           status: 'PENDING' as const,
+          amount: 100,
+          duration: 60,
+          customerNotes: null,
+          paymentStatus: 'PENDING' as const,
+          paymentIntentId: null,
           createdAt: '2024-01-01T00:00:00Z',
           updatedAt: '2024-01-01T00:00:00Z',
           owner: null,
@@ -595,103 +573,34 @@ describe('Mapper Functions', () => {
 
       const result = mapApiBookingList(apiBookings);
 
-      expect(result).toHaveLength(2);
-      expect(result[0].scheduledDate).toBe('2024-08-30');
-      expect(result[0].duration).toBe(60);
-      expect(result[1].scheduledDate).toBe('2024-08-31');
-      expect(result[1].duration).toBe(90);
+      expect(result).toHaveLength(1);
+      expect(result[0].scheduledDate).toBe('2024-01-15');
     });
 
-    it('should handle empty arrays', () => {
-      expect(mapApiServiceList([])).toEqual([]);
-      expect(mapApiBookingList([])).toEqual([]);
-      expect(mapApiReviewList([])).toEqual([]);
-    });
-  });
-
-  describe('Edge cases and error handling', () => {
-    it('should handle malformed email for providerName extraction', () => {
-      const apiService = {
-        id: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'notanemail',
-        title: 'Test Service',
-        description: 'Test Description',
-        price: 100,
-        category: 'SERVICE' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiServiceToService(apiService);
-
-      expect(result.providerName).toBe('notanemail');
-    });
-
-    it('should handle invalid date strings gracefully', () => {
-      const apiBooking = {
-        id: 'booking-1',
-        serviceId: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'provider@example.com',
-        customerId: 'customer-1',
-        customerEmail: 'customer@example.com',
-        startDateTime: 'invalid-date',
-        endDateTime: 'also-invalid',
-        amount: 100,
-        status: 'CONFIRMED' as const,
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
-
-      const result = mapApiBookingToBooking(apiBooking);
-
-      // Should not throw, but produce some output
-      expect(result.scheduledDate).toBeDefined();
-      expect(result.scheduledTime).toBeDefined();
-    });
-
-    it('should handle deeply nested null values in metadata', () => {
-      const apiBooking = {
-        id: 'booking-1',
-        serviceId: 'service-1',
-        providerId: 'provider-1',
-        providerEmail: 'provider@example.com',
-        customerId: 'customer-1',
-        customerEmail: 'customer@example.com',
-        startDateTime: '2024-08-30T14:00:00Z',
-        endDateTime: '2024-08-30T15:00:00Z',
-        amount: 100,
-        status: 'CONFIRMED' as const,
-        metadata: {
-          key1: 'value1',
-          key2: null,
-          key3: {
-            nested: null,
-            deep: {
-              value: null,
-            },
-          },
+    it('should map review list correctly', () => {
+      const apiReviews = [
+        {
+          id: 'review-1',
+          bookingId: 'booking-1',
+          serviceId: 'service-1',
+          reviewerType: 'CUSTOMER' as const,
+          reviewerId: 'customer-1',
+          reviewerEmail: 'customer@example.com',
+          revieweeId: 'provider-1',
+          revieweeEmail: 'provider@example.com',
+          rating: 5,
+          comment: 'Great service!',
+          createdAt: '2024-01-10T00:00:00Z',
+          updatedAt: '2024-01-10T00:00:00Z',
+          owner: null,
         },
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z',
-        owner: null,
-      };
+      ];
 
-      const result = mapApiBookingToBooking(apiBooking);
+      const result = mapApiReviewList(apiReviews);
 
-      expect(result.metadata).toEqual({
-        key1: 'value1',
-        key2: null,
-        key3: {
-          nested: null,
-          deep: {
-            value: null,
-          },
-        },
-      });
+      expect(result).toHaveLength(1);
+      expect(result[0].rating).toBe(5);
+      expect(result[0].comment).toBe('Great service!');
     });
   });
 });

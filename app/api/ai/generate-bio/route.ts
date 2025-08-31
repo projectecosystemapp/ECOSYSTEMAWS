@@ -1,76 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from 'aws-amplify/auth/server';
 import { cookies } from 'next/headers';
+import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
 
 // Get the Lambda function URL from environment
 const BEDROCK_LAMBDA_URL = process.env.BEDROCK_AI_LAMBDA_URL || process.env.NEXT_PUBLIC_BEDROCK_AI_LAMBDA_URL;
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify user is authenticated
-    const user = await getCurrentUser({ cookies });
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    return await runWithAmplifyServerContext({
+      nextServerContext: { cookies },
+      operation: async (contextSpec) => {
+        // Verify user is authenticated
+        const user = await getCurrentUser(contextSpec);
+        if (!user) {
+          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
 
-    const body = await request.json();
-    const { 
-      businessName,
-      specializations = [],
-      yearsExperience,
-      keywords = [],
-      tone = 'professional',
-      providerId
-    } = body;
+        const body = await request.json();
+        const { 
+          businessName,
+          specializations = [],
+          yearsExperience,
+          keywords = [],
+          tone = 'professional',
+          providerId
+        } = body;
 
-    // Validate required fields
-    if (!businessName) {
-      return NextResponse.json(
-        { error: 'Business name is required' },
-        { status: 400 }
-      );
-    }
+        // Validate required fields
+        if (!businessName) {
+          return NextResponse.json(
+            { error: 'Business name is required' },
+            { status: 400 }
+          );
+        }
 
-    // If Lambda URL is not configured, use a fallback response
-    if (!BEDROCK_LAMBDA_URL) {
-      console.warn('Bedrock Lambda URL not configured, using fallback bio generation');
-      return generateFallbackBio(body);
-    }
+        // If Lambda URL is not configured, use a fallback response
+        if (!BEDROCK_LAMBDA_URL) {
+          console.warn('Bedrock Lambda URL not configured, using fallback bio generation');
+          return generateFallbackBio(body);
+        }
 
-    // Call the Bedrock Lambda function
-    const lambdaResponse = await fetch(BEDROCK_LAMBDA_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.AWS_API_KEY || '',
+        // Call the Bedrock Lambda function
+        const lambdaResponse = await fetch(BEDROCK_LAMBDA_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': process.env.AWS_API_KEY || '',
+          },
+          body: JSON.stringify({
+            action: 'GENERATE_BIO',
+            businessName,
+            specializations,
+            yearsExperience,
+            keywords,
+            tone,
+            providerId: providerId || user.userId,
+          }),
+        });
+
+        if (!lambdaResponse.ok) {
+          const errorText = await lambdaResponse.text();
+          console.error('Lambda error:', errorText);
+          
+          // Fallback to template-based generation if Lambda fails
+          return generateFallbackBio(body);
+        }
+
+        const result = await lambdaResponse.json();
+        return NextResponse.json(result);
       },
-      body: JSON.stringify({
-        action: 'GENERATE_BIO',
-        businessName,
-        specializations,
-        yearsExperience,
-        keywords,
-        tone,
-        providerId: providerId || user.userId,
-      }),
     });
-
-    if (!lambdaResponse.ok) {
-      const errorText = await lambdaResponse.text();
-      console.error('Lambda error:', errorText);
-      
-      // Fallback to template-based generation if Lambda fails
-      return generateFallbackBio(body);
-    }
-
-    const result = await lambdaResponse.json();
-    return NextResponse.json(result);
-
   } catch (error) {
     console.error('Generate bio error:', error);
     
     // Return a fallback bio on any error
-    return generateFallbackBio(request.body);
+    const body = await request.json();
+    return generateFallbackBio(body);
   }
 }
 
