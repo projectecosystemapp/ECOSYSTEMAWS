@@ -31,8 +31,9 @@ import {
   Shield,
   Info
 } from 'lucide-react';
+import { CheckoutForm } from '@/components/customer/CheckoutForm';
 
-// Stripe Elements for payment processing (we'll simulate this for now)
+// Legacy mock payment form - replaced with CheckoutForm
 const StripePaymentForm = ({ 
   amount, 
   onPaymentSuccess, 
@@ -227,8 +228,8 @@ export default function BookServicePage() {
           paymentIntentId: paymentIntentId
         });
 
-        // Redirect to success page
-        router.push(`/bookings/${booking.id}?success=true`);
+        // Redirect to confirmation page
+        router.push(`/bookings/${booking.id}/confirmation`);
       } else {
         throw new Error('Failed to create booking');
       }
@@ -465,10 +466,15 @@ export default function BookServicePage() {
                       </p>
                     </CardHeader>
 
-                    <StripePaymentForm
-                      amount={priceBreakdown.totalAmount}
+                    <CheckoutForm
+                      amountCents={priceBreakdown.totalAmount}
+                      bookingId={`temp-${Date.now()}`} // Temporary ID until booking is created
+                      providerId={service?.providerEmail || ''} // Using email as ID for now
+                      customerId={user?.signInDetails?.loginId || user?.username || ''}
+                      customerEmail={user?.signInDetails?.loginId || user?.username || ''}
+                      serviceName={service?.title || 'Service'}
                       onPaymentSuccess={handlePaymentSuccess}
-                      loading={submitting}
+                      onError={(error) => setError(error)}
                     />
                   </div>
                 )}

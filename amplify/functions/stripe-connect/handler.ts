@@ -1,6 +1,7 @@
-import { APIGatewayProxyHandler } from 'aws-lambda';
+import { APIGatewayProxyHandler, Context } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, UpdateItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import { createLogger } from '../utils/logger';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -11,16 +12,17 @@ const USER_PROFILE_TABLE = process.env.USER_PROFILE_TABLE_NAME || 'UserProfile';
 const BOOKING_TABLE = process.env.BOOKING_TABLE_NAME || 'Booking';
 const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
 
-export const handler: APIGatewayProxyHandler = async (event) => {
-  // Security logging - log request metadata without sensitive data
-  console.log('Stripe Connect request received:', {
+export const handler: APIGatewayProxyHandler = async (event, context) => {
+  const logger = createLogger('stripe-connect', context);
+  
+  // Log request metadata without sensitive data
+  logger.info('Stripe Connect request received', {
     httpMethod: event.httpMethod,
     path: event.path,
     sourceIP: event.requestContext.identity.sourceIp,
     userAgent: event.requestContext.identity.userAgent,
     requestId: event.requestContext.requestId,
-    hasBody: !!event.body,
-    timestamp: new Date().toISOString(),
+    hasBody: !!event.body
   });
   
   // Security headers - restrict CORS in production
@@ -51,7 +53,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   try {
     // Input validation and sanitization
     if (!event.body) {
-      console.warn('Empty request body received');
+      logger.warn('Empty request body received');
       return {
         statusCode: 400,
         headers,
@@ -63,7 +65,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     try {
       body = JSON.parse(event.body);
     } catch (parseError) {
-      console.error('Invalid JSON in request body:', parseError);
+      logger.error('Invalid JSON in request body', parseError as Error);
       return {
         statusCode: 400,
         headers,
@@ -75,7 +77,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     
     // Validate required fields
     if (!action || typeof action !== 'string') {
-      console.error('Missing or invalid action field');
+      logger.error('Missing or invalid action field', undefined, { action });
       return {
         statusCode: 400,
         headers,
@@ -86,7 +88,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
     // Validate providerId for user-specific actions
     const userSpecificActions = ['CREATE_ACCOUNT', 'CREATE_ACCOUNT_LINK', 'CHECK_ACCOUNT_STATUS', 'CREATE_PAYOUT'];
     if (userSpecificActions.includes(action) && (!providerId || typeof providerId !== 'string')) {
-      console.error('Missing or invalid providerId for action:', action);
+      logger.error('Missing or invalid providerId for action', undefined, { action, providerId });
       return {
         statusCode: 400,
         headers,
@@ -96,26 +98,26 @@ export const handler: APIGatewayProxyHandler = async (event) => {
 
     // Rate limiting check (basic implementation)
     const sourceIP = event.requestContext.identity.sourceIp;
-    console.log('Processing request from IP:', sourceIP, 'Action:', action);
+    logger.info('Processing request', { sourceIP, action });
     
     switch (action) {
       case 'CREATE_ACCOUNT':
-        return await createConnectAccount(providerId, headers);
+        return await createConnectAccount(providerId, headers, logger);
         
       case 'CREATE_ACCOUNT_LINK':
-        return await createAccountLink(providerId, params.accountId, headers);
+        return await createAccountLink(providerId, params.accountId, headers, logger);
         
       case 'CHECK_ACCOUNT_STATUS':
-        return await checkAccountStatus(providerId, headers);
+        return await checkAccountStatus(providerId, headers, logger);
         
       case 'CREATE_PAYMENT_INTENT':
-        return await createPaymentIntent(params, headers);
+        return await createPaymentIntent(params, headers, logger);
         
       case 'PROCESS_REFUND':
-        return await processRefund(params, headers);
+        return await processRefund(params, headers, logger);
         
       case 'CREATE_PAYOUT':
-        return await createPayout(providerId, params.amount, headers);
+        return await createPayout(providerId, params.amount, headers, logger);
         
       default:
         return {
@@ -125,7 +127,7 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         };
     }
   } catch (error) {
-    console.error('Stripe Connect error:', error);
+    logger.error('Stripe Connect error', error as Error);
     return {
       statusCode: 500,
       headers,
@@ -137,8 +139,9 @@ export const handler: APIGatewayProxyHandler = async (event) => {
   }
 };
 
-async function createConnectAccount(providerId: string, headers: any) {
+async function createConnectAccount(providerId: string, headers: any, logger: any) {
   try {
+    logger.info('Creating Connect account', { providerId });
     // Create Express account
     const account = await stripe.accounts.create({
       type: 'express',
@@ -192,13 +195,14 @@ async function createConnectAccount(providerId: string, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error creating Connect account:', error);
+    logger.error('Error creating Connect account', error as Error, { providerId });
     throw error;
   }
 }
 
-async function createAccountLink(providerId: string, accountId: string, headers: any) {
+async function createAccountLink(providerId: string, accountId: string, headers: any, logger: any) {
   try {
+    logger.info('Creating account link', { providerId, accountId });
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${process.env.APP_URL}/provider/onboarding?step=stripe&refresh=true`,
@@ -214,13 +218,14 @@ async function createAccountLink(providerId: string, accountId: string, headers:
       }),
     };
   } catch (error) {
-    console.error('Error creating account link:', error);
+    logger.error('Error creating account link', error as Error, { providerId, accountId });
     throw error;
   }
 }
 
-async function checkAccountStatus(providerId: string, headers: any) {
+async function checkAccountStatus(providerId: string, headers: any, logger: any) {
   try {
+    logger.info('Checking account status', { providerId });
     // Get Stripe account ID from DynamoDB
     const result = await dynamodb.send(
       new GetItemCommand({
@@ -283,13 +288,18 @@ async function checkAccountStatus(providerId: string, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error checking account status:', error);
+    logger.error('Error checking account status', error as Error, { providerId });
     throw error;
   }
 }
 
-async function createPaymentIntent(params: any, headers: any) {
+async function createPaymentIntent(params: any, headers: any, logger: any) {
   try {
+    logger.info('Creating payment intent', { 
+      bookingId: params.bookingId,
+      amount: params.amount,
+      providerId: params.providerId 
+    });
     const { amount, bookingId, customerId, providerId, providerStripeAccountId, serviceTitle } = params;
     
     // Calculate platform fee (8-10%)
@@ -328,13 +338,17 @@ async function createPaymentIntent(params: any, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error creating payment intent:', error);
+    logger.error('Error creating payment intent', error as Error, { bookingId: params.bookingId });
     throw error;
   }
 }
 
-async function processRefund(params: any, headers: any) {
+async function processRefund(params: any, headers: any, logger: any) {
   try {
+    logger.info('Processing refund', { 
+      paymentIntentId: params.paymentIntentId,
+      amount: params.amount 
+    });
     const { paymentIntentId, amount, reason } = params;
     
     const refund = await stripe.refunds.create({
@@ -353,13 +367,14 @@ async function processRefund(params: any, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error processing refund:', error);
+    logger.error('Error processing refund', error as Error, { paymentIntentId: params.paymentIntentId });
     throw error;
   }
 }
 
-async function createPayout(providerId: string, amount: number, headers: any) {
+async function createPayout(providerId: string, amount: number, headers: any, logger: any) {
   try {
+    logger.info('Creating payout', { providerId, amount });
     // Get provider's Stripe account
     const result = await dynamodb.send(
       new GetItemCommand({
@@ -404,7 +419,7 @@ async function createPayout(providerId: string, amount: number, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error creating payout:', error);
+    logger.error('Error creating payout', error as Error, { providerId, amount });
     throw error;
   }
 }

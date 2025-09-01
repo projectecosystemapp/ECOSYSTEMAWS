@@ -304,13 +304,12 @@ export default function ProviderDashboard() {
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Stripe Dashboard
                   </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => window.open('/provider/earnings', '_blank')}
-                  >
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    View Earnings
-                  </Button>
+                  <Link href="/provider/earnings">
+                    <Button variant="outline">
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      View Earnings
+                    </Button>
+                  </Link>
                 </div>
               </div>
               
@@ -320,13 +319,11 @@ export default function ProviderDashboard() {
                   <p className="text-sm text-yellow-700">
                     Complete your Stripe onboarding to continue receiving payments.
                   </p>
-                  <Button 
-                    className="mt-2" 
-                    size="sm"
-                    onClick={() => window.open('/provider/onboarding?step=stripe', '_blank')}
-                  >
-                    Complete Setup
-                  </Button>
+                  <Link href="/provider/onboarding/payments">
+                    <Button className="mt-2" size="sm">
+                      Complete Setup
+                    </Button>
+                  </Link>
                 </div>
               )}
             </CardContent>
@@ -406,8 +403,8 @@ export default function ProviderDashboard() {
               </Card>
             </Link>
             
-            {!stripeAccount && (
-              <Link href="/provider/onboarding?step=stripe" className="block">
+            {!stripeAccount?.chargesEnabled ? (
+              <Link href="/provider/onboarding/payments" className="block">
                 <Card className="hover:shadow-lg transition-shadow cursor-pointer border-amber-200 bg-amber-50">
                   <CardContent className="p-6 text-center">
                     <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -415,6 +412,18 @@ export default function ProviderDashboard() {
                     </div>
                     <h3 className="font-semibold text-amber-900">Setup Payments</h3>
                     <p className="text-sm text-amber-700 mt-1">Connect Stripe</p>
+                  </CardContent>
+                </Card>
+              </Link>
+            ) : (
+              <Link href="/provider/earnings" className="block">
+                <Card className="hover:shadow-lg transition-shadow cursor-pointer border-green-200 bg-green-50">
+                  <CardContent className="p-6 text-center">
+                    <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <DollarSign className="w-6 h-6 text-green-600" />
+                    </div>
+                    <h3 className="font-semibold text-green-900">View Earnings</h3>
+                    <p className="text-sm text-green-700 mt-1">Track revenue</p>
                   </CardContent>
                 </Card>
               </Link>

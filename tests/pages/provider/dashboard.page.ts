@@ -11,6 +11,7 @@ export class ProviderDashboardPage {
   readonly servicesCard: Locator;
   readonly bookingsCard: Locator;
   readonly earningsCard: Locator;
+  readonly setupPayoutsButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -23,6 +24,7 @@ export class ProviderDashboardPage {
     this.servicesCard = page.locator('.card').filter({ hasText: /Active Services/i });
     this.bookingsCard = page.locator('.card').filter({ hasText: /Active Bookings/i });
     this.earningsCard = page.locator('.card').filter({ hasText: /This Month/i });
+    this.setupPayoutsButton = page.getByRole('button', { name: /Set Up Payouts/i });
   }
 
   async goto() {
@@ -57,5 +59,13 @@ export class ProviderDashboardPage {
 
   async isDashboardVisible(): Promise<boolean> {
     return await this.dashboardTitle.isVisible();
+  }
+
+  async clickEarningsCard() {
+    await this.earningsCard.click();
+  }
+
+  async setupPayouts() {
+    await this.setupPayoutsButton.click();
   }
 }
