@@ -1,0 +1,181 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - smoke
+          - critical
+          - auth
+          - payments
+          - booking
+
+jobs:
+  test:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        shardIndex: [1, 2, 3, 4]
+        shardTotal: [4]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps chromium
+        
+      - name: Create .env.test file
+        run: |
+          echo "PLAYWRIGHT_TEST_BASE_URL=${{ vars.STAGING_URL }}" >> .env.test
+          echo "STAGING_URL=${{ vars.STAGING_URL }}" >> .env.test
+          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> .env.test
+          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.test
+          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.test
+          echo "TEST_COGNITO_USER_POOL_ID=${{ vars.TEST_COGNITO_USER_POOL_ID }}" >> .env.test
+          echo "TEST_COGNITO_CLIENT_ID=${{ vars.TEST_COGNITO_CLIENT_ID }}" >> .env.test
+          echo "TEST_COGNITO_REGION=${{ vars.AWS_REGION }}" >> .env.test
+          echo "TEST_DYNAMODB_TABLE_PREFIX=${{ vars.TEST_DYNAMODB_TABLE_PREFIX }}" >> .env.test
+          echo "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ vars.STRIPE_TEST_PUBLIC_KEY }}" >> .env.test
+          echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}" >> .env.test
+          echo "STRIPE_TEST_PUBLIC_KEY=${{ vars.STRIPE_TEST_PUBLIC_KEY }}" >> .env.test
+          echo "STRIPE_TEST_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}" >> .env.test
+          echo "AMPLIFY_ENV=staging" >> .env.test
+      
+      - name: Run E2E tests
+        run: |
+          if [ "${{ github.event.inputs.test_suite }}" = "smoke" ]; then
+            npm run test:e2e:smoke -- --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          elif [ "${{ github.event.inputs.test_suite }}" = "critical" ]; then
+            npm run test:e2e -- --grep "@critical" --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          elif [ "${{ github.event.inputs.test_suite }}" = "auth" ]; then
+            npm run test:e2e:auth -- --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          elif [ "${{ github.event.inputs.test_suite }}" = "payments" ]; then
+            npm run test:e2e:payments -- --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          elif [ "${{ github.event.inputs.test_suite }}" = "booking" ]; then
+            npm run test:e2e -- --grep "@booking" --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          else
+            npm run test:e2e -- --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+          fi
+        env:
+          CI: true
+          
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shardIndex }}
+          path: test-results/
+          retention-days: 30
+          
+      - name: Upload test videos
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-videos-${{ matrix.shardIndex }}
+          path: test-results/artifacts/**/*.webm
+          retention-days: 7
+          
+  report:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download all test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: test-results/
+          
+      - name: Generate consolidated report
+        run: |
+          npx playwright merge-reports --reporter html ./test-results
+          
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+          
+      - name: Comment PR with results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const results = JSON.parse(fs.readFileSync('test-results/results.json', 'utf8'));
+            
+            const passed = results.stats.expected;
+            const failed = results.stats.unexpected;
+            const flaky = results.stats.flaky;
+            const skipped = results.stats.skipped;
+            const total = passed + failed + flaky + skipped;
+            
+            const status = failed === 0 ? '✅' : '❌';
+            const message = `
+            ## ${status} E2E Test Results
+            
+            | Status | Count |
+            |--------|-------|
+            | ✅ Passed | ${passed} |
+            | ❌ Failed | ${failed} |
+            | 🔄 Flaky | ${flaky} |
+            | ⏭️ Skipped | ${skipped} |
+            | **Total** | **${total}** |
+            
+            [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
+            
+      - name: Send Slack notification on failure
+        if: failure() && github.ref == 'refs/heads/main'
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "❌ E2E Tests Failed on main branch",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*E2E Tests Failed* 🚨\n*Branch:* main\n*Commit:* ${{ github.sha }}\n*Author:* ${{ github.actor }}\n*Run:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }

@@ -19,18 +19,18 @@ export async function POST(request: NextRequest) {
 
         const body = await request.json();
         const { 
-          businessName,
+          keywords,
+          businessName = '',
           specializations = [],
-          yearsExperience,
-          keywords = [],
+          yearsExperience = '',
           tone = 'professional',
           providerId
         } = body;
 
         // Validate required fields
-        if (!businessName) {
+        if (!keywords) {
           return NextResponse.json(
-            { error: 'Business name is required' },
+            { error: 'Keywords are required' },
             { status: 400 }
           );
         }

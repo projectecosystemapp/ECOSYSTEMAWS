@@ -3,18 +3,24 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
 import { refactoredApi } from '@/lib/api/refactored';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import LoadingSpinner from '@/components/provider/LoadingSpinner';
 import { Service, Booking, ProviderStats, LoadingStates } from '@/lib/types';
-import { ExternalLink, DollarSign, CreditCard } from 'lucide-react';
+import { ExternalLink, DollarSign, CreditCard, AlertCircle } from 'lucide-react';
+
+const client = generateClient<Schema>();
 
 export default function ProviderDashboard() {
   const [services, setServices] = useState<Service[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [stripeAccount, setStripeAccount] = useState<any>(null);
+  const [showOnboardingBanner, setShowOnboardingBanner] = useState(false);
   const [stats, setStats] = useState<ProviderStats>({
     totalServices: 0,
     activeServices: 0,
@@ -44,6 +50,28 @@ export default function ProviderDashboard() {
       if (!email) {
         setError('User not authenticated');
         return;
+      }
+
+      // Check if provider has completed their profile
+      try {
+        const { data: users } = await client.models.User.list({
+          filter: { ownerId: { eq: user.userId } }
+        });
+        
+        const userRecord = users?.[0];
+        
+        if (userRecord?.accountType === 'PROVIDER') {
+          // Check if ProviderProfile exists
+          const { data: providerProfiles } = await client.models.ProviderProfile.list({
+            filter: { ownerId: { eq: user.userId } }
+          });
+          
+          if (!providerProfiles || providerProfiles.length === 0) {
+            setShowOnboardingBanner(true);
+          }
+        }
+      } catch (error) {
+        console.log('Error checking provider profile:', error);
       }
 
       // Load Stripe account status
@@ -172,6 +200,20 @@ export default function ProviderDashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Onboarding Banner */}
+        {showOnboardingBanner && (
+          <Alert className="mb-6 border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-900">Welcome to Ecosystem!</AlertTitle>
+            <AlertDescription className="text-blue-800">
+              Complete your public profile to start accepting bookings from customers.
+            </AlertDescription>
+            <Button className="mt-4" asChild>
+              <Link href="/provider/onboarding/profile">Complete Profile</Link>
+            </Button>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Provider Dashboard</h1>

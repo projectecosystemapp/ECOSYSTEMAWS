@@ -1,16 +1,18 @@
 import { type ClientSchema, a, defineData } from "@aws-amplify/backend";
 
 const schema = a.schema({
-  // Enhanced User Profile (Both Customers and Providers)
-  UserProfile: a
+  // New User model - Core user record created after email verification
+  User: a
     .model({
+      ownerId: a.string().required(), // Cognito 'sub' - standardized field name
       email: a.email().required(),
+      accountType: a.enum(['CUSTOMER', 'PROVIDER']),
+      createdAt: a.datetime().default(() => new Date().toISOString()),
+      // Profile information (optional, filled during onboarding)
       firstName: a.string(),
       lastName: a.string(),
       phone: a.phone(),
-      role: a.enum(['CUSTOMER', 'PROVIDER', 'BOTH', 'ADMIN']),
       profilePicture: a.url(),
-      bio: a.string(),
       city: a.string(),
       state: a.string(),
       country: a.string(),
@@ -19,39 +21,16 @@ const schema = a.schema({
       longitude: a.float(),
       timezone: a.string(),
       language: a.string().default('en'),
-      // Provider-specific fields
-      businessName: a.string(),
-      businessType: a.enum(['INDIVIDUAL', 'BUSINESS']),
-      stripeAccountId: a.string(),
-      stripeOnboardingComplete: a.boolean().default(false),
-      stripeAccountStatus: a.enum(['PENDING', 'ACTIVE', 'RESTRICTED', 'REJECTED']),
-      stripeChargesEnabled: a.boolean().default(false),
-      stripePayoutsEnabled: a.boolean().default(false),
-      stripeDetailsSubmitted: a.boolean().default(false),
-      stripeRequirements: a.json(), // Store any pending requirements from Stripe
-      stripeCapabilities: a.json(), // Store enabled capabilities
-      stripeOnboardingUrl: a.url(), // Current onboarding link if needed
-      verificationStatus: a.enum(['PENDING', 'VERIFIED', 'REJECTED']),
-      verificationDocuments: a.string().array(),
-      // Reputation
-      totalRatings: a.integer().default(0),
-      averageRating: a.float().default(0),
-      completedServices: a.integer().default(0),
-      responseTime: a.integer(), // Average response time in minutes
-      // Preferences
-      notificationPreferences: a.json(),
-      availabilitySettings: a.json(),
-      searchRadius: a.integer().default(10), // km
-      instantBooking: a.boolean().default(false),
       // Account status
       active: a.boolean().default(true),
       lastActive: a.datetime(),
-      joinedAt: a.datetime(),
+      // Preferences
+      notificationPreferences: a.json(),
+      searchRadius: a.integer().default(10), // km for customers
     })
     .authorization((allow) => [
-      allow.owner(),
+      allow.owner().identityClaim('sub'), // CRITICAL: Users can ONLY access their own record
       allow.groups(['Admins']),
-      allow.publicApiKey().to(['read']),
     ]),
 
   // Enhanced Service/Listing Model
@@ -461,14 +440,22 @@ const schema = a.schema({
   // Provider Profile Model - Enhanced marketplace profile
   ProviderProfile: a
     .model({
-      userId: a.id().required(),
+      ownerId: a.string().required(), // Standardized from 'userId' to 'ownerId'
       // Business Information
       businessName: a.string().required(),
       bio: a.string(),
       tagline: a.string(),
+      publicEmail: a.email(),
+      phoneNumber: a.phone(),
+      // Images
       profileImageUrl: a.url(),
-      coverImageUrl: a.url(),
+      bannerImageUrl: a.url(),
       galleryImages: a.url().array(),
+      // Service Information
+      serviceCategories: a.string().array(),
+      serviceRadius: a.integer(), // in kilometers
+      // Location
+      location: a.json(), // Will store: { address, city, province, postalCode, lat, lng }
       // Professional Details
       yearsInBusiness: a.integer(),
       certifications: a.string().array(),
@@ -482,15 +469,25 @@ const schema = a.schema({
       // SEO
       slug: a.string(), // URL-friendly identifier
       keywords: a.string().array(),
+      // Stripe Integration
+      stripeAccountId: a.string(),
+      payoutsEnabled: a.boolean().default(false),
+      // Reputation
+      averageRating: a.float().default(0),
+      reviewCount: a.integer().default(0),
       // Status
+      status: a.enum(['DRAFT', 'PUBLISHED']).default('DRAFT'),
+      isVerified: a.boolean().default(false),
       profileComplete: a.boolean().default(false),
       featured: a.boolean().default(false),
-      verified: a.boolean().default(false),
+      // Timestamps
+      createdAt: a.datetime().default(() => new Date().toISOString()),
+      updatedAt: a.datetime(),
       lastUpdated: a.datetime(),
     })
     .authorization((allow) => [
-      allow.owner().to(['create', 'read', 'update', 'delete']),
-      allow.publicApiKey().to(['read']),
+      allow.owner().identityClaim('sub'),
+      allow.public('read').when(a.field('status').eq('PUBLISHED')),
       allow.authenticated().to(['read']),
     ]),
 });

@@ -27,6 +27,8 @@ yarn-error.log*
 
 # local env files
 .env*.local
+.env.production
+.env.staging
 
 # vercel
 .vercel
@@ -40,3 +42,8 @@ next-env.d.ts
 # amplify_outputs.json is needed for deployment
 # amplify_outputs*
 amplifyconfiguration*
+# E2E Test artifacts
+test-results/
+playwright-report/
+playwright/.cache/
+.env.test

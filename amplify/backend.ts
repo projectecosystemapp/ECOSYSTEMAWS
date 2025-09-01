@@ -11,6 +11,7 @@ import { messagingHandler } from './functions/messaging-handler/resource.js';
 import { notificationHandler } from './functions/notification-handler/resource.js';
 import { profileEventsFunction } from './functions/profile-events/resource.js';
 import { bedrockAiFunction } from './functions/bedrock-ai/resource.js';
+import { postConfirmationTrigger } from './functions/post-confirmation-trigger/resource.js';
 
 /**
  * AWS Amplify Backend Definition
@@ -43,7 +44,7 @@ import { bedrockAiFunction } from './functions/bedrock-ai/resource.js';
  * 1. messagingHandler: Manages conversation threads and message delivery
  * 2. notificationHandler: Processes push/email notifications for messages
  */
-defineBackend({
+const backend = defineBackend({
   auth,
   data,
   storage,
@@ -56,4 +57,19 @@ defineBackend({
   notificationHandler,
   profileEventsFunction,
   bedrockAiFunction,
+  postConfirmationTrigger,
+});
+
+// Configure the post-confirmation trigger
+backend.auth.resources.userPool.addTrigger({
+  operation: 'postConfirmation',
+  handler: backend.postConfirmationTrigger.resources.lambda,
+});
+
+// Grant the function permissions to access the GraphQL API
+backend.postConfirmationTrigger.resources.lambda.addToRolePolicy({
+  actions: ['appsync:GraphQL'],
+  resources: [
+    backend.data.resources.graphqlApi.arn + '/*',
+  ],
 });
