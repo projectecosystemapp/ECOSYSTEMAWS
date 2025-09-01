@@ -46,4 +46,10 @@ amplifyconfiguration*
 test-results/
 playwright-report/
 playwright/.cache/
+
+# Test environment files - NEVER commit these
 .env.test
+.env.test.local
+tests/config/.env.test
+tests/config/.env.test.local
+**/test.env

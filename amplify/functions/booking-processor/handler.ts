@@ -2,7 +2,7 @@ import { APIGatewayProxyHandler, Context } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, PutItemCommand, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
-import { createLogger } from '../utils/lambda-logger.js';
+import { createLogger, Logger } from '../utils/logger';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -32,10 +32,10 @@ const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
  * - Comprehensive audit logging
  */
 export const handler: APIGatewayProxyHandler = async (event, context: Context) => {
-  const logger = createLogger(context);
+  const logger = createLogger('booking-processor', context);
   const startTime = Date.now();
   
-  logger.logInvocation(event);
+  logger.logInput(event);
   logger.info('Booking processor request received', {
     httpMethod: event.httpMethod,
     path: event.path,
@@ -68,19 +68,24 @@ export const handler: APIGatewayProxyHandler = async (event, context: Context) =
 
     switch (action) {
       case 'CREATE_BOOKING':
-        return await createBookingWithPayment(params, headers);
+        logger.info('Processing CREATE_BOOKING action', { params: logger.sanitizeObject(params, ['customerPhone', 'customerEmail']) });
+        return await createBookingWithPayment(params, headers, logger);
         
       case 'CONFIRM_BOOKING':
-        return await confirmBooking(params.bookingId, headers);
+        logger.info('Processing CONFIRM_BOOKING action', { bookingId: params.bookingId });
+        return await confirmBooking(params.bookingId, headers, logger);
         
       case 'CANCEL_BOOKING':
-        return await cancelBooking(params.bookingId, params.reason, headers);
+        logger.info('Processing CANCEL_BOOKING action', { bookingId: params.bookingId, reason: params.reason });
+        return await cancelBooking(params.bookingId, params.reason, headers, logger);
         
       case 'CHECK_AVAILABILITY':
-        return await checkServiceAvailability(params, headers);
+        logger.info('Processing CHECK_AVAILABILITY action', { serviceId: params.serviceId });
+        return await checkServiceAvailability(params, headers, logger);
         
       case 'GET_BOOKING':
-        return await getBookingDetails(params.bookingId, headers);
+        logger.info('Processing GET_BOOKING action', { bookingId: params.bookingId });
+        return await getBookingDetails(params.bookingId, headers, logger);
         
       default:
         return {
@@ -90,7 +95,7 @@ export const handler: APIGatewayProxyHandler = async (event, context: Context) =
         };
     }
   } catch (error) {
-    console.error('Booking processor error:', error);
+    logger.error('Booking processor error', error as Error, { action: body?.action });
     return {
       statusCode: 500,
       headers,
@@ -105,7 +110,7 @@ export const handler: APIGatewayProxyHandler = async (event, context: Context) =
 /**
  * Create a booking with integrated payment processing
  */
-async function createBookingWithPayment(params: any, headers: any) {
+async function createBookingWithPayment(params: any, headers: any, logger: Logger) {
   const {
     serviceId,
     customerId,
@@ -118,8 +123,23 @@ async function createBookingWithPayment(params: any, headers: any) {
   } = params;
 
   try {
+    logger.info('Creating booking with payment', {
+      serviceId,
+      customerId,
+      startDateTime,
+      endDateTime,
+      groupSize,
+      bookingType: 'CREATE_WITH_PAYMENT'
+    });
     // Validate required fields
     if (!serviceId || !customerId || !startDateTime || !endDateTime || !customerEmail) {
+      logger.warn('Booking validation failed - missing required fields', {
+        serviceId,
+        customerId,
+        hasStartDateTime: !!startDateTime,
+        hasEndDateTime: !!endDateTime,
+        hasCustomerEmail: !!customerEmail
+      });
       return {
         statusCode: 400,
         headers,
@@ -248,7 +268,12 @@ async function createBookingWithPayment(params: any, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error creating booking with payment:', error);
+    logger.error('Error creating booking with payment', error as Error, {
+      serviceId,
+      customerId,
+      startDateTime,
+      endDateTime
+    });
     throw error;
   }
 }
@@ -276,6 +301,12 @@ async function confirmBooking(bookingId: string, headers: any) {
     }
 
     // Update booking status
+    logger.info('Updating booking status to CONFIRMED', {
+      bookingId,
+      previousStatus: booking.status,
+      newStatus: 'CONFIRMED'
+    });
+
     await dynamodb.send(
       new UpdateItemCommand({
         TableName: BOOKING_TABLE,
@@ -292,6 +323,13 @@ async function confirmBooking(bookingId: string, headers: any) {
     // Send confirmation notifications
     await sendBookingConfirmationNotifications(booking);
 
+    logger.info('Booking confirmed successfully', {
+      bookingId,
+      customerId: booking.customerId,
+      providerId: booking.providerId,
+      amount: booking.amount
+    });
+
     return {
       statusCode: 200,
       headers,
@@ -302,7 +340,7 @@ async function confirmBooking(bookingId: string, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error confirming booking:', error);
+    logger.error('Error confirming booking', error as Error, { bookingId });
     throw error;
   }
 }
@@ -334,11 +372,22 @@ async function cancelBooking(bookingId: string, reason: string, headers: any) {
       try {
         await stripe.paymentIntents.cancel(booking.paymentIntentId);
       } catch (error) {
-        console.log('Payment intent already processed or cancelled:', error);
+        logger.info('Payment intent already processed or cancelled', { 
+          bookingId,
+          paymentIntentId: booking.paymentIntentId,
+          error: (error as Error).message
+        });
       }
     }
 
     // Update booking status
+    logger.info('Updating booking status to CANCELLED', {
+      bookingId,
+      previousStatus: booking.status,
+      newStatus: 'CANCELLED',
+      reason
+    });
+
     await dynamodb.send(
       new UpdateItemCommand({
         TableName: BOOKING_TABLE,
@@ -371,7 +420,7 @@ async function cancelBooking(bookingId: string, reason: string, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error cancelling booking:', error);
+    logger.error('Error cancelling booking', error as Error, { bookingId, reason });
     throw error;
   }
 }
@@ -535,11 +584,11 @@ async function generateBookingQR(bookingId: string) {
 }
 
 async function sendBookingConfirmationNotifications(booking: any) {
-  // This would send confirmation emails/push notifications
-  console.log(`Booking confirmation notifications sent for booking ${booking.id}`);
+  // TODO: Implement actual notification service
+  // Placeholder for future email/push notification implementation
 }
 
-async function checkServiceAvailability(params: any, headers: any) {
+async function checkServiceAvailability(params: any, headers: any, logger: Logger) {
   const { serviceId, startDateTime, endDateTime } = params;
 
   try {
@@ -557,15 +606,16 @@ async function checkServiceAvailability(params: any, headers: any) {
       }),
     };
   } catch (error) {
-    console.error('Error checking availability:', error);
+    logger.error('Error checking availability', error as Error, params);
     throw error;
   }
 }
 
-async function getBookingDetails(bookingId: string, headers: any) {
+async function getBookingDetails(bookingId: string, headers: any, logger: Logger) {
   try {
     const booking = await getBooking(bookingId);
     if (!booking) {
+      logger.warn('Booking not found', { bookingId });
       return {
         statusCode: 404,
         headers,
@@ -579,7 +629,7 @@ async function getBookingDetails(bookingId: string, headers: any) {
       body: JSON.stringify({ booking }),
     };
   } catch (error) {
-    console.error('Error getting booking details:', error);
+    logger.error('Error getting booking details', error as Error, { bookingId });
     throw error;
   }
 }

@@ -3,15 +3,44 @@ import { Amplify } from 'aws-amplify';
 import { Schema } from '@/amplify/data/resource';
 import { v4 as uuidv4 } from 'uuid';
 import amplifyConfig from '@/amplify_outputs.json';
-
-// Configure Amplify if not already configured
-if (!Amplify.getConfig().Auth) {
-  Amplify.configure(amplifyConfig);
-}
-
-const client = generateClient<Schema>();
+import type { TestUser } from './auth.helper';
 
 export class TestDataSeeder {
+  private client: ReturnType<typeof generateClient<Schema>>;
+  private testUser: TestUser | null = null;
+  
+  constructor(testUser?: TestUser) {
+    // Configure Amplify if not already configured
+    if (!Amplify.getConfig().Auth) {
+      Amplify.configure(amplifyConfig);
+    }
+    
+    this.testUser = testUser || null;
+    
+    // If we have auth tokens, configure the client with them
+    if (testUser) {
+      // Configure auth for this specific client instance
+      this.client = generateClient<Schema>({
+        authMode: 'userPool',
+        authToken: async () => this.testUser?.idToken || ''
+      });
+    } else {
+      // Use default client (will fail if auth is required)
+      this.client = generateClient<Schema>();
+    }
+  }
+  
+  /**
+   * Update the authentication tokens
+   */
+  updateAuth(testUser: TestUser) {
+    this.testUser = testUser;
+    // Recreate client with new auth tokens
+    this.client = generateClient<Schema>({
+      authMode: 'userPool',
+      authToken: async () => this.testUser?.idToken || ''
+    });
+  }
   /**
    * Create provider earnings data including services and bookings
    */
@@ -31,7 +60,7 @@ export class TestDataSeeder {
     
     for (const serviceConfig of config.services) {
       // Create service
-      const service = await client.models.Service.create({
+      const service = await this.client.models.Service.create({
         id: uuidv4(),
         providerId,
         title: serviceConfig.title,
@@ -61,7 +90,7 @@ export class TestDataSeeder {
           
           const isCompleted = i < serviceConfig.completedCount;
           
-          const booking = await client.models.Booking.create({
+          const booking = await this.client.models.Booking.create({
             id: uuidv4(),
             serviceId: service.data.id,
             providerId,
@@ -101,7 +130,7 @@ export class TestDataSeeder {
     amount: number;
   }) {
     // Create service first
-    const service = await client.models.Service.create({
+    const service = await this.client.models.Service.create({
       id: uuidv4(),
       providerId: config.providerId,
       title: config.serviceTitle,
@@ -123,7 +152,7 @@ export class TestDataSeeder {
     }
     
     // Create completed booking
-    const booking = await client.models.Booking.create({
+    const booking = await this.client.models.Booking.create({
       id: uuidv4(),
       serviceId: service.data.id,
       providerId: config.providerId,
@@ -156,7 +185,7 @@ export class TestDataSeeder {
     const bookings = [];
     
     // Create a test service
-    const service = await client.models.Service.create({
+    const service = await this.client.models.Service.create(
       id: uuidv4(),
       providerId,
       title: 'Test Cleaning Service',
@@ -181,7 +210,7 @@ export class TestDataSeeder {
       const bookingDate = new Date();
       bookingDate.setDate(bookingDate.getDate() + i + 1);
       
-      const booking = await client.models.Booking.create({
+      const booking = await this.client.models.Booking.create(
         id: uuidv4(),
         serviceId: service.data.id,
         providerId,
@@ -217,29 +246,29 @@ export class TestDataSeeder {
   async cleanupProviderData(providerId: string) {
     try {
       // Delete all bookings for this provider
-      const { data: bookings } = await client.models.Booking.list({
+      const { data: bookings } = await this.client.models.Booking.list({
         filter: { providerId: { eq: providerId } }
       });
       
       if (bookings) {
         for (const booking of bookings) {
-          await client.models.Booking.delete({ id: booking.id });
+          await this.client.models.Booking.delete({ id: booking.id });
         }
       }
       
       // Delete all services for this provider
-      const { data: services } = await client.models.Service.list({
+      const { data: services } = await this.client.models.Service.list({
         filter: { providerId: { eq: providerId } }
       });
       
       if (services) {
         for (const service of services) {
-          await client.models.Service.delete({ id: service.id });
+          await this.client.models.Service.delete({ id: service.id });
         }
       }
       
       // Delete provider profile
-      await client.models.ProviderProfile.delete({ id: providerId });
+      await this.client.models.ProviderProfile.delete({ id: providerId });
       
     } catch (error) {
       console.error('Error cleaning up provider data:', error);
@@ -252,13 +281,13 @@ export class TestDataSeeder {
   async cleanupCustomerData(customerId: string) {
     try {
       // Delete all bookings for this customer
-      const { data: bookings } = await client.models.Booking.list({
+      const { data: bookings } = await this.client.models.Booking.list({
         filter: { customerId: { eq: customerId } }
       });
       
       if (bookings) {
         for (const booking of bookings) {
-          await client.models.Booking.delete({ id: booking.id });
+          await this.client.models.Booking.delete({ id: booking.id });
         }
       }
       
@@ -276,7 +305,7 @@ export class TestDataSeeder {
     description?: string;
     yearsExperience?: number;
   }) {
-    const profile = await client.models.ProviderProfile.create({
+    const profile = await this.client.models.ProviderProfile.create({
       id: providerId,
       businessName: data.businessName,
       businessType: data.businessType,
@@ -314,7 +343,7 @@ export class TestDataSeeder {
     const reviews = [];
     
     for (let i = 0; i < count; i++) {
-      const review = await client.models.Review.create({
+      const review = await this.client.models.Review.create({
         id: uuidv4(),
         bookingId: uuidv4(),
         providerId,
