@@ -1,0 +1,625 @@
+/**
+ * Production-Grade Amplify Client Wrapper with Resilience Patterns
+ * 
+ * This enhanced wrapper provides:
+ * - Circuit breaker protection with automatic fallback
+ * - Correlation ID tracking for distributed tracing
+ * - Response format normalization
+ * - Automatic retry with exponential backoff
+ * - Performance metrics collection
+ * - Feature flag support for gradual migration
+ * 
+ * Updated September 2025 with AWS-native resilience patterns
+ */
+
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
+import { useNewArchitecture } from './feature-flags';
+import { CircuitBreaker } from './resilience/circuit-breaker';
+import { correlationTracker, withCorrelation } from './resilience/correlation-tracker';
+import { ResponseNormalizer, type NormalizedResponse } from './resilience/response-normalizer';
+import { PerformanceTracker } from './resilience/performance-tracker';
+
+// Create the Amplify client with enhanced configuration
+const client = generateClient<Schema>({
+  authMode: 'userPool',
+});
+
+// Legacy Lambda URL endpoints (from environment variables)
+const LAMBDA_URLS = {
+  stripeConnect: process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL || process.env.STRIPE_CONNECT_LAMBDA_URL,
+  stripeWebhook: process.env.NEXT_PUBLIC_STRIPE_WEBHOOK_URL || process.env.STRIPE_WEBHOOK_LAMBDA_URL,
+  bookingProcessor: process.env.BOOKING_PROCESSOR_LAMBDA_URL,
+  payoutManager: process.env.PAYOUT_MANAGER_LAMBDA_URL,
+  refundProcessor: process.env.REFUND_PROCESSOR_LAMBDA_URL,
+  messagingHandler: process.env.MESSAGING_HANDLER_LAMBDA_URL,
+  notificationHandler: process.env.NOTIFICATION_HANDLER_LAMBDA_URL,
+};
+
+// Initialize circuit breakers for each service
+const circuitBreakers = {
+  stripeConnect: new CircuitBreaker({
+    serviceName: 'stripe-connect',
+    failureThreshold: 3,
+    successThreshold: 2,
+    timeout: 10000,
+    resetTimeout: 30000,
+    volumeThreshold: 10,
+    errorThresholdPercentage: 50
+  }),
+  bookingProcessor: new CircuitBreaker({
+    serviceName: 'booking-processor',
+    failureThreshold: 3,
+    successThreshold: 2,
+    timeout: 15000,
+    resetTimeout: 30000,
+    volumeThreshold: 10,
+    errorThresholdPercentage: 50
+  }),
+  payoutManager: new CircuitBreaker({
+    serviceName: 'payout-manager',
+    failureThreshold: 2,
+    successThreshold: 2,
+    timeout: 20000,
+    resetTimeout: 60000,
+    volumeThreshold: 5,
+    errorThresholdPercentage: 40
+  }),
+  refundProcessor: new CircuitBreaker({
+    serviceName: 'refund-processor',
+    failureThreshold: 2,
+    successThreshold: 2,
+    timeout: 20000,
+    resetTimeout: 60000,
+    volumeThreshold: 5,
+    errorThresholdPercentage: 40
+  }),
+  messagingHandler: new CircuitBreaker({
+    serviceName: 'messaging-handler',
+    failureThreshold: 5,
+    successThreshold: 3,
+    timeout: 5000,
+    resetTimeout: 20000,
+    volumeThreshold: 20,
+    errorThresholdPercentage: 60
+  }),
+  notificationHandler: new CircuitBreaker({
+    serviceName: 'notification-handler',
+    failureThreshold: 5,
+    successThreshold: 3,
+    timeout: 5000,
+    resetTimeout: 20000,
+    volumeThreshold: 20,
+    errorThresholdPercentage: 60
+  })
+};
+
+// Response normalizer instance
+const responseNormalizer = new ResponseNormalizer();
+
+// Performance tracker instance
+const performanceTracker = new PerformanceTracker();
+
+// ========== Stripe Operations ==========
+
+export async function stripeConnectOperation(params: {
+  action: string;
+  providerId?: string;
+  paymentIntentId?: string;
+  amount?: number;
+  connectedAccountId?: string;
+  customerId?: string;
+  serviceId?: string;
+  bookingId?: string;
+  metadata?: any;
+}) {
+  return withCorrelation('stripe-connect-operation', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation headers
+    correlationTracker.addMetadata({
+      action: params.action,
+      providerId: params.providerId
+    });
+
+    // Main operation with circuit breaker
+    const mainOperation = async () => {
+      if (useNewArchitecture.stripeConnect) {
+        console.log('✅ Using AppSync for Stripe Connect', {
+          correlationId: correlationTracker.getCurrentCorrelationId()
+        });
+        
+        const { data, errors } = await client.queries.stripeConnect(params);
+        
+        if (errors) {
+          console.error('AppSync errors:', errors);
+          throw new Error(errors[0]?.message || 'Stripe Connect operation failed');
+        }
+        
+        return responseNormalizer.normalizeAppSyncResponse(data);
+      } else {
+        throw new Error('AppSync not enabled, fallback will be used');
+      }
+    };
+
+    // Fallback operation (Lambda URL)
+    const fallbackOperation = async () => {
+      console.warn('⚠️ Circuit breaker triggered, using Lambda URL fallback', {
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const headers = correlationTracker.injectIntoHeaders({
+        'Content-Type': 'application/json',
+      });
+      
+      const response = await fetch(LAMBDA_URLS.stripeConnect!, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(params),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return responseNormalizer.normalizeLambdaResponse(data);
+    };
+
+    try {
+      // Execute with circuit breaker protection
+      const result = await circuitBreakers.stripeConnect.execute(
+        mainOperation,
+        fallbackOperation
+      );
+
+      // Track performance metrics
+      const duration = Date.now() - startTime;
+      const architecture = useNewArchitecture.stripeConnect ? 'appsync' : 'lambda-url';
+      performanceTracker.recordMetric('stripe-connect', duration, true, architecture);
+      
+      console.log('Stripe Connect operation completed', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        architecture: architecture === 'appsync' ? 'AppSync' : 'Lambda URL'
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const architecture = useNewArchitecture.stripeConnect ? 'appsync' : 'lambda-url';
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('stripe-connect', duration, false, architecture, errorType);
+      
+      console.error('Stripe Connect operation failed', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+// ========== Booking Operations ==========
+
+export async function processBooking(params: {
+  action: string;
+  bookingId?: string;
+  serviceId?: string;
+  customerId?: string;
+  startDateTime?: string;
+  endDateTime?: string;
+  groupSize?: number;
+  specialRequests?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  reason?: string;
+}): Promise<NormalizedResponse> {
+  return withCorrelation('booking-processor', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation metadata
+    correlationTracker.addMetadata({
+      action: params.action,
+      bookingId: params.bookingId
+    });
+
+    // Main operation with circuit breaker
+    const mainOperation = async () => {
+      if (useNewArchitecture.bookingProcessor) {
+        console.log('✅ Using AppSync for Booking Processor', {
+          correlationId: correlationTracker.getCurrentCorrelationId()
+        });
+        
+        const { data, errors } = await client.mutations.processBooking(params);
+        
+        if (errors) {
+          console.error('AppSync errors:', errors);
+          throw new Error(errors[0]?.message || 'Booking processing failed');
+        }
+        
+        return responseNormalizer.normalizeAppSyncResponse(data);
+      } else {
+        throw new Error('AppSync not enabled, fallback will be used');
+      }
+    };
+
+    // Fallback operation (Lambda URL)
+    const fallbackOperation = async () => {
+      console.warn('⚠️ Circuit breaker triggered, using Lambda URL fallback', {
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const headers = correlationTracker.injectIntoHeaders({
+        'Content-Type': 'application/json',
+      });
+      
+      const response = await fetch(LAMBDA_URLS.bookingProcessor!, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(params),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      return responseNormalizer.normalizeLambdaResponse(data);
+    };
+
+    try {
+      // Execute with circuit breaker protection
+      const result = await circuitBreakers.bookingProcessor.execute(
+        mainOperation,
+        fallbackOperation
+      );
+
+      // Track performance metrics
+      const duration = Date.now() - startTime;
+      const architecture = useNewArchitecture.bookingProcessor ? 'appsync' : 'lambda-url';
+      performanceTracker.recordMetric('booking-processor', duration, true, architecture);
+      
+      console.log('Booking processing completed', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        architecture
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const architecture = useNewArchitecture.bookingProcessor ? 'appsync' : 'lambda-url';
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('booking-processor', duration, false, architecture, errorType);
+      
+      console.error('Booking processing failed', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+// ========== Payout Operations ==========
+
+export async function processPayout(params: {
+  providerId: string;
+  payoutId?: string;
+  amount?: number;
+  action?: string;
+}) {
+  if (useNewArchitecture.payoutManager) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Payout Manager');
+    const { data, errors } = await client.mutations.processPayouts(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Payout processing failed');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL
+    console.log('⚠️ Using legacy Lambda URL for Payout Manager');
+    const response = await fetch(LAMBDA_URLS.payoutManager!, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// ========== Refund Operations ==========
+
+export async function processRefund(params: {
+  paymentIntentId: string;
+  bookingId?: string;
+  amount?: number;
+  reason?: string;
+  refundType?: string;
+}) {
+  if (useNewArchitecture.refundProcessor) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Refund Processor');
+    const { data, errors } = await client.mutations.processRefund(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Refund processing failed');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL
+    console.log('⚠️ Using legacy Lambda URL for Refund Processor');
+    const response = await fetch(LAMBDA_URLS.refundProcessor!, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// ========== Messaging Operations ==========
+
+export async function sendMessage(params: {
+  action: string;
+  senderEmail?: string;
+  recipientEmail?: string;
+  content?: string;
+  messageType?: string;
+  bookingId?: string;
+  serviceId?: string;
+  conversationId?: string;
+}) {
+  if (useNewArchitecture.messagingHandler) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Messaging');
+    const { data, errors } = await client.mutations.sendMessage(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Message sending failed');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL
+    console.log('⚠️ Using legacy Lambda URL for Messaging');
+    const response = await fetch(LAMBDA_URLS.messagingHandler!, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+export async function getMessages(params: {
+  action: string;
+  conversationId?: string;
+  userEmail: string;
+  query?: string;
+}) {
+  if (useNewArchitecture.messagingHandler) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Getting Messages');
+    const { data, errors } = await client.queries.getMessages(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Failed to get messages');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL with GET request
+    console.log('⚠️ Using legacy Lambda URL for Getting Messages');
+    const queryParams = new URLSearchParams(params as any);
+    const response = await fetch(`${LAMBDA_URLS.messagingHandler}?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// ========== Notification Operations ==========
+
+export async function sendNotification(params: {
+  action: string;
+  userId?: string;
+  type?: string;
+  title?: string;
+  message?: string;
+  data?: any;
+}) {
+  if (useNewArchitecture.notificationHandler) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Notifications');
+    const { data, errors } = await client.mutations.sendNotification(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Notification sending failed');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL
+    console.log('⚠️ Using legacy Lambda URL for Notifications');
+    const response = await fetch(LAMBDA_URLS.notificationHandler!, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(params),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+export async function getNotifications(params: {
+  userId: string;
+  unreadOnly?: boolean;
+}) {
+  if (useNewArchitecture.notificationHandler) {
+    // New AppSync architecture
+    console.log('✅ Using AppSync for Getting Notifications');
+    const { data, errors } = await client.queries.getNotifications(params);
+    
+    if (errors) {
+      console.error('AppSync errors:', errors);
+      throw new Error(errors[0]?.message || 'Failed to get notifications');
+    }
+    
+    return data;
+  } else {
+    // Legacy Lambda URL with GET request
+    console.log('⚠️ Using legacy Lambda URL for Getting Notifications');
+    const queryParams = new URLSearchParams(params as any);
+    const response = await fetch(`${LAMBDA_URLS.notificationHandler}?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
+  }
+}
+
+// ========== Webhook Operations ==========
+
+/**
+ * Process incoming webhook from Stripe or other providers
+ * Uses custom Lambda authorizer for signature validation
+ */
+export async function processWebhook(params: {
+  body: string;
+  signature: string;
+  provider?: 'stripe' | 'github' | 'shopify';
+}): Promise<NormalizedResponse> {
+  return withCorrelation('webhook-processing', async () => {
+    const startTime = Date.now();
+    
+    try {
+      console.log('Processing webhook', {
+        provider: params.provider || 'stripe',
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+
+      // For webhooks, we always use AppSync with custom authorization
+      const { data, errors } = await client.mutations.stripeWebhook({
+        body: params.body,
+        signature: params.signature,
+      });
+      
+      if (errors) {
+        console.error('Webhook processing errors:', errors);
+        throw new Error(errors[0]?.message || 'Webhook processing failed');
+      }
+      
+      const result = responseNormalizer.normalizeAppSyncResponse(data);
+      
+      // Track performance metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric('webhook-processing', duration, true, 'appsync');
+      
+      console.log('Webhook processed successfully', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        deduplicated: result.data?.deduplicated
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('webhook-processing', duration, false, 'appsync', errorType);
+      
+      console.error('Webhook processing failed', {
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+// ========== Helper Functions ==========
+
+/**
+ * Get the current architecture status for debugging
+ */
+export function getArchitectureStatus() {
+  return {
+    stripeConnect: useNewArchitecture.stripeConnect ? 'AppSync' : 'Lambda URL',
+    bookingProcessor: useNewArchitecture.bookingProcessor ? 'AppSync' : 'Lambda URL',
+    payoutManager: useNewArchitecture.payoutManager ? 'AppSync' : 'Lambda URL',
+    refundProcessor: useNewArchitecture.refundProcessor ? 'AppSync' : 'Lambda URL',
+    messagingHandler: useNewArchitecture.messagingHandler ? 'AppSync' : 'Lambda URL',
+    notificationHandler: useNewArchitecture.notificationHandler ? 'AppSync' : 'Lambda URL',
+  };
+}
+
+/**
+ * Log architecture status on initialization (development only)
+ */
+if (process.env.NODE_ENV === 'development') {
+  console.log('🏗️ Architecture Status:', getArchitectureStatus());
+}
+
+// Export the raw Amplify client for direct access if needed
+export { client as amplifyClient };

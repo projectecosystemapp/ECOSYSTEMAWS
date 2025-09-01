@@ -12,6 +12,8 @@ import { notificationHandler } from './functions/notification-handler/resource.j
 import { profileEventsFunction } from './functions/profile-events/resource.js';
 import { bedrockAiFunction } from './functions/bedrock-ai/resource.js';
 import { postConfirmationTrigger } from './functions/post-confirmation-trigger/resource.js';
+import { webhookAuthorizer } from './functions/webhook-authorizer/resource.js';
+import { webhookReconciliation } from './functions/webhook-reconciliation/resource.js';
 
 /**
  * AWS Amplify Backend Definition
@@ -58,6 +60,8 @@ const backend = defineBackend({
   profileEventsFunction,
   bedrockAiFunction,
   postConfirmationTrigger,
+  webhookAuthorizer,
+  webhookReconciliation,
 });
 
 // Configure the post-confirmation trigger
@@ -73,3 +77,70 @@ backend.postConfirmationTrigger.resources.lambda.addToRolePolicy({
     backend.data.resources.graphqlApi.arn + '/*',
   ],
 });
+
+// Grant webhook authorizer permissions to access DynamoDB for deduplication
+backend.webhookAuthorizer.resources.lambda.addToRolePolicy({
+  actions: [
+    'dynamodb:GetItem',
+    'dynamodb:PutItem',
+    'dynamodb:Query',
+    'dynamodb:UpdateItem',
+    'dynamodb:DeleteItem',
+  ],
+  resources: [
+    'arn:aws:dynamodb:*:*:table/ProcessedWebhooks',
+    'arn:aws:dynamodb:*:*:table/ProcessedWebhooks/*',
+  ],
+});
+
+// Grant reconciliation Lambda permissions
+backend.webhookReconciliation.resources.lambda.addToRolePolicy({
+  actions: [
+    'dynamodb:GetItem',
+    'dynamodb:PutItem',
+    'dynamodb:Query',
+    'dynamodb:Scan',
+    'dynamodb:BatchGetItem',
+  ],
+  resources: [
+    'arn:aws:dynamodb:*:*:table/ProcessedWebhooks',
+    'arn:aws:dynamodb:*:*:table/ProcessedWebhooks/*',
+    'arn:aws:dynamodb:*:*:table/Booking',
+    'arn:aws:dynamodb:*:*:table/Booking/*',
+    'arn:aws:dynamodb:*:*:table/Transaction',
+    'arn:aws:dynamodb:*:*:table/Transaction/*',
+  ],
+});
+
+// Grant CloudWatch metrics permissions
+backend.webhookReconciliation.resources.lambda.addToRolePolicy({
+  actions: [
+    'cloudwatch:PutMetricData',
+  ],
+  resources: ['*'],
+});
+
+// Grant SNS permissions for alerts
+backend.webhookReconciliation.resources.lambda.addToRolePolicy({
+  actions: [
+    'sns:Publish',
+  ],
+  resources: ['arn:aws:sns:*:*:*'],
+});
+
+// Schedule the reconciliation Lambda to run daily at 2 AM UTC
+import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
+import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
+
+const reconciliationRule = new Rule(backend.webhookReconciliation.resources.lambda.stack, 'WebhookReconciliationSchedule', {
+  schedule: Schedule.cron({
+    minute: '0',
+    hour: '2',
+    day: '*',
+    month: '*',
+    year: '*',
+  }),
+  description: 'Daily webhook reconciliation at 2 AM UTC',
+});
+
+reconciliationRule.addTarget(new LambdaFunction(backend.webhookReconciliation.resources.lambda));

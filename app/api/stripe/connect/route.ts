@@ -1,65 +1,149 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { getAuthenticatedUser } from '@/lib/amplify-server-utils';
 
+// Initialize Stripe with the correct API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
 });
 
-const PLATFORM_FEE_PERCENT = 8; // 8% commission for early adopters
+const PLATFORM_FEE_PERCENT = 8;
 
-export async function POST(request: NextRequest) {
+// Type definitions for all action parameters
+interface CreateAccountLinkParams {
+  accountId: string;
+}
+
+interface CheckAccountStatusParams {
+  accountId: string;
+}
+
+interface PaymentIntentParams {
+  amount: number;
+  currency?: string;
+  connectedAccountId: string;
+  customerId: string;
+  serviceId: string;
+  bookingId: string;
+}
+
+interface EscrowPaymentParams {
+  amount: number;
+  currency?: string;
+  connectedAccountId: string;
+  customerId: string;
+  serviceId: string;
+  bookingId: string;
+}
+
+interface ReleaseEscrowParams {
+  paymentIntentId: string;
+  connectedAccountId: string;
+}
+
+interface RefundParams {
+  paymentIntentId: string;
+  amount?: number;
+  reason?: string;
+}
+
+interface RequestBody {
+  action: string;
+  providerId?: string;
+  accountId?: string;
+  amount?: number;
+  currency?: string;
+  connectedAccountId?: string;
+  customerId?: string;
+  serviceId?: string;
+  bookingId?: string;
+  paymentIntentId?: string;
+  reason?: string;
+}
+
+// Main POST handler with reduced complexity
+export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
-    const body = await request.json();
-    const { action, providerId, ...params } = body;
-    
-    switch (action) {
-      case 'CREATE_ACCOUNT':
-        return await createConnectAccount(providerId);
-        
-      case 'CREATE_ACCOUNT_LINK':
-        return await createAccountLink(params.accountId);
-        
-      case 'CHECK_ACCOUNT_STATUS':
-        return await checkAccountStatus(params.accountId);
-        
-      case 'CREATE_PAYMENT_INTENT':
-        return await createPaymentIntent(params);
-        
-      case 'CREATE_ESCROW_PAYMENT':
-        return await createEscrowPayment(params);
-        
-      case 'RELEASE_ESCROW':
-        return await releaseEscrowPayment(params);
-        
-      case 'PROCESS_REFUND':
-        return await processRefund(params);
-        
-      default:
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    // 1. Authenticate the user
+    const user = await getAuthenticatedUser(request);
+    if (user === null) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    // 2. Authorize: Must be in the 'Providers' group
+    if (!user.groups.includes('Providers')) {
+      return NextResponse.json({ error: 'Forbidden: Provider access required' }, { status: 403 });
+    }
+
+    const body = await request.json() as RequestBody;
+    const { action, providerId, ...params } = body;
+
+    // 3. Security Check: Ensure providerId matches authenticated user
+    if (providerId !== undefined && providerId !== user.userId) {
+      return NextResponse.json({ error: 'Forbidden: Mismatch in provider ID' }, { status: 403 });
+    }
+
+    // Delegate to action handler
+    return await handleStripeAction(action, params, user.userId);
   } catch (error) {
     console.error('Stripe Connect API error:', error);
     return NextResponse.json(
-      { 
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-async function createConnectAccount(providerId: string) {
+// Separate action handler to reduce complexity
+async function handleStripeAction(
+  action: string, 
+  params: Partial<RequestBody>, 
+  userId: string
+): Promise<NextResponse> {
+  switch (action) {
+    case 'CREATE_ACCOUNT':
+      return await createConnectAccount(userId);
+      
+    case 'CREATE_ACCOUNT_LINK':
+      if (!params.accountId) {
+        return NextResponse.json({ error: 'accountId required' }, { status: 400 });
+      }
+      return await createAccountLink(params.accountId);
+      
+    case 'CHECK_ACCOUNT_STATUS':
+      if (!params.accountId) {
+        return NextResponse.json({ error: 'accountId required' }, { status: 400 });
+      }
+      return await checkAccountStatus(params.accountId);
+      
+    case 'CREATE_PAYMENT_INTENT':
+      return await createPaymentIntent(params as PaymentIntentParams);
+      
+    case 'CREATE_ESCROW_PAYMENT':
+      return await createEscrowPayment(params as EscrowPaymentParams);
+      
+    case 'RELEASE_ESCROW':
+      return await releaseEscrowPayment(params as ReleaseEscrowParams);
+      
+    case 'PROCESS_REFUND':
+      return await processRefund(params as RefundParams);
+      
+    default:
+      return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  }
+}
+
+async function createConnectAccount(providerId: string): Promise<NextResponse> {
   try {
     // Create Express account for onboarding
     const account = await stripe.accounts.create({
       type: 'express',
-      country: 'US', // TODO: Make this dynamic based on user location
+      country: 'US',
       capabilities: {
         card_payments: { requested: true },
         transfers: { requested: true },
       },
-      business_type: 'individual', // TODO: Allow business accounts
+      business_type: 'individual',
       metadata: {
         providerId,
         platform: 'ecosystem',
@@ -85,7 +169,7 @@ async function createConnectAccount(providerId: string) {
   }
 }
 
-async function createAccountLink(accountId: string) {
+async function createAccountLink(accountId: string): Promise<NextResponse> {
   try {
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
@@ -101,7 +185,7 @@ async function createAccountLink(accountId: string) {
   }
 }
 
-async function checkAccountStatus(accountId: string) {
+async function checkAccountStatus(accountId: string): Promise<NextResponse> {
   try {
     const account = await stripe.accounts.retrieve(accountId);
     
@@ -119,7 +203,7 @@ async function checkAccountStatus(accountId: string) {
   }
 }
 
-async function createPaymentIntent(params: any) {
+async function createPaymentIntent(params: PaymentIntentParams): Promise<NextResponse> {
   const { amount, currency = 'usd', connectedAccountId, customerId, serviceId, bookingId } = params;
   
   try {
@@ -152,7 +236,7 @@ async function createPaymentIntent(params: any) {
   }
 }
 
-async function createEscrowPayment(params: any) {
+async function createEscrowPayment(params: EscrowPaymentParams): Promise<NextResponse> {
   const { amount, currency = 'usd', connectedAccountId, customerId, serviceId, bookingId } = params;
   
   try {
@@ -186,7 +270,7 @@ async function createEscrowPayment(params: any) {
   }
 }
 
-async function releaseEscrowPayment(params: any) {
+async function releaseEscrowPayment(params: ReleaseEscrowParams): Promise<NextResponse> {
   const { paymentIntentId, connectedAccountId } = params;
   
   try {
@@ -194,7 +278,8 @@ async function releaseEscrowPayment(params: any) {
     const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId);
     
     // Create transfer to connected account
-    const platformFee = parseInt(paymentIntent.metadata.platformFee || '0');
+    const platformFeeStr = paymentIntent.metadata.platformFee;
+    const platformFee = platformFeeStr ? parseInt(platformFeeStr, 10) : 0;
     const transferAmount = paymentIntent.amount - platformFee;
     
     const transfer = await stripe.transfers.create({
@@ -221,14 +306,14 @@ async function releaseEscrowPayment(params: any) {
   }
 }
 
-async function processRefund(params: any) {
+async function processRefund(params: RefundParams): Promise<NextResponse> {
   const { paymentIntentId, amount, reason } = params;
   
   try {
     const refund = await stripe.refunds.create({
       payment_intent: paymentIntentId,
-      amount: amount, // Optional: partial refund
-      reason: reason || 'requested_by_customer',
+      amount,
+      reason: (reason ?? 'requested_by_customer') as Stripe.RefundCreateParams.Reason,
     });
     
     return NextResponse.json({
@@ -242,7 +327,7 @@ async function processRefund(params: any) {
   }
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(): Promise<NextResponse> {
   return new NextResponse(null, {
     status: 200,
     headers: {

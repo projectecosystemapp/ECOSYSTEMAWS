@@ -1,6 +1,9 @@
-import { APIGatewayProxyHandler } from 'aws-lambda';
+import { AppSyncResolverHandler } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, UpdateItemCommand, PutItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
+import { WebhookDeduplicationService } from '../../data/webhook-deduplication';
+import { correlationTracker } from '../../../lib/resilience/correlation-tracker';
+import { PerformanceTracker } from '../../../lib/resilience/performance-tracker';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -12,70 +15,102 @@ const BOOKING_TABLE = process.env.BOOKING_TABLE_NAME || 'Booking';
 const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
 const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET!;
 
+const webhookDedup = new WebhookDeduplicationService();
+const performanceTracker = new PerformanceTracker('ECOSYSTEMAWS/Webhooks');
+
 /**
  * Stripe Webhook Handler
  * 
  * Processes incoming webhook events from Stripe with proper security verification.
+ * Now integrated with AppSync and includes:
+ * - Atomic deduplication using DynamoDB conditional writes
+ * - Correlation ID tracking for distributed tracing
+ * - Performance metrics collection
  * 
  * SECURITY MEASURES:
- * - Webhook signature verification prevents unauthorized requests
+ * - Webhook signature verification via Lambda authorizer
  * - Event type validation ensures only expected events are processed
- * - Idempotency checks prevent duplicate processing
- * - Structured error handling with appropriate HTTP status codes
+ * - Atomic idempotency checks prevent duplicate processing
+ * - Structured error handling with appropriate status codes
  */
-export const handler: APIGatewayProxyHandler = async (event) => {
-  console.log('Stripe webhook received:', {
-    headers: event.headers,
-    body: event.body ? 'present' : 'missing',
-  });
-
-  const headers = {
-    'Content-Type': 'application/json',
-  };
-
-  try {
-    // Verify webhook signature for security
-    const sig = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
-    
-    if (!sig) {
-      console.error('Missing Stripe signature');
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing Stripe signature' }),
-      };
-    }
-
-    if (!event.body) {
-      console.error('Missing webhook body');
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing webhook body' }),
-      };
-    }
-
-    // Verify webhook signature
-    let stripeEvent: Stripe.Event;
-    try {
-      stripeEvent = stripe.webhooks.constructEvent(event.body, sig, WEBHOOK_SECRET);
-    } catch (err) {
-      console.error('Webhook signature verification failed:', err);
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Webhook signature verification failed' }),
-      };
-    }
-
-    console.log('Processing Stripe event:', {
-      id: stripeEvent.id,
-      type: stripeEvent.type,
-      created: stripeEvent.created,
+export const handler: AppSyncResolverHandler<any, any> = async (event) => {
+  const startTime = Date.now();
+  // Extract correlation context from AppSync event
+  const correlationId = event.identity?.resolverContext?.correlationId || 
+                        correlationTracker.generateCorrelationId();
+  
+  return correlationTracker.runWithCorrelation('stripe-webhook-processing', async () => {
+    console.log('[StripeWebhook] Processing event', {
+      correlationId,
+      arguments: event.arguments,
     });
 
-    // Process the event based on type
-    switch (stripeEvent.type) {
+    try {
+      const { body, signature } = event.arguments;
+      
+      if (!body || !signature) {
+        console.error('[StripeWebhook] Missing body or signature');
+        return {
+          success: false,
+          error: 'Missing required parameters',
+        };
+      }
+
+      // Parse the Stripe event from the body
+      let stripeEvent: Stripe.Event;
+      try {
+        stripeEvent = JSON.parse(body) as Stripe.Event;
+      } catch (err) {
+        console.error('[StripeWebhook] Failed to parse event body:', err);
+        return {
+          success: false,
+          error: 'Invalid event body',
+        };
+      }
+
+      // Attempt to acquire processing lock for this event
+      const { acquired, existingRecord } = await webhookDedup.acquireProcessingLock(
+        stripeEvent.id,
+        stripeEvent.type,
+        signature,
+        'stripe'
+      );
+
+      if (!acquired) {
+        console.log('[StripeWebhook] Event already processed or being processed', {
+          eventId: stripeEvent.id,
+          status: existingRecord?.status,
+          correlationId,
+        });
+        
+        // Return the existing result if available
+        if (existingRecord?.status === 'COMPLETED' && existingRecord.result) {
+          return {
+            success: true,
+            data: existingRecord.result,
+            deduplicated: true,
+          };
+        }
+        
+        return {
+          success: false,
+          error: 'Event is being processed by another handler',
+          deduplicated: true,
+        };
+      }
+
+      console.log('[StripeWebhook] Processing new event', {
+        id: stripeEvent.id,
+        type: stripeEvent.type,
+        created: stripeEvent.created,
+        correlationId,
+      });
+
+      let processingResult: any;
+      
+      try {
+        // Process the event based on type
+        switch (stripeEvent.type) {
       case 'account.updated':
         await handleAccountUpdated(stripeEvent);
         break;
@@ -122,26 +157,63 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         await handleSubscriptionUpdated(stripeEvent);
         break;
         
-      default:
-        console.log('Unhandled event type:', stripeEvent.type);
-    }
+        default:
+          console.log('[StripeWebhook] Unhandled event type:', stripeEvent.type);
+          processingResult = { unhandled: true, type: stripeEvent.type };
+        }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ received: true }),
-    };
-  } catch (error) {
-    console.error('Webhook processing error:', error);
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ 
-        error: 'Internal server error',
-        message: error instanceof Error ? error.message : 'Unknown error',
-      }),
-    };
-  }
+        // Mark the webhook as successfully completed
+        await webhookDedup.markCompleted(stripeEvent.id, processingResult);
+        
+        // Record success metrics
+        const duration = Date.now() - startTime;
+        performanceTracker.recordMetric(
+          `webhook-${stripeEvent.type}`,
+          duration,
+          true,
+          'appsync'
+        );
+
+        return {
+          success: true,
+          data: processingResult,
+          eventId: stripeEvent.id,
+          eventType: stripeEvent.type,
+          duration,
+        };
+      } catch (processingError) {
+        console.error('[StripeWebhook] Error processing event:', processingError);
+        
+        // Mark the webhook as failed
+        await webhookDedup.markFailed(
+          stripeEvent.id,
+          processingError instanceof Error ? processingError.message : 'Unknown error',
+          true // Allow retry
+        );
+        
+        throw processingError;
+      }
+    } catch (error) {
+      console.error('[StripeWebhook] Fatal error:', error);
+      
+      // Record failure metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric(
+        'webhook-processing',
+        duration,
+        false,
+        'appsync',
+        error instanceof Error ? error.constructor.name : 'UnknownError'
+      );
+      
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        correlationId,
+        duration,
+      };
+    }
+  });
 };
 
 /**

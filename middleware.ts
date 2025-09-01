@@ -1,27 +1,51 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { fetchAuthSession } from 'aws-amplify/auth/server';
+import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
 
-export function middleware(request: NextRequest) {
-  // Check if accessing admin routes
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-    // For now, we'll handle the admin authorization check in the AdminLayout component
-    // since we need to access the Amplify user context and check the database
-    // This middleware primarily exists for future enhancement
-    return NextResponse.next();
+export async function middleware(request: NextRequest): Promise<NextResponse> {
+  const response = NextResponse.next();
+  
+  // More specific list of protected routes
+  const protectedRoutes = [
+    '/provider', 
+    '/customer/dashboard', 
+    '/admin',
+    '/bookings',
+    '/messages',
+    '/notifications',
+    '/dashboard'
+  ];
+
+  const isProtectedRoute = protectedRoutes.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  );
+
+  if (isProtectedRoute) {
+    const authenticated = await runWithAmplifyServerContext({
+      nextServerContext: { request, response },
+      operation: async (contextSpec) => {
+        try {
+          const session = await fetchAuthSession(contextSpec);
+          // Explicit null check for strict boolean expressions
+          return session?.tokens?.accessToken != null;
+        } catch {
+          return false;
+        }
+      },
+    });
+
+    if (!authenticated) {
+      // Corrected redirect path
+      return NextResponse.redirect(new URL('/auth/login', request.url));
+    }
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|public).*)',
   ],
 };
