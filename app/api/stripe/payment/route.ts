@@ -23,9 +23,16 @@ export async function POST(request: NextRequest) {
     
     // For CREATE_PAYMENT_INTENT, ensure we have provider's Stripe account
     if (action === 'CREATE_PAYMENT_INTENT') {
-      const { providerId, amount, bookingId } = body;
+      const { providerId, amountCents, bookingId } = body;
+      // Validate cents usage
+      if (!Number.isInteger(amountCents) || amountCents <= 0) {
+        return NextResponse.json(
+          { error: 'Amount must be a positive integer in cents' },
+          { status: 400 }
+        );
+      }
       
-      if (!providerId || !amount || !bookingId) {
+      if (!providerId || !amountCents || !bookingId) {
         return NextResponse.json(
           { error: 'Missing required fields' },
           { status: 400 }
@@ -72,13 +79,15 @@ export async function POST(request: NextRequest) {
     
     // If it's a successful payment intent creation, update the booking
     if (action === 'CREATE_PAYMENT_INTENT' && result.paymentIntentId) {
-      const { bookingId } = body;
+      const { bookingId, amountCents } = body;
       
       // Update booking with payment intent ID
       await client.models.Booking.update({
         id: bookingId,
         paymentIntentId: result.paymentIntentId,
         paymentStatus: 'PENDING',
+        amountCents,
+        platformFeeCents: result.platformFeeCents,
       });
     }
     

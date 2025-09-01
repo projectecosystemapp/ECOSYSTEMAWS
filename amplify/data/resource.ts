@@ -44,9 +44,9 @@ const schema = a.schema({
       category: a.enum(['SERVICE', 'SPACE', 'EVENT', 'EXPERIENCE', 'PRODUCT']),
       subcategory: a.string(),
       tags: a.string().array(),
-      // Pricing
+      // Pricing (all monetary values in cents)
       priceType: a.enum(['FIXED', 'HOURLY', 'DAILY', 'PROJECT', 'SUBSCRIPTION']),
-      price: a.float().required(),
+      priceCents: a.integer().required(), // Price in cents for precision
       currency: a.string().default('USD'),
       minimumBookingTime: a.integer(), // in minutes
       maximumBookingTime: a.integer(),
@@ -103,6 +103,9 @@ const schema = a.schema({
       serviceId: a.id().required(),
       providerId: a.id().required(),
       customerId: a.id().required(),
+      // CRITICAL: Identity claims for proper authorization
+      customerSub: a.string().required(), // Cognito 'sub' for customer
+      providerSub: a.string().required(), // Cognito 'sub' for provider
       // Contact info
       customerEmail: a.email().required(),
       providerEmail: a.email().required(),
@@ -132,9 +135,10 @@ const schema = a.schema({
       ]),
       paymentIntentId: a.string(),
       transferId: a.string(),
-      amount: a.float().required(),
-      platformFee: a.float(),
-      providerEarnings: a.float(),
+      // All monetary values in cents for precision
+      amountCents: a.integer().required(),
+      platformFeeCents: a.integer(),
+      providerEarningsCents: a.integer(),
       currency: a.string().default('USD'),
       // Escrow
       escrowEnabled: a.boolean().default(false),
@@ -165,8 +169,10 @@ const schema = a.schema({
       cancellationReason: a.string(),
     })
     .authorization((allow) => [
-      allow.owner(),
-      allow.groups(['Providers', 'Admins']),
+      allow.owner().to(['create','read','update']).identityClaim('sub'),
+      allow.ownerDefinedIn('providerSub').to(['read','update']),
+      allow.ownerDefinedIn('customerSub').to(['read','update']),
+      allow.groups(['Admins']).to(['create','read','update','delete']),
     ]),
 
   // Availability Schedule
@@ -251,7 +257,8 @@ const schema = a.schema({
       providerId: a.id().required(),
       // Payment details
       type: a.enum(['PAYMENT', 'REFUND', 'PAYOUT', 'FEE']),
-      amount: a.float().required(),
+      // All monetary values in cents for precision
+      amountCents: a.integer().required(),
       currency: a.string().default('USD'),
       // Stripe references
       paymentIntentId: a.string(),
@@ -260,10 +267,10 @@ const schema = a.schema({
       refundId: a.string(),
       // Status
       status: a.enum(['PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']),
-      // Fees
-      platformFee: a.float(),
-      stripeFee: a.float(),
-      netAmount: a.float(),
+      // Fees in cents
+      platformFeeCents: a.integer(),
+      stripeFeeCents: a.integer(),
+      netAmountCents: a.integer(),
       // Metadata
       description: a.string(),
       metadata: a.json(),
@@ -290,8 +297,8 @@ const schema = a.schema({
       startDate: a.date().required(),
       endDate: a.date(),
       nextBillingDate: a.date(),
-      // Pricing
-      amount: a.float().required(),
+      // Pricing in cents for precision
+      amountCents: a.integer().required(),
       currency: a.string().default('USD'),
       // Usage
       usageCount: a.integer().default(0),

@@ -53,7 +53,8 @@ export const serviceApi = {
         title: data.title!,
         description: data.description!,
         category: (data.category as any) || 'SERVICE',
-        price: data.price || 0,
+        // Persist price in cents for precision
+        priceCents: Math.round((data.price || 0) * 100),
         minimumBookingTime: data.duration, // Map duration to minimumBookingTime per schema
         active: data.active ?? true,
         // Map location fields
@@ -208,6 +209,12 @@ export const serviceApi = {
         delete updateData.duration;
       }
 
+      // If price provided, persist as cents
+      if (typeof data.price === 'number') {
+        updateData.priceCents = Math.round(data.price * 100);
+        delete updateData.price;
+      }
+
       const response = await getClient().models.Service.update(updateData);
       
       if (response.data) {
@@ -261,15 +268,19 @@ export const bookingApi = {
         customerEmail: data.customerEmail!,
         startDateTime,
         endDateTime,
-        amount: data.totalAmount || 0,
+        // Persist amounts in cents for precision
+        amountCents: Math.round((data.totalAmount || 0) * 100),
         status: (data.status as any) || 'PENDING',
         notes: data.notes,
         customerPhone: data.customerPhone,
         // Only include fields that exist in the schema
-        paymentStatus: 'PENDING' as const, // Set to valid schema value
+        paymentStatus: 'PENDING' as const, // Valid schema value
         paymentIntentId: data.paymentIntentId,
-        platformFee: data.platformFee,
-        providerEarnings: data.providerEarnings
+        platformFeeCents: data.platformFee != null ? Math.round((data.platformFee || 0) * 100) : undefined,
+        providerEarningsCents: data.providerEarnings != null ? Math.round((data.providerEarnings || 0) * 100) : undefined,
+        // Ownership fields for auth if available
+        customerSub: (data as any).customerSub,
+        providerSub: (data as any).providerSub
       };
 
       const response = await getClient().models.Booking.create(apiData);

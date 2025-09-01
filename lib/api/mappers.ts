@@ -100,7 +100,8 @@ export function mapApiServiceToService(apiService: ApiService): Service {
     id: apiService.id,
     title: apiService.title,
     description: apiService.description,
-    price: withDefault(apiService.price, 0),
+    // Convert cents (integer) to dollars for UI
+    price: withDefault((apiService as any).priceCents, 0) / 100,
     category: withDefault(apiService.category, 'SERVICE'),
     providerName: apiService.providerEmail.split('@')[0], // Extract username from email
     providerEmail: apiService.providerEmail,
@@ -190,9 +191,10 @@ export function mapApiBookingToBooking(apiBooking: ApiBooking): Booking {
     scheduledTime,
     duration: Math.round((endDate.getTime() - startDate.getTime()) / 60000), // minutes
     status: withDefault(apiBooking.status, 'PENDING'),
-    totalAmount: withDefault(apiBooking.amount, 0),
-    platformFee: nullToUndefined(apiBooking.platformFee),
-    providerEarnings: nullToUndefined(apiBooking.providerEarnings),
+    // Convert cents (integer) to dollars for UI
+    totalAmount: withDefault((apiBooking as any).amountCents, 0) / 100,
+    platformFee: (apiBooking as any).platformFeeCents == null ? undefined : (((apiBooking as any).platformFeeCents || 0) / 100),
+    providerEarnings: (apiBooking as any).providerEarningsCents == null ? undefined : (((apiBooking as any).providerEarningsCents || 0) / 100),
     notes: nullToUndefined(apiBooking.notes),
     providerNotes: nullToUndefined(apiBooking.specialRequests),
     cancellationReason: nullToUndefined(apiBooking.cancellationReason),
@@ -285,10 +287,11 @@ export function mapApiTransactionToTransaction(apiTransaction: ApiTransaction): 
     providerEmail: '', // Not in schema
     type: withDefault(apiTransaction.type, 'PAYMENT'),
     status: withDefault(apiTransaction.status, 'PENDING'),
-    amount: withDefault(apiTransaction.amount, 0),
+    // Convert cents (integer) to dollars for UI
+    amount: withDefault((apiTransaction as any).amountCents, 0) / 100,
     currency: withDefault(apiTransaction.currency, 'USD'),
-    platformFee: nullToUndefined(apiTransaction.platformFee),
-    providerEarnings: nullToUndefined(apiTransaction.netAmount),
+    platformFee: (apiTransaction as any).platformFeeCents == null ? undefined : (((apiTransaction as any).platformFeeCents || 0) / 100),
+    providerEarnings: (apiTransaction as any).netAmountCents == null ? undefined : (((apiTransaction as any).netAmountCents || 0) / 100),
     stripePaymentIntentId: nullToUndefined(apiTransaction.paymentIntentId),
     stripeTransferId: nullToUndefined(apiTransaction.transferId),
     stripeRefundId: nullToUndefined(apiTransaction.refundId),

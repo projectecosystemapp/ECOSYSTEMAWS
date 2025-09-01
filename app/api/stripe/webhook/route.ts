@@ -86,12 +86,11 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent, clien
       return;
     }
 
-    // Update booking status
+    // Update booking status and payment status (funds held in escrow)
     await client.models.Booking.update({
       id: metadata.bookingId,
       status: 'CONFIRMED',
-      paymentStatus: 'COMPLETED',
-      paymentCompletedAt: new Date().toISOString(),
+      paymentStatus: 'ESCROW_HELD',
     }, { authMode: 'apiKey' });
 
     // Create transaction record
@@ -100,14 +99,13 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent, clien
       customerId: metadata.customerId,
       providerId: metadata.providerId,
       type: 'PAYMENT',
-      amount: paymentIntent.amount / 100, // Convert from cents
+      amountCents: paymentIntent.amount, // Already cents
       currency: paymentIntent.currency.toUpperCase(),
       paymentIntentId: paymentIntent.id,
       chargeId: paymentIntent.latest_charge as string,
       status: 'COMPLETED',
-      platformFee: parseFloat(metadata.platformFee || '0'),
-      netAmount: parseFloat(metadata.providerAmount || '0'),
-      processedAt: new Date().toISOString(),
+      platformFeeCents: metadata.platformFeeCents ? parseInt(metadata.platformFeeCents, 10) : undefined,
+      netAmountCents: metadata.providerAmountCents ? parseInt(metadata.providerAmountCents, 10) : undefined,
     }, { authMode: 'apiKey' });
 
     console.log(`Payment succeeded for booking ${metadata.bookingId}`);
@@ -124,10 +122,9 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent, client: 
       return;
     }
 
-    // Update booking status
+    // Update only payment status
     await client.models.Booking.update({
       id: metadata.bookingId,
-      status: 'PAYMENT_FAILED',
       paymentStatus: 'FAILED',
     }, { authMode: 'apiKey' });
 
@@ -139,26 +136,29 @@ async function handlePaymentFailed(paymentIntent: Stripe.PaymentIntent, client: 
 
 async function handleAccountUpdated(account: Stripe.Account, client: any) {
   try {
-    // Find user profile by Stripe account ID
-    const { data: profiles } = await client.models.UserProfile.list();
-    const profile = profiles?.find((p: any) => p.stripeAccountId === account.id);
+    // Find provider by Stripe account ID
+    const { data: providers } = await client.models.ProviderProfile.list({
+      filter: { stripeAccountId: { eq: account.id } }
+    });
+    const provider = providers?.[0];
 
-    if (!profile) {
-      console.log(`No profile found for Stripe account ${account.id}`);
+    if (!provider) {
+      console.log(`No provider found for Stripe account ${account.id}`);
       return;
     }
 
-    // Update account status
-    await client.models.UserProfile.update({
-      id: profile.id,
-      stripeChargesEnabled: account.charges_enabled,
-      stripePayoutsEnabled: account.payouts_enabled,
-      stripeDetailsSubmitted: account.details_submitted,
-      stripeAccountStatus: account.charges_enabled ? 'ACTIVE' : 'PENDING',
-      stripeOnboardingComplete: account.charges_enabled && account.payouts_enabled,
+    // Update provider status fields
+    await client.models.ProviderProfile.update({
+      id: provider.id,
+      payoutsEnabled: account.payouts_enabled || false,
+      stripeOnboardingStatus: account.charges_enabled && account.payouts_enabled ? 'COMPLETE' : 'IN_PROGRESS',
+      requiresAction: (account.requirements?.currently_due?.length || 0) > 0,
+      stripeDisabledReason: account.disabled_reason || undefined,
+      missingRequirements: account.requirements || undefined,
+      updatedAt: new Date().toISOString(),
     }, { authMode: 'apiKey' });
 
-    console.log(`Account updated for profile ${profile.id}`);
+    console.log(`Account updated for provider ${provider.id}`);
   } catch (error) {
     console.error('Error handling account update:', error);
   }
@@ -180,18 +180,17 @@ async function handleChargeRefunded(charge: Stripe.Charge, client: any) {
       refundedAt: new Date().toISOString(),
     }, { authMode: 'apiKey' });
 
-    // Create refund transaction
+    // Create refund transaction (cents)
     await client.models.Transaction.create({
       bookingId: metadata.bookingId,
       customerId: metadata.customerId,
       providerId: metadata.providerId,
       type: 'REFUND',
-      amount: (charge.amount_refunded || 0) / 100,
+      amountCents: (charge.amount_refunded || 0),
       currency: charge.currency.toUpperCase(),
       chargeId: charge.id,
       refundId: charge.refunds?.data[0]?.id,
       status: 'COMPLETED',
-      processedAt: new Date().toISOString(),
     }, { authMode: 'apiKey' });
 
     console.log(`Refund processed for booking ${metadata.bookingId}`);
@@ -213,16 +212,7 @@ async function handlePayoutEvent(payout: Stripe.Payout, eventType: string, clien
     const status = eventType === 'payout.paid' ? 'COMPLETED' : 
                    eventType === 'payout.failed' ? 'FAILED' : 'PROCESSING';
 
-    // Create payout transaction
-    await client.models.Transaction.create({
-      providerId: providerId,
-      type: 'PAYOUT',
-      amount: payout.amount / 100,
-      currency: payout.currency.toUpperCase(),
-      status: status,
-      description: `Payout to provider ${providerId}`,
-      processedAt: new Date().toISOString(),
-    }, { authMode: 'apiKey' });
+    // Skip creating payout Transaction here (schema links payouts via booking context)
 
     console.log(`Payout ${eventType} for provider ${providerId}`);
   } catch (error) {
