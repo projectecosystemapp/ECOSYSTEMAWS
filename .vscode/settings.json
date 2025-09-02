@@ -1,0 +1,14 @@
+{
+  "aws.profile": "default",
+  "aws.region": "us-west-2",
+  "aws.samcli.location": "/Users/ryleebenson/.aws-sam/aws-sam-cli/bin/sam",
+  "aws.samcli.enableCodeLenses": true,
+  "aws.codeLens.lambda.enable": true,
+  "aws.suppressPrompts": {
+    "regionAddAutomatically": true,
+    "invalidConnection": true
+  },
+  "aws.telemetry": false,
+  "aws.sso.startUrl": "https://d-9267fb17b8.awsapps.com/start",
+  "aws.codeWhisperer.includeSuggestionsWithCodeReferences": true
+}
