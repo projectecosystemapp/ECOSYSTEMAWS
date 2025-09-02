@@ -7,11 +7,33 @@
  * Compliant with AWS best practices for distributed systems as of September 2025.
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
-import { randomUUID } from 'crypto';
+// Server-side imports (Node.js only)
+let AsyncLocalStorage: any;
+let correlationStorage: any;
+let randomUUID: any;
 
-// Use AsyncLocalStorage for context propagation (Node.js 16+)
-const correlationStorage = new AsyncLocalStorage<CorrelationContext>();
+// Initialize server-side modules only in Node.js environment
+if (typeof window === 'undefined') {
+  try {
+    const asyncHooks = require('async_hooks');
+    const crypto = require('crypto');
+    AsyncLocalStorage = asyncHooks.AsyncLocalStorage;
+    randomUUID = crypto.randomUUID;
+    correlationStorage = new AsyncLocalStorage<CorrelationContext>();
+  } catch (error) {
+    // Fallback for environments without async_hooks
+    console.warn('AsyncLocalStorage not available, using fallback correlation tracking');
+  }
+} else {
+  // Browser fallback for randomUUID
+  randomUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+}
 
 export interface CorrelationContext {
   correlationId: string;
@@ -89,42 +111,61 @@ export class CorrelationTracker {
   ): Promise<T> {
     const context = this.startCorrelation(operation, metadata);
     
-    return correlationStorage.run(context, async () => {
-      try {
-        const startTime = Date.now();
-        const result = await fn();
-        const duration = Date.now() - startTime;
+    // Use AsyncLocalStorage if available (server-side), otherwise run directly
+    if (correlationStorage && typeof correlationStorage.run === 'function') {
+      return correlationStorage.run(context, async () => {
+        return this.executeWithContext(context, operation, fn);
+      });
+    } else {
+      // Fallback for client-side or environments without AsyncLocalStorage
+      return this.executeWithContext(context, operation, fn);
+    }
+  }
 
-        // Log successful completion
-        console.log('[CorrelationTracker] Operation completed', {
-          correlationId: context.correlationId,
-          operation,
-          duration,
-          success: true
-        });
+  private async executeWithContext<T>(
+    context: CorrelationContext,
+    operation: string,
+    fn: () => Promise<T>
+  ): Promise<T> {
+    try {
+      const startTime = Date.now();
+      const result = await fn();
+      const duration = Date.now() - startTime;
 
-        return result;
-      } catch (error) {
-        // Log error with correlation
-        console.error('[CorrelationTracker] Operation failed', {
-          correlationId: context.correlationId,
-          operation,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
-        });
+      // Log successful completion
+      console.log('[CorrelationTracker] Operation completed', {
+        correlationId: context.correlationId,
+        operation,
+        duration,
+        success: true
+      });
 
-        throw error;
-      } finally {
-        this.endCorrelation(context.correlationId);
-      }
-    });
+      return result;
+    } catch (error) {
+      // Log error with correlation
+      console.error('[CorrelationTracker] Operation failed', {
+        correlationId: context.correlationId,
+        operation,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      throw error;
+    } finally {
+      this.endCorrelation(context.correlationId);
+    }
   }
 
   /**
    * Get current correlation context
    */
   getCurrentContext(): CorrelationContext | undefined {
-    return correlationStorage.getStore();
+    if (correlationStorage && typeof correlationStorage.getStore === 'function') {
+      return correlationStorage.getStore();
+    }
+    // Fallback: return the most recent context
+    const contexts = Array.from(this.activeContexts.values());
+    return contexts[contexts.length - 1];
   }
 
   /**
@@ -300,9 +341,13 @@ export function correlationMiddleware(req: any, res: any, next: any): void {
   const context = correlationTracker.extractFromLambdaEvent(req);
   
   if (context) {
-    correlationStorage.run(context, () => {
+    if (correlationStorage && typeof correlationStorage.run === 'function') {
+      correlationStorage.run(context, () => {
+        next();
+      });
+    } else {
       next();
-    });
+    }
   } else {
     const newContext = correlationTracker.startCorrelation('http-request', {
       method: req.method,
@@ -310,8 +355,12 @@ export function correlationMiddleware(req: any, res: any, next: any): void {
       ip: req.ip
     });
     
-    correlationStorage.run(newContext, () => {
+    if (correlationStorage && typeof correlationStorage.run === 'function') {
+      correlationStorage.run(newContext, () => {
+        next();
+      });
+    } else {
       next();
-    });
+    }
   }
 }
