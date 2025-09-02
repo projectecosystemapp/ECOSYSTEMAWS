@@ -36,64 +36,85 @@ const schema = a.schema({
     email: a.email().required(),
     firstName: a.string(),
     lastName: a.string(),
-    userType: a.string(),
-    stripeAccountId: a.string(),
-    stripeCustomerId: a.string(),
-    profileOwner: a.string(),
+    phone: a.phone(),
+    role: a.enum(['CUSTOMER', 'PROVIDER', 'ADMIN']),
+    profilePicture: a.url(),
+    city: a.string(),
+    state: a.string(),
   })
   .authorization((allow) => [
-    allow.ownerDefinedIn('profileOwner'),
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
+  ]),
+
+  // Provider model
+  Provider: a.model({
+    email: a.email().required(),
+    firstName: a.string(),
+    lastName: a.string(),
+    businessName: a.string(),
+    phone: a.phone(),
+    address: a.string(),
+    city: a.string(),
+    state: a.string(),
+    zipCode: a.string(),
+    stripeAccountId: a.string(),
+    stripeOnboardingComplete: a.boolean(),
+    verificationStatus: a.enum(['PENDING', 'APPROVED', 'REJECTED']),
+    active: a.boolean(),
+  })
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
+  ]),
+
+  // Review model
+  Review: a.model({
+    serviceId: a.id().required(),
+    bookingId: a.id().required(),
+    customerEmail: a.email().required(),
+    providerEmail: a.email().required(),
+    rating: a.integer().required(),
+    comment: a.string(),
+    providerResponse: a.string(),
+  })
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Providers', 'Admins']).to(['create', 'read', 'update', 'delete']),
+    allow.private().to(['read']),
   ]),
 
   // Booking model
   Booking: a.model({
     serviceId: a.id().required(),
-    customerId: a.id().required(),
-    providerId: a.id().required(),
     customerEmail: a.email().required(),
-    providerEmail: a.email(),
-    startDateTime: a.datetime().required(),
-    endDateTime: a.datetime().required(),
-    status: a.string().required(),
-    paymentStatus: a.string(),
-    paymentIntentId: a.string(),
-    amount: a.float(),
-    platformFee: a.float(),
-    providerEarnings: a.float(),
-    currency: a.string(),
-    groupSize: a.integer(),
-    specialRequests: a.string(),
-    qrCode: a.string(),
-    qrCodeScanned: a.boolean(),
-    cancelledAt: a.datetime(),
-    cancelledBy: a.string(),
-    cancellationReason: a.string(),
-    refundedAt: a.datetime(),
+    providerEmail: a.email().required(),
+    scheduledDate: a.date().required(),
+    scheduledTime: a.time().required(),
+    status: a.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED']),
+    totalAmount: a.float().required(),
+    notes: a.string(),
   })
   .authorization((allow) => [
-    allow.authenticated().to(['read']),
-    allow.owner().to(['read', 'update']),
-    allow.groups(['Admin']),
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Providers', 'Admins']).to(['create', 'read', 'update', 'delete']),
   ]),
 
   // Service model
   Service: a.model({
     title: a.string().required(),
-    description: a.string(),
-    providerId: a.id().required(),
-    category: a.string(),
+    description: a.string().required(),
     price: a.float().required(),
-    priceType: a.string(),
-    currency: a.string(),
-    maxGroupSize: a.integer(),
+    category: a.string(),
+    providerName: a.string(),
+    providerEmail: a.email(),
     duration: a.integer(),
-    address: a.string(),
     active: a.boolean(),
   })
   .authorization((allow) => [
-    allow.authenticated().to(['read']),
     allow.owner().to(['create', 'read', 'update', 'delete']),
-    allow.groups(['Admin']),
+    allow.public().to(['read']),
+    allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
   ]),
 
   // Message model for in-app messaging with real-time subscriptions
@@ -120,6 +141,30 @@ const schema = a.schema({
   .authorization((allow) => [
     allow.authenticated().to(['read']),
     allow.owner().to(['create', 'read', 'update']),
+  ]),
+
+  // Notification model for in-app notifications
+  Notification: a.model({
+    userId: a.string().required(),
+    type: a.string().required(),
+    title: a.string().required(),
+    message: a.string().required(),
+    read: a.boolean(),
+    readAt: a.datetime(),
+    bookingId: a.string(),
+    serviceId: a.string(),
+    senderId: a.string(),
+    actionUrl: a.string(),
+    actionText: a.string(),
+    expiresAt: a.datetime(),
+  })
+  .secondaryIndexes((index) => [
+    index('userId'),
+    index('type'),
+  ])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Admin']).to(['read', 'update', 'delete']),
   ]),
 
   // Generated Bio model for AI-generated provider bios
