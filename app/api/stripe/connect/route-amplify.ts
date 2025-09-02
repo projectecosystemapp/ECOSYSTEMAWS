@@ -5,15 +5,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import config from '@/amplify_outputs.json';
 import { getAuthenticatedUser } from '@/lib/amplify-server-utils';
 
-
-// Create Amplify Data client
-const client = generateServerClientUsingCookies({
-  config,
-  cookies,
-});
-
 export async function POST(request: NextRequest) {
   try {
+    // Create Amplify Data client inside the function
+    const client = generateServerClientUsingCookies({
+      config,
+      cookies,
+    });
     // 1. Authenticate the user
     const user = await getAuthenticatedUser(request);
     if (!user) {
@@ -25,7 +23,7 @@ export async function POST(request: NextRequest) {
     const { action, ...params } = body;
 
     // 3. Call Lambda through GraphQL custom query (THE AMPLIFY WAY!)
-    const response = await client.queries.stripeConnect({
+    const response = await (client.queries as any).stripeConnect({
       action,
       providerId: user.userId,
       ...params,

@@ -154,7 +154,7 @@ async function handleAccountUpdated(account: Stripe.Account, client: any) {
       payoutsEnabled: account.payouts_enabled || false,
       stripeOnboardingStatus: account.charges_enabled && account.payouts_enabled ? 'COMPLETE' : 'IN_PROGRESS',
       requiresAction: (account.requirements?.currently_due?.length || 0) > 0,
-      stripeDisabledReason: account.disabled_reason || undefined,
+      stripeDisabledReason: (account as any).disabled_reason || undefined,
       missingRequirements: account.requirements || undefined,
       updatedAt: new Date().toISOString(),
     }, { authMode: 'apiKey' });

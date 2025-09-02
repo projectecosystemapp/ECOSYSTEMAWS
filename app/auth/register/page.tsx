@@ -113,7 +113,7 @@ export default function RegisterPage() {
               firstName: formData.firstName,
               lastName: formData.lastName,
               phone: formData.phone,
-              role: pendingRole.toUpperCase() as 'CUSTOMER' | 'PROVIDER',
+              userType: pendingRole.toUpperCase() as 'CUSTOMER' | 'PROVIDER',
             });
           } catch (profileErr) {
             console.error('Error creating user profile:', profileErr);

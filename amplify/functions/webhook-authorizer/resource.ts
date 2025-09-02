@@ -19,5 +19,4 @@ export const webhookAuthorizer = defineFunction({
     WEBHOOK_DEDUP_TABLE: process.env.WEBHOOK_DEDUP_TABLE || 'ProcessedWebhooks',
     AWS_REGION: process.env.AWS_REGION || 'us-east-1',
   },
-  handler: 'handler.handler',
 });

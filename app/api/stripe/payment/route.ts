@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
         id: bookingId,
         paymentIntentId: result.paymentIntentId,
         paymentStatus: 'PENDING',
-        amountCents,
-        platformFeeCents: result.platformFeeCents,
+        amount: amountCents / 100, // Convert cents to dollars
+        platformFee: result.platformFeeCents ? result.platformFeeCents / 100 : undefined,
       });
     }
     

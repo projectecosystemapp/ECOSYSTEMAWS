@@ -3,7 +3,7 @@
 // Mitigation: Strict input validation, rate limiting, sanitized queries
 // Validated: All message operations use type-safe validation
 
-import { getCurrentUser } from 'aws-amplify/auth/server';
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth/server';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
-        // 2. Authenticate user
+        // 2. Authenticate user and get groups
         const user = await getCurrentUser(contextSpec);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
@@ -74,6 +74,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             { status: 401 }
           );
         }
+
+        // Get user session to access groups
+        const session = await fetchAuthSession(contextSpec);
+        const groups = (session.tokens?.idToken?.payload['cognito:groups'] as string[]) || [];
 
         logger.info(`[${correlationId}] Authenticated user: ${user.userId}`);
 
@@ -91,7 +95,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         // Exception: admins and certain system operations
         if (
           currentUserEmail !== userEmail &&
-          !user.groups.includes('Admin') &&
+          !groups.includes('Admin') &&
           !['CREATE_CONVERSATION_THREAD', 'SEARCH_MESSAGES'].includes(action)
         ) {
           logger.warn(`[${correlationId}] Email authorization failed: ${currentUserEmail} !== ${userEmail}`);

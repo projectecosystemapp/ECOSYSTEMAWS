@@ -159,7 +159,7 @@ export class WebhookDeduplicationService {
         
         // Try to get the existing record for context
         const existingRecord = await this.getWebhookRecord(eventId);
-        return { acquired: false, existingRecord };
+        return { acquired: false, existingRecord: existingRecord || undefined };
       }
       
       console.error('[WebhookDedup] Error acquiring processing lock', {

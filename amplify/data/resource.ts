@@ -30,6 +30,7 @@ const schema = a.schema({
     email: a.email().required(),
     firstName: a.string(),
     lastName: a.string(),
+    phone: a.string(),
     userType: a.string(),
     stripeAccountId: a.string(),
     stripeCustomerId: a.string(),
@@ -37,6 +38,34 @@ const schema = a.schema({
   })
   .authorization((allow) => [
     allow.ownerDefinedIn('profileOwner'),
+  ]),
+
+  // Provider profile model for detailed provider information
+  ProviderProfile: a.model({
+    ownerId: a.string().required(),
+    businessName: a.string().required(),
+    bio: a.string(),
+    publicEmail: a.string(),
+    phoneNumber: a.string(),
+    profileImageUrl: a.string(),
+    bannerImageUrl: a.string(),
+    serviceCategories: a.string().array(),
+    serviceRadius: a.integer(),
+    location: a.string(), // JSON string for location data
+    status: a.string().required(), // DRAFT, ACTIVE, SUSPENDED, etc.
+    payoutsEnabled: a.boolean(),
+    stripeOnboardingStatus: a.string(),
+    requiresAction: a.boolean(),
+    stripeDisabledReason: a.string(),
+    missingRequirements: a.json(),
+    totalEarnings: a.float(),
+    totalBookings: a.integer(),
+    averageRating: a.float(),
+    reviewCount: a.integer(),
+  })
+  .authorization((allow) => [
+    allow.ownerDefinedIn('ownerId'),
+    allow.authenticated().to(['read']),
   ]),
 
   // Booking model
@@ -75,6 +104,7 @@ const schema = a.schema({
     title: a.string().required(),
     description: a.string(),
     providerId: a.id().required(),
+    providerEmail: a.email(),
     category: a.string(),
     price: a.float().required(),
     priceType: a.string(),
@@ -266,7 +296,6 @@ export const data = defineData({
     },
     lambdaAuthorizationMode: {
       function: webhookAuthorizer,
-      ttl: 300, // Cache authorization results for 5 minutes
     },
   },
 });

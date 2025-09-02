@@ -3,7 +3,7 @@
 // Mitigation: Strict input validation, sanitized prompts, controlled external calls
 // Validated: AI service calls use safe, validated parameters only
 
-import { getCurrentUser } from 'aws-amplify/auth/server';
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth/server';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
-        // 1. Authenticate user
+        // 1. Authenticate user and get session for groups
         const user = await getCurrentUser(contextSpec);
         if (!user) {
           console.warn(`[${correlationId}] Unauthorized access attempt`);
@@ -53,6 +53,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             { status: 401 }
           );
         }
+
+        // Get user session to access groups
+        const session = await fetchAuthSession(contextSpec);
+        const groups = (session.tokens?.idToken?.payload['cognito:groups'] as string[]) || [];
 
         console.info(`[${correlationId}] Authenticated user: ${user.userId}`);
         
@@ -83,7 +87,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
         // 3. Authorization check - users can only generate bios for themselves
         const targetProviderId = providerId || user.userId;
-        if (targetProviderId !== user.userId && !user.groups.includes('Admin')) {
+        if (targetProviderId !== user.userId && !groups.includes('Admin')) {
           console.warn(`[${correlationId}] Forbidden: User ${user.userId} attempted to generate bio for ${targetProviderId}`);
           return NextResponse.json(
             { error: 'Forbidden: Can only generate bios for yourself' },

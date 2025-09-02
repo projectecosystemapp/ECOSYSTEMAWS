@@ -41,8 +41,3 @@ export async function getAuthenticatedUser(req: NextRequest) {
     },
   });
 }
-
-// A pre-configured AppSync client for server-side GraphQL operations
-export const cookiesClient = generateServerClientUsingCookies({
-  config: outputs,
-});

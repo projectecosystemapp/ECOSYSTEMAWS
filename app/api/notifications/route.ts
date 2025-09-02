@@ -3,7 +3,7 @@
 // Mitigation: Strict validation, user-based access control, type safety
 // Validated: All operations use proper authorization and input validation
 
-import { getCurrentUser } from 'aws-amplify/auth/server';
+import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth/server';
 import { generateClient } from 'aws-amplify/data';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
     return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
-        // 1. Authenticate user
+        // 1. Authenticate user and get groups
         const user = await getCurrentUser(contextSpec);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
@@ -62,6 +62,10 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
             { status: 401 }
           );
         }
+
+        // Get user session to access groups
+        const session = await fetchAuthSession(contextSpec);
+        const groups = (session.tokens?.idToken?.payload['cognito:groups'] as string[]) || [];
 
         logger.info(`[${correlationId}] Authenticated user: ${user.userId}`);
 
@@ -87,7 +91,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
         // 3. Authorization check - users can only access their own notifications
         // Exception: admins can access any user's notifications if explicitly requested
         const targetUserId = requestedUserId || user.userId;
-        if (targetUserId !== user.userId && !user.groups.includes('Admin')) {
+        if (targetUserId !== user.userId && !groups.includes('Admin')) {
           logger.warn(`[${correlationId}] Forbidden: User ${user.userId} attempted to access notifications for ${targetUserId}`);
           return NextResponse.json(
             { error: 'Forbidden: Can only access your own notifications' },
@@ -189,7 +193,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
-        // 2. Authenticate user
+        // 2. Authenticate user and get groups
         const user = await getCurrentUser(contextSpec);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
@@ -198,6 +202,10 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             { status: 401 }
           );
         }
+
+        // Get user session to access groups
+        const session = await fetchAuthSession(contextSpec);
+        const groups = (session.tokens?.idToken?.payload['cognito:groups'] as string[]) || [];
 
         logger.info(`[${correlationId}] Authenticated user: ${user.userId}, action: ${action}`);
 
@@ -230,7 +238,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
               }
               
               // Authorization check - users can only mark their own notifications as read
-              if (notification.data.userId !== user.userId && !user.groups.includes('Admin')) {
+              if (notification.data.userId !== user.userId && !groups.includes('Admin')) {
                 logger.warn(`[${correlationId}] Forbidden: User ${user.userId} attempted to mark notification ${notificationId} as read`);
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
               }
@@ -328,7 +336,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             // Authorization check - only admins or the user themselves can create notifications
             // System can also create notifications (identified by internal calls)
             const isSystemCall = request.headers.get('x-correlation-id')?.startsWith('messaging-') || false;
-            if (userId !== user.userId && !user.groups.includes('Admin') && !isSystemCall) {
+            if (userId !== user.userId && !groups.includes('Admin') && !isSystemCall) {
               logger.warn(`[${correlationId}] Forbidden: User ${user.userId} attempted to create notification for ${userId}`);
               return NextResponse.json(
                 { error: 'Forbidden: Can only create notifications for yourself' },

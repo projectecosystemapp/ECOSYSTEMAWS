@@ -18,13 +18,13 @@ export default function ConfirmedPage() {
         const { userId } = await getCurrentUser();
         
         // Fetch user record to determine account type
-        const { data: users } = await client.models.User.list({
-          filter: { ownerId: { eq: userId } }
+        const { data: users } = await client.models.UserProfile.list({
+          filter: { profileOwner: { eq: userId } }
         });
         
         const user = users?.[0];
         
-        if (user?.accountType === 'PROVIDER') {
+        if (user?.userType === 'PROVIDER') {
           router.push('/provider/dashboard');
         } else {
           router.push('/dashboard');

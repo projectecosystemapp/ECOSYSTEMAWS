@@ -7,11 +7,20 @@
  * Compliant with AWS best practices for distributed systems as of September 2025.
  */
 
-import { AsyncLocalStorage } from 'async_hooks';
 import { randomUUID } from 'crypto';
 
-// Use AsyncLocalStorage for context propagation (Node.js 16+)
-const correlationStorage = new AsyncLocalStorage<CorrelationContext>();
+// Server-side correlation storage (Node.js only)
+let correlationStorage: any = null;
+
+// Check if we're running in Node.js environment
+if (typeof window === 'undefined') {
+  try {
+    const { AsyncLocalStorage } = require('async_hooks');
+    correlationStorage = new AsyncLocalStorage();
+  } catch (error) {
+    console.warn('async_hooks not available, correlation tracking will be limited');
+  }
+}
 
 export interface CorrelationContext {
   correlationId: string;
@@ -89,14 +98,45 @@ export class CorrelationTracker {
   ): Promise<T> {
     const context = this.startCorrelation(operation, metadata);
     
-    return correlationStorage.run(context, async () => {
+    // Use AsyncLocalStorage if available, otherwise fall back to direct execution
+    if (correlationStorage && correlationStorage.run) {
+      return correlationStorage.run(context, async () => {
+        try {
+          const startTime = Date.now();
+          const result = await fn();
+          const duration = Date.now() - startTime;
+
+          // Log successful completion
+          console.log('[CorrelationTracker] Operation completed', {
+            correlationId: context.correlationId,
+            operation,
+            duration,
+            success: true
+          });
+
+          return result;
+        } catch (error) {
+          // Log error with correlation
+          console.error('[CorrelationTracker] Operation failed', {
+            correlationId: context.correlationId,
+            operation,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
+
+          throw error;
+        } finally {
+          this.endCorrelation(context.correlationId);
+        }
+      });
+    } else {
+      // Fallback for browser or when AsyncLocalStorage is not available
       try {
         const startTime = Date.now();
         const result = await fn();
         const duration = Date.now() - startTime;
 
-        // Log successful completion
-        console.log('[CorrelationTracker] Operation completed', {
+        console.log('[CorrelationTracker] Operation completed (fallback)', {
           correlationId: context.correlationId,
           operation,
           duration,
@@ -105,26 +145,23 @@ export class CorrelationTracker {
 
         return result;
       } catch (error) {
-        // Log error with correlation
-        console.error('[CorrelationTracker] Operation failed', {
+        console.error('[CorrelationTracker] Operation failed (fallback)', {
           correlationId: context.correlationId,
           operation,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          stack: error instanceof Error ? error.stack : undefined
+          error: error instanceof Error ? error.message : 'Unknown error'
         });
-
         throw error;
       } finally {
         this.endCorrelation(context.correlationId);
       }
-    });
+    }
   }
 
   /**
    * Get current correlation context
    */
   getCurrentContext(): CorrelationContext | undefined {
-    return correlationStorage.getStore();
+    return correlationStorage?.getStore ? correlationStorage.getStore() : undefined;
   }
 
   /**

@@ -93,32 +93,30 @@ export default function BookingConfirmationPage() {
         const providerProfile = providerResponse.data?.[0];
         
         // Fetch customer details
-        const customerResponse = await client.models.User.get({ ownerId: bookingData.customerId });
+        const customerResponse = await client.models.UserProfile.get({ id: bookingData.customerId });
 
         // Combine all data
         const completeBooking: BookingDetails = {
           id: bookingData.id,
           serviceId: bookingData.serviceId,
           serviceName: serviceResponse.data?.title || 'Service',
-          serviceDescription: serviceResponse.data?.description,
+          serviceDescription: serviceResponse.data?.description || undefined,
           providerId: bookingData.providerId,
           providerName: providerProfile?.businessName || 'Provider',
-          providerEmail: bookingData.providerEmail,
-          providerPhone: providerProfile?.phoneNumber,
-          providerAddress: providerProfile ? 
-            `${providerProfile.address}, ${providerProfile.city}, ${providerProfile.province}` : 
-            undefined,
+          providerEmail: bookingData.providerEmail || '',
+          providerPhone: providerProfile?.phoneNumber || undefined,
+          providerAddress: undefined, // Removed address fields that don't exist in model
           customerId: bookingData.customerId,
-          customerName: customerResponse.data?.name || 'Customer',
+          customerName: `${customerResponse.data?.firstName || ''} ${customerResponse.data?.lastName || ''}`.trim() || 'Customer',
           customerEmail: bookingData.customerEmail,
           startDateTime: bookingData.startDateTime,
           endDateTime: bookingData.endDateTime,
           status: bookingData.status,
-          paymentStatus: bookingData.paymentStatus,
-          amountCents: bookingData.amountCents,
-          platformFeeCents: bookingData.platformFeeCents,
-          paymentIntentId: bookingData.paymentIntentId,
-          notes: bookingData.notes,
+          paymentStatus: bookingData.paymentStatus || 'PENDING',
+          amount: bookingData.amount,
+          platformFee: bookingData.platformFee,
+          paymentIntentId: bookingData.paymentIntentId || '',
+          specialRequests: bookingData.specialRequests || '',
           createdAt: bookingData.createdAt,
         };
 
