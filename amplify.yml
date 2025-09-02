@@ -1,9 +1,21 @@
 version: 1
 backend:
   phases:
+    preBuild:
+      commands:
+        # Increase npm timeouts and disable progress bar
+        - npm config set fetch-timeout 600000
+        - npm config set fetch-retry-mintimeout 20000
+        - npm config set fetch-retry-maxtimeout 120000
+        - npm config set progress false
     build:
       commands:
-        - npm ci --prefix amplify
+        # Install amplify dependencies with timeout protection
+        - |
+          if [ -f "amplify/package.json" ]; then
+            echo "Installing amplify dependencies..."
+            timeout 300 npm install --prefix amplify --no-progress --no-audit --prefer-offline || npm install --prefix amplify --no-progress --no-audit
+          fi
         - npx ampx generate outputs --app-id $AWS_APP_ID --branch $AWS_BRANCH --out-dir ./
 frontend:
   phases:
