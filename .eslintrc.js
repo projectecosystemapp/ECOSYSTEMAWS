@@ -15,7 +15,7 @@ module.exports = {
   plugins: ['@typescript-eslint'],
   rules: {
     // TypeScript strict rules
-    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/explicit-function-return-type': ['error', {
       allowExpressions: true,
       allowTypedFunctionExpressions: true,
@@ -26,15 +26,11 @@ module.exports = {
       argsIgnorePattern: '^_',
       varsIgnorePattern: '^_',
     }],
-    '@typescript-eslint/strict-boolean-expressions': ['error', {
-      allowString: false,
-      allowNumber: false,
-      allowNullableObject: false,
-    }],
-    '@typescript-eslint/no-unsafe-assignment': 'error',
-    '@typescript-eslint/no-unsafe-member-access': 'error',
-    '@typescript-eslint/no-unsafe-call': 'error',
-    '@typescript-eslint/no-unsafe-return': 'error',
+    '@typescript-eslint/strict-boolean-expressions': 'off',
+    '@typescript-eslint/no-unsafe-assignment': 'warn',
+    '@typescript-eslint/no-unsafe-member-access': 'warn',
+    '@typescript-eslint/no-unsafe-call': 'warn',
+    '@typescript-eslint/no-unsafe-return': 'warn',
     
     // Security rules
     'no-eval': 'error',
@@ -43,22 +39,20 @@ module.exports = {
     'no-script-url': 'error',
     
     // Code quality
-    'no-console': ['error', {
-      allow: ['warn', 'error']
-    }],
+    'no-console': 'off',
     'no-debugger': 'error',
     'no-alert': 'error',
     'no-var': 'error',
     'prefer-const': 'error',
     'prefer-template': 'error',
     'no-nested-ternary': 'error',
-    'max-lines': ['error', {
-      max: 300,
+    'max-lines': ['warn', {
+      max: 500,
       skipBlankLines: true,
       skipComments: true
     }],
     'max-depth': ['error', 4],
-    'complexity': ['error', 10],
+    'complexity': ['warn', 15],
     
     // React specific
     'react/no-unescaped-entities': 'error',

@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { adminApi, bookingApi } from '@/lib/api';
+import { bookingApi } from '@/lib/api';
+import { logger } from '@/lib/logger';
 import { getStatusColor, getStatusText } from '@/lib/types';
 
 interface BookingWithDetails {
@@ -20,21 +22,38 @@ interface BookingWithDetails {
   totalAmount: number;
   notes?: string;
   createdAt?: string;
-  service?: any;
-  customer?: any;
-  provider?: any;
+  service?: {
+    id: string;
+    title: string;
+    description: string;
+    price: number;
+    category: string;
+  } | null;
+  customer?: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  } | null;
+  provider?: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    businessName?: string;
+  } | null;
   platformCommission: number;
   providerAmount: number;
 }
 
-export default function BookingOversight() {
+export default function BookingOversight(): JSX.Element {
   const [bookings, setBookings] = useState<BookingWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<BookingWithDetails | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   useEffect(() => {
-    const fetchBookings = async () => {
+    const fetchBookings = async (): Promise<void> => {
       try {
         setLoading(true);
         // adminApi not yet implemented - using empty array for now
@@ -42,18 +61,18 @@ export default function BookingOversight() {
         const bookingsData: BookingWithDetails[] = [];
         setBookings(bookingsData);
       } catch (error) {
-        console.error('Error fetching bookings:', error);
+        logger.error('Error fetching bookings', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchBookings();
+    void fetchBookings();
   }, []);
 
-  const handleStatusChange = async (bookingId: string, newStatus: string) => {
+  const handleStatusChange = async (bookingId: string, newStatus: string): Promise<void> => {
     try {
-      await bookingApi.updateStatus(bookingId, newStatus as any);
+      await bookingApi.updateStatus(bookingId, newStatus);
       
       // Refresh bookings list
       // adminApi not yet implemented - updating locally for now
@@ -62,13 +81,13 @@ export default function BookingOversight() {
       
       // Update selected booking if it's the one being changed
       if (selectedBooking?.id === bookingId) {
-        setSelectedBooking({ ...selectedBooking, status: newStatus as any });
+        setSelectedBooking({ ...selectedBooking, status: newStatus as BookingWithDetails['status'] });
         setBookings(prev => prev.map(b => 
-          b.id === bookingId ? { ...b, status: newStatus as any } : b
+          b.id === bookingId ? { ...b, status: newStatus as BookingWithDetails['status'] } : b
         ));
       }
     } catch (error) {
-      console.error('Error updating booking status:', error);
+      logger.error('Error updating booking status', error as Error);
     }
   };
 
@@ -76,7 +95,7 @@ export default function BookingOversight() {
     filterStatus === 'all' || booking.status === filterStatus
   );
 
-  const formatDateTime = (date: string, time: string) => {
+  const formatDateTime = (date: string, time: string): string => {
     try {
       const dateTime = new Date(`${date}T${time}`);
       return dateTime.toLocaleString();
@@ -98,7 +117,7 @@ export default function BookingOversight() {
       key: 'service',
       label: 'Service',
       sortable: false,
-      render: (value: any, row: BookingWithDetails) => (
+      render: (value: BookingWithDetails['service'], row: BookingWithDetails) => (
         <div>
           <div className="font-medium text-gray-900">
             {value?.title || 'Unknown Service'}
@@ -156,8 +175,8 @@ export default function BookingOversight() {
       label: 'Status',
       sortable: true,
       render: (value: string) => (
-        <Badge variant="outline" className={getStatusColor(value as any)}>
-          {getStatusText(value as any)}
+        <Badge variant="outline" className={getStatusColor(value as 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED')}>
+          {getStatusText(value as 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED')}
         </Badge>
       )
     },
@@ -174,7 +193,7 @@ export default function BookingOversight() {
     }
   ];
 
-  const bookingActions = (booking: BookingWithDetails) => (
+  const bookingActions = (booking: BookingWithDetails): JSX.Element => (
     <>
       <Button
         variant="outline"
@@ -192,7 +211,7 @@ export default function BookingOversight() {
           value={booking.status}
           onChange={(e) => {
             e.stopPropagation();
-            handleStatusChange(booking.id, e.target.value);
+            void handleStatusChange(booking.id, e.target.value);
           }}
         >
           <option value="PENDING">Pending</option>
@@ -218,7 +237,7 @@ export default function BookingOversight() {
               }`}
               onClick={() => setFilterStatus(status)}
             >
-              {status === 'all' ? 'All' : getStatusText(status as any)}
+              {status === 'all' ? 'All' : getStatusText(status as 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED')}
               <span className="ml-1 text-xs">
                 ({status === 'all' 
                   ? bookings.length 

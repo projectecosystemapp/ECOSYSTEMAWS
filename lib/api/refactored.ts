@@ -7,6 +7,17 @@
  */
 
 import { getClient } from '@/lib/api';
+import type {
+  Service,
+  ServiceWithRating,
+  Booking,
+  Review,
+  UserProfile,
+  Message,
+  Transaction,
+  Notification
+} from '@/lib/types';
+
 import {
   mapApiServiceToService,
   mapApiServiceList,
@@ -24,16 +35,6 @@ import {
   mapApiNotificationToNotification,
   mapApiNotificationList
 } from './mappers';
-import type {
-  Service,
-  ServiceWithRating,
-  Booking,
-  Review,
-  UserProfile,
-  Message,
-  Transaction,
-  Notification
-} from '@/lib/types';
 
 // Use factory to create client at call time
 

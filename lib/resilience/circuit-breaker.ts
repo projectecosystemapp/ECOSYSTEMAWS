@@ -8,9 +8,10 @@
  * as of September 2025.
  */
 
+import { randomUUID } from 'crypto';
+
 import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { randomUUID } from 'crypto';
 
 // Circuit Breaker States
 export enum CircuitState {

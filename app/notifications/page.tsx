@@ -1,11 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { 
   Bell, 
   MessageCircle, 
@@ -16,6 +11,13 @@ import {
   CheckCircle,
   Trash2
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+
 
 interface Notification {
   id: string;

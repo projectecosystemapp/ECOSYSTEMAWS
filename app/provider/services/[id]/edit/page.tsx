@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { serviceApi } from '@/lib/api';
+import { useRouter, useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import LoadingSpinner from '@/components/provider/LoadingSpinner';
 import ServiceForm from '@/components/provider/ServiceForm';
+import { serviceApi } from '@/lib/api';
 import { ServiceFormData, Service } from '@/lib/types';
 
 export default function EditService() {

@@ -1,7 +1,8 @@
+import { generateClient } from 'aws-amplify/data';
+import { headers } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { headers } from 'next/headers';
-import { generateClient } from 'aws-amplify/data';
+
 import { type Schema } from '@/amplify/data/resource';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
@@ -42,25 +43,25 @@ export async function POST(request: NextRequest) {
     // Handle different event types
     switch (event.type) {
       case 'payment_intent.succeeded':
-        await handlePaymentSucceeded(event.data.object as Stripe.PaymentIntent, client);
+        await handlePaymentSucceeded(event.data.object, client);
         break;
 
       case 'payment_intent.payment_failed':
-        await handlePaymentFailed(event.data.object as Stripe.PaymentIntent, client);
+        await handlePaymentFailed(event.data.object, client);
         break;
 
       case 'account.updated':
-        await handleAccountUpdated(event.data.object as Stripe.Account, client);
+        await handleAccountUpdated(event.data.object, client);
         break;
 
       case 'charge.refunded':
-        await handleChargeRefunded(event.data.object as Stripe.Charge, client);
+        await handleChargeRefunded(event.data.object, client);
         break;
 
       case 'payout.created':
       case 'payout.paid':
       case 'payout.failed':
-        await handlePayoutEvent(event.data.object as Stripe.Payout, event.type, client);
+        await handlePayoutEvent(event.data.object, event.type, client);
         break;
 
       default:
@@ -220,7 +221,7 @@ async function handlePayoutEvent(payout: Stripe.Payout, eventType: string, clien
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {

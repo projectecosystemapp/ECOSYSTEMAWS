@@ -1,12 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   CheckCircle2, 
   Circle, 
@@ -23,6 +17,15 @@ import {
   FileText,
   Users
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { stripeConnectOperation } from '@/lib/amplify-client-wrapper';
+
 
 const steps = [
   {
@@ -73,13 +76,11 @@ export default function ProviderOnboarding() {
         return;
       }
 
-      const response = await fetch('/api/stripe/connect-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check_status' }),
+      // Use the new wrapper that supports feature flags
+      const data = await stripeConnectOperation({
+        action: 'CHECK_ACCOUNT_STATUS',
+        providerId: user.userId,
       });
-
-      const data = await response.json();
       setStripeStatus(data);
       setAccountId(data.accountId);
 
@@ -105,18 +106,22 @@ export default function ProviderOnboarding() {
     try {
       setLoading(true);
       setError('');
+      
+      const user = await getCurrentUser();
+      if (!user) {
+        router.push('/auth/login');
+        return;
+      }
 
-      const response = await fetch('/api/stripe/connect-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create' }),
+      // Use the new wrapper for creating Stripe account
+      const data = await stripeConnectOperation({
+        action: 'CREATE_ACCOUNT',
+        providerId: user.userId,
       });
 
-      const data = await response.json();
-
-      if (data.accountLinkUrl) {
+      if (data.onboardingUrl) {
         // Redirect to Stripe onboarding
-        window.location.href = data.accountLinkUrl;
+        window.location.href = data.onboardingUrl;
       } else {
         throw new Error('Failed to create onboarding link');
       }
@@ -130,15 +135,21 @@ export default function ProviderOnboarding() {
   const openStripeDashboard = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/stripe/connect-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'create_login_link' }),
-      });
+      const user = await getCurrentUser();
+      if (!user || !accountId) {
+        setError('Account not found');
+        return;
+      }
 
-      const data = await response.json();
-      if (data.loginLinkUrl) {
-        window.open(data.loginLinkUrl, '_blank');
+      // Use the new wrapper for creating account link
+      const data = await stripeConnectOperation({
+        action: 'CREATE_ACCOUNT_LINK',
+        providerId: user.userId,
+        connectedAccountId: accountId,
+      });
+      
+      if (data.url) {
+        window.open(data.url, '_blank');
       }
     } catch (err) {
       console.error('Error opening Stripe dashboard:', err);

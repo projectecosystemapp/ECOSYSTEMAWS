@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/data';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
 import type { Schema } from '@/amplify/data/resource';
 
 const client = generateClient<Schema>();

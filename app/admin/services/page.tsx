@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { adminApi, serviceApi } from '@/lib/api';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { serviceApi } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 interface ServiceWithStats {
   id: string;
@@ -31,7 +33,7 @@ interface ServiceWithStats {
   updatedAt?: string;
 }
 
-export default function ServiceModeration() {
+export default function ServiceModeration(): JSX.Element {
   const [services, setServices] = useState<ServiceWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState<ServiceWithStats | null>(null);
@@ -46,24 +48,24 @@ export default function ServiceModeration() {
   });
 
   useEffect(() => {
-    const fetchServices = async () => {
+    const fetchServices = async (): Promise<void> => {
       try {
         setLoading(true);
         // adminApi not yet implemented - using empty array for now
         // const servicesData = await adminApi.getServicesWithStats();
         const servicesData: ServiceWithStats[] = [];
-        setServices(servicesData as any);
+        setServices(servicesData);
       } catch (error) {
-        console.error('Error fetching services:', error);
+        logger.error('Error fetching services', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchServices();
+    void fetchServices();
   }, []);
 
-  const handleToggleActive = async (serviceId: string, currentActive: boolean) => {
+  const handleToggleActive = async (serviceId: string, currentActive: boolean): Promise<void> => {
     try {
       await serviceApi.update({ id: serviceId, active: !currentActive });
       
@@ -72,11 +74,11 @@ export default function ServiceModeration() {
       // const servicesData = await adminApi.getServicesWithStats();
       // setServices(servicesData as any);
     } catch (error) {
-      console.error('Error toggling service status:', error);
+      logger.error('Error toggling service status', error as Error);
     }
   };
 
-  const handleEditService = (service: ServiceWithStats) => {
+  const handleEditService = (service: ServiceWithStats): void => {
     setEditingService(service);
     setEditForm({
       title: service.title,
@@ -88,7 +90,7 @@ export default function ServiceModeration() {
     });
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (): Promise<void> => {
     if (!editingService) return;
 
     try {
@@ -105,11 +107,11 @@ export default function ServiceModeration() {
       setEditingService(null);
       setSelectedService(null);
     } catch (error) {
-      console.error('Error updating service:', error);
+      logger.error('Error updating service', error as Error);
     }
   };
 
-  const handleDeleteService = async (serviceId: string) => {
+  const handleDeleteService = async (serviceId: string): Promise<void> => {
     if (!confirm('Are you sure you want to delete this service? This action cannot be undone.')) {
       return;
     }
@@ -126,7 +128,7 @@ export default function ServiceModeration() {
         setSelectedService(null);
       }
     } catch (error) {
-      console.error('Error deleting service:', error);
+      logger.error('Error deleting service', error as Error);
     }
   };
 
@@ -202,7 +204,7 @@ export default function ServiceModeration() {
     }
   ];
 
-  const serviceActions = (service: ServiceWithStats) => (
+  const serviceActions = (service: ServiceWithStats): JSX.Element => (
     <>
       <Button
         variant="outline"
@@ -230,7 +232,7 @@ export default function ServiceModeration() {
         size="sm"
         onClick={(e) => {
           e.stopPropagation();
-          handleToggleActive(service.id, service.active);
+          void handleToggleActive(service.id, service.active);
         }}
         className="ml-1"
       >

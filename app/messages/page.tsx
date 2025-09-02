@@ -1,16 +1,18 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
-import ConversationList from '@/components/messaging/ConversationList';
+import { MessageCircle } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+
 import ChatWindow from '@/components/messaging/ChatWindow';
+import ConversationList from '@/components/messaging/ConversationList';
 import MessageSearch from '@/components/messaging/MessageSearch';
 import { Card } from '@/components/ui/card';
 import { messageApi, getOtherParticipant } from '@/lib/api';
 import { Conversation, Message } from '@/lib/types';
-import { MessageCircle } from 'lucide-react';
+
 
 export default function MessagesPage() {
   const router = useRouter();
@@ -33,7 +35,7 @@ export default function MessagesPage() {
       }
     };
 
-    fetchUser();
+    void fetchUser();
   }, [router]);
 
   // Handle URL parameters (direct conversation links)

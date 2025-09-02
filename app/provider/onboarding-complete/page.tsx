@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { CheckCircle2, Loader2, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
 
 export default function OnboardingComplete() {
   const router = useRouter();

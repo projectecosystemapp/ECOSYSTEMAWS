@@ -1,14 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
+import { logger } from '@/lib/logger';
 
 interface PlatformSettings {
   commissionRate: number;
@@ -35,7 +37,7 @@ interface PlatformSettings {
   }>;
 }
 
-export default function PlatformSettings() {
+export default function PlatformSettings(): JSX.Element {
   const [settings, setSettings] = useState<PlatformSettings>({
     commissionRate: 8,
     categories: [
@@ -74,16 +76,16 @@ export default function PlatformSettings() {
     targetRole: 'ALL' as 'ALL' | 'CUSTOMERS' | 'PROVIDERS'
   });
 
-  const handleSaveSettings = async () => {
+  const handleSaveSettings = async (): Promise<void> => {
     try {
       // TODO: Implement actual settings save to database
       alert('Settings saved successfully! (This would be saved to a Settings model in production)');
     } catch (error) {
-      console.error('Error saving settings:', error);
+      logger.error('Error saving settings', error as Error);
     }
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = (): void => {
     if (newCategory.trim() && !settings.categories.includes(newCategory.trim())) {
       setSettings(prev => ({
         ...prev,
@@ -93,14 +95,14 @@ export default function PlatformSettings() {
     }
   };
 
-  const handleRemoveCategory = (category: string) => {
+  const handleRemoveCategory = (category: string): void => {
     setSettings(prev => ({
       ...prev,
       categories: prev.categories.filter(c => c !== category)
     }));
   };
 
-  const handleAddAnnouncement = () => {
+  const handleAddAnnouncement = (): void => {
     if (newAnnouncement.title.trim() && newAnnouncement.content.trim()) {
       const announcement = {
         id: Date.now().toString(),
@@ -122,7 +124,7 @@ export default function PlatformSettings() {
     }
   };
 
-  const handleToggleAnnouncement = (id: string) => {
+  const handleToggleAnnouncement = (id: string): void => {
     setSettings(prev => ({
       ...prev,
       announcements: prev.announcements.map(ann => 
@@ -131,7 +133,7 @@ export default function PlatformSettings() {
     }));
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
+  const handleDeleteAnnouncement = (id: string): void => {
     setSettings(prev => ({
       ...prev,
       announcements: prev.announcements.filter(ann => ann.id !== id)
@@ -368,7 +370,7 @@ export default function PlatformSettings() {
                     value={newAnnouncement.targetRole}
                     onChange={(e) => setNewAnnouncement(prev => ({
                       ...prev,
-                      targetRole: e.target.value as any
+                      targetRole: e.target.value as 'ALL' | 'CUSTOMERS' | 'PROVIDERS'
                     }))}
                     className="w-full border border-gray-300 rounded-md px-3 py-2"
                   >

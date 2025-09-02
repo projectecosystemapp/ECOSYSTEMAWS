@@ -1,15 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ArrowLeft, MoreVertical, Phone, Video } from 'lucide-react';
-import MessageList from './MessageList';
-import MessageInput from './MessageInput';
-import { Message } from '@/lib/types';
+import { useState, useEffect, useCallback } from 'react';
+
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { messageApi, getOtherParticipant } from '@/lib/api';
+import { Message } from '@/lib/types';
+
+import MessageInput from './MessageInput';
+import MessageList from './MessageList';
+
 
 interface ChatWindowProps {
   conversationId: string;

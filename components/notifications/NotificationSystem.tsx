@@ -1,11 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { refactoredApi } from '@/lib/api/refactored';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   Bell, 
   X, 
@@ -16,6 +11,12 @@ import {
   User,
   DollarSign
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { refactoredApi } from '@/lib/api/refactored';
 import { cn } from '@/lib/utils';
 
 interface Notification {

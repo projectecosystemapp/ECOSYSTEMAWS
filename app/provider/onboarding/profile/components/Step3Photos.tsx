@@ -1,10 +1,12 @@
 'use client';
 
-import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form';
-import ImageUploader from '@/components/ImageUploader';
-import { ProfileFormData } from '../page';
 import { Camera, Image } from 'lucide-react';
+import { useFormContext } from 'react-hook-form';
+
+import ImageUploader from '@/components/ImageUploader';
+import { FormField, FormItem, FormLabel, FormControl } from '@/components/ui/form';
+
+import { ProfileFormData } from '../page';
 
 export default function Step3Photos() {
   const { control, watch } = useFormContext<ProfileFormData>();

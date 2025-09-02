@@ -1,14 +1,16 @@
 'use client';
 
+import { MapPin, Navigation } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
+
+import { Button } from '@/components/ui/button';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
-import { ProfileFormData } from '../page';
-import { MapPin, Navigation } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+
+import { ProfileFormData } from '../page';
 
 const PROVINCES = [
   { value: 'AB', label: 'Alberta' },

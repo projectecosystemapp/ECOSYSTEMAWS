@@ -1,6 +1,5 @@
 'use client';
 
-import { Badge } from '@/components/ui/badge';
 import { 
   CheckCircle, 
   Clock, 
@@ -9,6 +8,8 @@ import {
   RefreshCw,
   AlertTriangle
 } from 'lucide-react';
+
+import { Badge } from '@/components/ui/badge';
 import type { BookingStatus as BookingStatusType } from '@/lib/types';
 
 interface BookingStatusProps {

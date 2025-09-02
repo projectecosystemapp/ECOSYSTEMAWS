@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { getCurrentUser, signOut } from 'aws-amplify/auth';
-import { useRouter } from 'next/navigation';
+import { MessageCircle } from 'lucide-react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { serviceApi, bookingApi, messageApi } from '@/lib/api';
-import { MessageCircle } from 'lucide-react';
+
 
 export default function DashboardPage() {
   const router = useRouter();

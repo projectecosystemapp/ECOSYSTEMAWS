@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, MapPin, X, Clock, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { refactoredApi } from '@/lib/api/refactored';
 
 interface SearchBarProps {
@@ -95,10 +96,10 @@ export default function SearchBar({
         const searchSuggestions: SearchSuggestion[] = (results || [])
           .slice(0, 6)
           .map((service) => ({
-            id: service.id!,
-            title: service.title!,
-            category: service.category!,
-            price: service.price!,
+            id: service.id,
+            title: service.title,
+            category: service.category,
+            price: service.price,
             providerName: service.providerName
           }));
           

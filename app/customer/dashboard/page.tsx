@@ -1,10 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { 
   Calendar, 
   Clock, 
@@ -20,6 +16,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { refactoredApi } from '@/lib/api/refactored';
 import type { Booking, Service, UserProfile } from '@/lib/types';
 import { formatTimeSlot, getStatusColor, getStatusText } from '@/lib/types';

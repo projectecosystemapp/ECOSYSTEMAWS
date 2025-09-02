@@ -1,8 +1,10 @@
 'use client';
 
 import { useFormContext } from 'react-hook-form';
+
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+
 import { ProfileFormData } from '../page';
 
 export default function Step1Basics() {

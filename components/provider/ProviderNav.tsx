@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
+import { useState, useEffect } from 'react';
+
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { useAuth } from '@/hooks/useAuth';
 import { messageApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 interface NavItem {
   label: string;
@@ -94,7 +95,7 @@ export default function ProviderNav() {
                 href={item.href}
                 className={cn(
                   'flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors relative',
-                  pathname === item.href || pathname.startsWith(item.href + '/')
+                  pathname === item.href || pathname.startsWith(`${item.href  }/`)
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 )}
@@ -143,7 +144,7 @@ export default function ProviderNav() {
                 href={item.href}
                 className={cn(
                   'flex items-center space-x-2 px-3 py-2 rounded-md text-base font-medium relative',
-                  pathname === item.href || pathname.startsWith(item.href + '/')
+                  pathname === item.href || pathname.startsWith(`${item.href  }/`)
                     ? 'bg-blue-100 text-blue-700'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 )}

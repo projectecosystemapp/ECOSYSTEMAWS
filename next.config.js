@@ -18,5 +18,17 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
 }
+const { withSentryConfig } = require('@sentry/nextjs');
 
-module.exports = nextConfig
+module.exports = withSentryConfig(
+  nextConfig,
+  {
+    org: 'ecosystem-global-solutions',
+    project: 'javascript-nextjs',
+    silent: true,
+  },
+  {
+    hideSourceMaps: true,
+    disableLogger: true,
+  }
+)

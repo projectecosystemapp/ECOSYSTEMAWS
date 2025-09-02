@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { signOut, getCurrentUser } from 'aws-amplify/auth';
+import { LogOut, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { LogOut, User } from 'lucide-react';
+
 
 export default function SignOutPage() {
   const router = useRouter();

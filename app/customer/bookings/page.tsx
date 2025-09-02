@@ -1,14 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { getCurrentUser } from 'aws-amplify/auth';
-import Link from 'next/link';
-import { refactoredApi } from '@/lib/api/refactored';
-import type { Booking } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Calendar,
   Clock,
@@ -26,6 +18,15 @@ import {
   AlertCircle,
   RefreshCw
 } from 'lucide-react';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { refactoredApi } from '@/lib/api/refactored';
+import type { Booking } from '@/lib/types';
 import { getStatusColor, getStatusText } from '@/lib/types';
 
 export default function CustomerBookingsPage() {

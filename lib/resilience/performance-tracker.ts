@@ -8,6 +8,7 @@
  */
 
 import { CloudWatchClient, PutMetricDataCommand, MetricDatum } from '@aws-sdk/client-cloudwatch';
+
 import { correlationTracker } from './correlation-tracker';
 
 export interface PerformanceMetric {

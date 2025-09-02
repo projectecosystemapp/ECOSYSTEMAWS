@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import ReviewForm from '@/components/reviews/ReviewForm';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { bookingApi, reviewApi, serviceApi } from '@/lib/api';
 import { Booking, Service } from '@/lib/types';
-import { CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+
 
 export default function ReviewBookingPage() {
   const params = useParams();
@@ -73,7 +75,7 @@ export default function ReviewBookingPage() {
       }
     };
 
-    fetchData();
+    void fetchData();
   }, [params.id, user]);
 
   const handleSubmitReview = async (rating: number, comment: string) => {

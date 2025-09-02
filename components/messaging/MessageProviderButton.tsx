@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { MessageCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
 import { generateConversationId } from '@/lib/api';
 
 interface MessageProviderButtonProps {

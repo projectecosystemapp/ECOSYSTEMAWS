@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { uploadData } from 'aws-amplify/storage';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { uploadData } from 'aws-amplify/storage';
+import { Upload, X, Camera, Image as ImageIcon } from 'lucide-react';
+import { useState, useRef } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, X, Camera, Image as ImageIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ImageUploaderProps {

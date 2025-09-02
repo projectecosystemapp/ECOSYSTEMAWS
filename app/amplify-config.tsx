@@ -1,6 +1,7 @@
 'use client';
 
 import { Amplify } from 'aws-amplify';
+
 import outputs from '@/amplify_outputs.json';
 
 // Configure Amplify on module load
@@ -10,7 +11,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export default function ConfigureAmplifyClientSide() {
+export default function ConfigureAmplifyClientSide(): null {
   // Ensure configuration happens on client side
   if (typeof window !== 'undefined') {
     Amplify.configure(outputs, {

@@ -1,11 +1,13 @@
 'use client';
 
+import { CheckCircle, AlertCircle } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
-import { ProfileFormData } from '../page';
+
 import { SERVICE_CATEGORIES } from '@/app/constants/service-categories';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, AlertCircle } from 'lucide-react';
+
+import { ProfileFormData } from '../page';
 
 export default function Step6Review() {
   const { watch } = useFormContext<ProfileFormData>();

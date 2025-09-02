@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
-import MetricCard from '@/components/admin/MetricCard';
 import DataTable from '@/components/admin/DataTable';
+import MetricCard from '@/components/admin/MetricCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { adminApi } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 interface AnalyticsData {
   revenue: {
@@ -43,12 +43,12 @@ interface AnalyticsData {
   };
 }
 
-export default function AnalyticsDashboard() {
+export default function AnalyticsDashboard(): JSX.Element {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAnalytics = async () => {
+    const fetchAnalytics = async (): Promise<void> => {
       try {
         setLoading(true);
         // adminApi not yet implemented - using mock data for now
@@ -56,32 +56,32 @@ export default function AnalyticsDashboard() {
         const analyticsData: AnalyticsData | null = null;
         setAnalytics(analyticsData);
       } catch (error) {
-        console.error('Error fetching analytics:', error);
+        logger.error('Error fetching analytics', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAnalytics();
+    void fetchAnalytics();
   }, []);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
   };
 
-  const getProviderDisplayName = (provider: any) => {
-    if (provider.businessName) return provider.businessName;
-    if (provider.firstName && provider.lastName) {
+  const getProviderDisplayName = (provider: AnalyticsData['topProviders'][0]): string => {
+    if (provider.businessName && provider.businessName.trim()) return provider.businessName;
+    if (provider.firstName && provider.firstName.trim() && provider.lastName && provider.lastName.trim()) {
       return `${provider.firstName} ${provider.lastName}`;
     }
     return provider.email;
   };
 
   // Prepare category data for table
-  const categoryData = analytics ? Object.entries(analytics.categories).map(([name, stats]) => ({
+  const categoryData = analytics !== null ? Object.entries(analytics.categories).map(([name, stats]) => ({
     id: name,
     name,
     ...stats
@@ -116,7 +116,7 @@ export default function AnalyticsDashboard() {
       key: 'email',
       label: 'Provider',
       sortable: true,
-      render: (value: string, row: any) => (
+      render: (value: string, row: AnalyticsData['topProviders'][0]) => (
         <div>
           <div className="font-medium text-gray-900">
             {getProviderDisplayName(row)}
@@ -291,16 +291,14 @@ export default function AnalyticsDashboard() {
                 <div className="space-y-3">
                   {Object.entries(analytics?.categories || {})
                     .sort(([,a], [,b]) => {
-                      const aStats = a as { revenue: number };
-                      const bStats = b as { revenue: number };
-                      return bStats.revenue - aStats.revenue;
+                      return b.revenue - a.revenue;
                     })
                     .slice(0, 5)
                     .map(([category, stats]) => (
                       <div key={category} className="flex items-center justify-between">
                         <span className="text-sm">{category}</span>
                         <span className="font-medium">
-                          {formatCurrency((stats as { revenue: number }).revenue)}
+                          {formatCurrency(stats.revenue)}
                         </span>
                       </div>
                     ))}

@@ -33,7 +33,7 @@ export class TestDataSeeder {
   /**
    * Update the authentication tokens
    */
-  updateAuth(testUser: TestUser) {
+  updateAuth(testUser: TestUser): void {
     this.testUser = testUser;
     // Recreate client with new auth tokens
     this.client = generateClient<Schema>({
@@ -51,7 +51,7 @@ export class TestDataSeeder {
       bookingsCount: number;
       completedCount: number;
     }>;
-  }) {
+  }): Promise<{ services: string[]; bookings: string[]; customers: string[] }> {
     const createdData = {
       services: [] as string[],
       bookings: [] as string[],
@@ -128,7 +128,7 @@ export class TestDataSeeder {
     customerId: string;
     serviceTitle: string;
     amount: number;
-  }) {
+  }): Promise<{ serviceId: string; bookingId?: string }> {
     // Create service first
     const service = await this.client.models.Service.create({
       id: uuidv4(),
@@ -181,11 +181,11 @@ export class TestDataSeeder {
   /**
    * Create test customer bookings
    */
-  async createCustomerBookings(customerId: string, providerId: string, count: number = 3) {
+  async createCustomerBookings(customerId: string, providerId: string, count: number = 3): Promise<{ serviceId: string; bookingIds: string[] }> {
     const bookings = [];
     
     // Create a test service
-    const service = await this.client.models.Service.create(
+    const service = await this.client.models.Service.create({
       id: uuidv4(),
       providerId,
       title: 'Test Cleaning Service',
@@ -210,7 +210,7 @@ export class TestDataSeeder {
       const bookingDate = new Date();
       bookingDate.setDate(bookingDate.getDate() + i + 1);
       
-      const booking = await this.client.models.Booking.create(
+      const booking = await this.client.models.Booking.create({
         id: uuidv4(),
         serviceId: service.data.id,
         providerId,
@@ -243,7 +243,7 @@ export class TestDataSeeder {
   /**
    * Clean up provider data
    */
-  async cleanupProviderData(providerId: string) {
+  async cleanupProviderData(providerId: string): Promise<void> {
     try {
       // Delete all bookings for this provider
       const { data: bookings } = await this.client.models.Booking.list({
@@ -278,7 +278,7 @@ export class TestDataSeeder {
   /**
    * Clean up customer data
    */
-  async cleanupCustomerData(customerId: string) {
+  async cleanupCustomerData(customerId: string): Promise<void> {
     try {
       // Delete all bookings for this customer
       const { data: bookings } = await this.client.models.Booking.list({
@@ -304,7 +304,7 @@ export class TestDataSeeder {
     businessType: string;
     description?: string;
     yearsExperience?: number;
-  }) {
+  }): Promise<any> {
     const profile = await this.client.models.ProviderProfile.create({
       id: providerId,
       businessName: data.businessName,
@@ -339,7 +339,7 @@ export class TestDataSeeder {
   /**
    * Create test reviews
    */
-  async createReviews(providerId: string, serviceId: string, count: number = 5) {
+  async createReviews(providerId: string, serviceId: string, count: number = 5): Promise<string[]> {
     const reviews = [];
     
     for (let i = 0; i < count; i++) {

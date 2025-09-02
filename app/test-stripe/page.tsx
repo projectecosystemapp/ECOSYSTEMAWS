@@ -1,10 +1,11 @@
 'use client';
 
+import { CheckCircle, AlertCircle } from 'lucide-react';
 import { useState } from 'react';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function TestStripePage() {
   const [status, setStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');

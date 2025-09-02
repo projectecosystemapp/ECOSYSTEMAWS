@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useAuthenticator } from '@aws-amplify/ui-react';
+import { MessageCircle } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Button } from '@/components/ui/button';
 import { bookingApi, serviceApi, messageApi, generateConversationId } from '@/lib/api';
 import { 
   Booking, 
@@ -13,9 +17,7 @@ import {
   formatTimeSlot,
   calculatePriceBreakdown 
 } from '@/lib/types';
-import { useAuthenticator } from '@aws-amplify/ui-react';
-import { Button } from '@/components/ui/button';
-import { MessageCircle } from 'lucide-react';
+
 
 interface BookingWithService extends Booking {
   service?: Service;

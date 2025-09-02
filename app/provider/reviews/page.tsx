@@ -1,14 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Badge } from '@/components/ui/badge';
-import ReviewList from '@/components/reviews/ReviewList';
-import StarRating from '@/components/reviews/StarRating';
-import { reviewApi } from '@/lib/api';
-import { Review, ReviewStats, calculateReviewStats } from '@/lib/types';
 import { 
   Star, 
   TrendingUp, 
@@ -18,6 +10,16 @@ import {
   BarChart3,
   AlertTriangle
 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+import ReviewList from '@/components/reviews/ReviewList';
+import StarRating from '@/components/reviews/StarRating';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { reviewApi } from '@/lib/api';
+import { Review, ReviewStats, calculateReviewStats } from '@/lib/types';
+
 
 export default function ProviderReviewsPage() {
   const { user } = useAuthenticator((context) => [context.user]);

@@ -1,9 +1,10 @@
 'use client';
 
+import { Send, Paperclip, X, Image, FileText } from 'lucide-react';
 import { useState, useRef } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Send, Paperclip, X, Image, FileText } from 'lucide-react';
 
 interface MessageInputProps {
   onSendMessage: (content: string, attachments?: string[]) => Promise<void>;

@@ -1,16 +1,6 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { refactoredApi } from '@/lib/api/refactored';
-import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
-import SearchResults from '@/components/search/SearchResults';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Search, 
   MapPin, 
@@ -24,6 +14,18 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+
+import SearchResults from '@/components/search/SearchResults';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { refactoredApi } from '@/lib/api/refactored';
+import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
+
 
 interface FilterState {
   category: string;

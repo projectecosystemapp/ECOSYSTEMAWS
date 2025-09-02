@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import { getCurrentUser, AuthUser } from 'aws-amplify/auth';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, ReactNode } from 'react';
+
 import { refactoredApi } from '@/lib/api/refactored';
 import type { UserProfile } from '@/lib/types';
 
@@ -69,7 +70,7 @@ export default function CustomerAuthGuard({
       if (authError.name === 'UserUnAuthenticatedError' || 
           authError.message?.includes('not authenticated')) {
         // Redirect to login
-        router.push('/auth/signin?redirect=' + encodeURIComponent(window.location.pathname));
+        router.push(`/auth/signin?redirect=${  encodeURIComponent(window.location.pathname)}`);
       } else {
         setError('Authentication error. Please try again.');
       }

@@ -1,11 +1,14 @@
 'use client';
 
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ProfileFormData } from '../page';
+
 import { SERVICE_CATEGORIES, MAX_CATEGORIES } from '@/app/constants/service-categories';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
+
+import { ProfileFormData } from '../page';
+
 
 export default function Step4Services() {
   const { control, watch } = useFormContext<ProfileFormData>();

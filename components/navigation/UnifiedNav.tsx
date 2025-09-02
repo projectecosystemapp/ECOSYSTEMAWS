@@ -1,12 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
 import { signOut, getCurrentUser } from 'aws-amplify/auth';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import NotificationBadge from '@/components/notifications/NotificationBadge';
 import { 
   Home,
   User,
@@ -24,6 +18,14 @@ import {
   Star,
   Search
 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import NotificationBadge from '@/components/notifications/NotificationBadge';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+
 
 interface NavItem {
   label: string;
@@ -80,7 +82,7 @@ export default function UnifiedNav() {
     
     if (pathSegments.length > 1) {
       // Go up one level in the path hierarchy
-      const parentPath = '/' + pathSegments.slice(0, -1).join('/');
+      const parentPath = `/${  pathSegments.slice(0, -1).join('/')}`;
       router.push(parentPath);
     } else {
       // Go to appropriate dashboard based on role
@@ -191,7 +193,7 @@ export default function UnifiedNav() {
               <div className="hidden md:flex ml-10 space-x-4">
                 {navItems.slice(0, 5).map((item) => {
                   const Icon = item.icon;
-                  const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                  const isActive = pathname === item.href || pathname.startsWith(`${item.href  }/`);
                   
                   return (
                     <Link
@@ -296,7 +298,7 @@ export default function UnifiedNav() {
             <div className="px-2 pt-2 pb-3 space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href  }/`);
                 
                 return (
                   <Link
@@ -346,7 +348,7 @@ export default function UnifiedNav() {
                   </Link>
                 </li>
                 {pathname.split('/').filter(Boolean).map((segment, index, array) => {
-                  const href = '/' + array.slice(0, index + 1).join('/');
+                  const href = `/${  array.slice(0, index + 1).join('/')}`;
                   const isLast = index === array.length - 1;
                   const label = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
                   

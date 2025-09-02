@@ -1,11 +1,12 @@
 'use client';
 
+import { Search, X, MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { Input } from '@/components/ui/input';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Search, X, MessageCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { formatMessageTime, generateConversationId } from '@/lib/api';
 
 interface SearchResult {

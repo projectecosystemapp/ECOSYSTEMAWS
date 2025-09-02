@@ -1,17 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { refactoredApi } from '@/lib/api/refactored';
-import { Service, calculatePriceBreakdown, Review } from '@/lib/types';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import ReviewList from '@/components/reviews/ReviewList';
-import StarRating from '@/components/reviews/StarRating';
-import MessageProviderButton from '@/components/messaging/MessageProviderButton';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   MessageCircle, 
   Clock, 
@@ -24,6 +13,19 @@ import {
   CheckCircle,
   Info
 } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import MessageProviderButton from '@/components/messaging/MessageProviderButton';
+import ReviewList from '@/components/reviews/ReviewList';
+import StarRating from '@/components/reviews/StarRating';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { refactoredApi } from '@/lib/api/refactored';
+import { Service, calculatePriceBreakdown, Review } from '@/lib/types';
+
 
 export default function ServiceDetailPage() {
   const params = useParams();

@@ -1,14 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { getCurrentUser } from 'aws-amplify/auth';
-import Link from 'next/link';
-import { refactoredApi } from '@/lib/api/refactored';
-import type { Service, ServiceWithRating, UserProfile } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { 
   ArrowLeft,
   Heart,
@@ -25,6 +17,16 @@ import {
   List,
   BookmarkX
 } from 'lucide-react';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { refactoredApi } from '@/lib/api/refactored';
+import type { Service, ServiceWithRating, UserProfile } from '@/lib/types';
+
 
 interface SavedProvider {
   id: string;

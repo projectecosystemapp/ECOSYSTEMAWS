@@ -1,8 +1,5 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
   ChevronDown, 
   Check,
@@ -14,6 +11,10 @@ import {
   ArrowUp,
   ArrowDown
 } from 'lucide-react';
+import { useState } from 'react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 
 export type SortOption = 'price-asc' | 'price-desc' | 'newest' | 'rating' | 'popular';
 

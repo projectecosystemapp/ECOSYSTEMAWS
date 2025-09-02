@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
+import { ArrowLeft, MessageCircle } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
 import ChatWindow from '@/components/messaging/ChatWindow';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { messageApi, getOtherParticipant } from '@/lib/api';
 import { Message } from '@/lib/types';
 
@@ -40,7 +41,7 @@ export default function ConversationPage() {
       }
     };
 
-    fetchUser();
+    void fetchUser();
   }, [router, conversationId]);
 
   // Validate conversation access

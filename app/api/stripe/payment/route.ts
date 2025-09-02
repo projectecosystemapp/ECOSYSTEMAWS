@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { generateClient } from 'aws-amplify/data';
+import { NextRequest, NextResponse } from 'next/server';
+
 import { type Schema } from '@/amplify/data/resource';
 
 // Get the Lambda function URL from environment
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS(_request: NextRequest) {
   return new NextResponse(null, {
     status: 200,
     headers: {

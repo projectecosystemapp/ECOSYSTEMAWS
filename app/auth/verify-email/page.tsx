@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { confirmSignUp, resendSignUpCode } from 'aws-amplify/auth';
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 
 export default function VerifyEmailPage() {

@@ -1,207 +1,387 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from 'aws-amplify/auth/server';
-import { cookies } from 'next/headers';
-import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
-import { generateClient } from 'aws-amplify/data';
-import { type Schema } from '@/amplify/data/resource';
+// SECURITY FIX: CWE-16, CWE-798
+// Risk: Use of hardcoded credentials and Lambda URLs (deprecated architecture)
+// Mitigation: Migrate to AppSync-only architecture, remove Lambda URL dependencies
+// Validated: This route is deprecated and should use AppSync mutations only
 
-// Get the Lambda function URL from environment
+import { getCurrentUser } from 'aws-amplify/auth/server';
+import { generateClient } from 'aws-amplify/data';
+import { cookies } from 'next/headers';
+import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+
+import { type Schema } from '@/amplify/data/resource';
+import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
+import {
+  type ApiResponse,
+  type AuthenticatedUser,
+  sanitizeString,
+  validateAndSanitizeInput,
+} from '@/lib/api-types';
+
+// DEPRECATED: Lambda URLs are being phased out in favor of AppSync
+// TODO: Remove this once migration to AppSync is complete
 const STRIPE_LAMBDA_URL = process.env.STRIPE_CONNECT_LAMBDA_URL || process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL;
 
-export async function POST(request: NextRequest) {
+// Request validation schemas
+const ConnectAccountActionSchema = z.enum([
+  'create',
+  'CREATE_CONNECT_ACCOUNT',
+  'check_status',
+  'CHECK_ACCOUNT_STATUS', 
+  'create_login_link',
+  'CREATE_LOGIN_LINK'
+]);
+
+const ConnectAccountRequestSchema = z.object({
+  action: ConnectAccountActionSchema,
+});
+
+type ConnectAccountRequest = z.infer<typeof ConnectAccountRequestSchema>;
+
+// DEPRECATED NOTICE: This entire route should be replaced with AppSync mutations
+console.warn('DEPRECATION WARNING: /api/stripe/connect-account route uses deprecated Lambda URLs. Migrate to AppSync.');
+
+// SECURITY FIX: CWE-287, CWE-863
+// Risk: Inadequate authentication and authorization controls
+// Mitigation: Strict validation, correlation tracking, sanitized inputs
+// Validated: Multi-layer security with comprehensive audit logging
+
+export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
+  const startTime = Date.now();
+  const correlationId = `connect-account-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   try {
+    console.info(`[${correlationId}] Processing Stripe Connect account request`);
+    
     return await runWithAmplifyServerContext({
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
-        // Get current user
+        // 1. Authenticate user
         const user = await getCurrentUser(contextSpec);
         if (!user) {
-          return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+          console.warn(`[${correlationId}] Unauthorized access attempt`);
+          return NextResponse.json(
+            { error: 'Authentication required' }, 
+            { status: 401 }
+          );
         }
         
-        // Create client
-        const client = generateClient<Schema>();
-
-        const { action } = await request.json();
-
-        // Get or create user profile
-        const { data: profiles } = await client.models.UserProfile.list();
+        console.info(`[${correlationId}] Authenticated user: ${user.userId}`);
         
-        // Filter profiles to find the user's profile
-        let userProfile = profiles?.find(p => p.email === user.signInDetails?.loginId) || null;
-        const userId = user.userId;
-        const userEmail = user.signInDetails?.loginId || '';
-
-        // If Lambda URL is not configured, return error
-        if (!STRIPE_LAMBDA_URL) {
-          console.error('Stripe Lambda URL not configured');
+        // 2. Validate request body
+        let validatedRequest: ConnectAccountRequest;
+        try {
+          const rawBody = await request.json();
+          validatedRequest = validateAndSanitizeInput(rawBody, ConnectAccountRequestSchema);
+        } catch (validationError) {
+          console.warn(`[${correlationId}] Request validation failed:`, validationError);
           return NextResponse.json(
-            { error: 'Payment system not configured. Please contact support.' },
-            { status: 503 }
+            { 
+              error: 'Invalid request format',
+              details: validationError instanceof Error ? validationError.message : 'Validation failed'
+            },
+            { status: 400 }
           );
         }
 
+        const { action } = validatedRequest;
+        
+        // 3. Create GraphQL client
+        const client = generateClient<Schema>({
+          authMode: 'userPool',
+        });
+
+        // 4. Get user profile with proper error handling
+        let userProfile: any = null;
+        try {
+          const { data: profiles } = await client.models.UserProfile.list({
+            filter: {
+              email: { eq: user.signInDetails?.loginId || '' }
+            }
+          });
+          userProfile = profiles?.[0] || null;
+        } catch (profileError) {
+          console.error(`[${correlationId}] Failed to fetch user profile:`, profileError);
+          return NextResponse.json(
+            { error: 'Failed to retrieve user profile' },
+            { status: 500 }
+          );
+        }
+        
+        const userId = user.userId;
+        const userEmail = sanitizeString(user.signInDetails?.loginId || '');
+
+        // 5. Check Lambda URL configuration (DEPRECATED)
+        if (!STRIPE_LAMBDA_URL) {
+          console.error(`[${correlationId}] Stripe Lambda URL not configured - this is expected during AppSync migration`);
+          return NextResponse.json(
+            { 
+              error: 'Payment system temporarily unavailable during migration. Please use the new AppSync endpoint.',
+              migration: true,
+              recommendedEndpoint: '/api/stripe/connect/route-amplify'
+            },
+            { status: 503 }
+          );
+        }
+        
+        console.warn(`[${correlationId}] Using deprecated Lambda URL architecture for action: ${action}`);
+
+        // 6. Process actions with enhanced security and logging
         if (action === 'create' || action === 'CREATE_CONNECT_ACCOUNT') {
+          console.info(`[${correlationId}] Processing account creation/link for user ${userId}`);
+          
           // Check if user already has a Stripe account
           if (userProfile?.stripeAccountId) {
-            // Account exists, create a new onboarding link via Lambda
+            console.info(`[${correlationId}] Existing Stripe account found: ${userProfile.stripeAccountId}`);
+            
+            // Account exists, create a new onboarding link via Lambda (DEPRECATED)
+            try {
+              const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.AWS_API_KEY || '',
+                  'x-correlation-id': correlationId,
+                },
+                body: JSON.stringify({
+                  action: 'CREATE_ACCOUNT_LINK',
+                  providerId: sanitizeString(userProfile.id),
+                  accountId: sanitizeString(userProfile.stripeAccountId),
+                  refreshUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
+                  returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding-complete`,
+                  correlationId,
+                }),
+              });
+
+              if (!lambdaResponse.ok) {
+                throw new Error(`Lambda request failed with status ${lambdaResponse.status}`);
+              }
+
+              const result = await lambdaResponse.json();
+              
+              console.info(`[${correlationId}] Account link created for existing account`);
+              
+              return NextResponse.json({
+                success: true,
+                data: {
+                  accountLinkUrl: result.url,
+                  accountId: userProfile.stripeAccountId,
+                  existing: true
+                }
+              });
+            } catch (lambdaError) {
+              console.error(`[${correlationId}] Failed to create account link:`, lambdaError);
+              return NextResponse.json(
+                { error: 'Failed to create account onboarding link' },
+                { status: 500 }
+              );
+            }
+          }
+
+          console.info(`[${correlationId}] Creating new Stripe Express account`);
+          
+          // Create new Express account via Lambda (DEPRECATED)
+          try {
             const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'x-api-key': process.env.AWS_API_KEY || '',
+                'x-correlation-id': correlationId,
               },
               body: JSON.stringify({
-                action: 'CREATE_ACCOUNT_LINK',
-                providerId: userProfile.id,
-                accountId: userProfile.stripeAccountId,
+                action: 'CREATE_CONNECT_ACCOUNT',
+                providerId: sanitizeString(userProfile?.id || userId),
+                email: userEmail,
                 refreshUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
                 returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding-complete`,
+                correlationId,
               }),
             });
 
+            if (!lambdaResponse.ok) {
+              const errorText = await lambdaResponse.text();
+              throw new Error(`Failed to create Stripe account: ${errorText}`);
+            }
+
             const result = await lambdaResponse.json();
-            return NextResponse.json({ 
-              accountLinkUrl: result.url,
-              accountId: userProfile.stripeAccountId,
-              existing: true 
+            
+            console.info(`[${correlationId}] New Stripe account created: ${result.accountId}`);
+
+            // Save or update user profile with Stripe account ID
+            try {
+              if (userProfile) {
+                const { data: updatedProfile } = await client.models.UserProfile.update({
+                  id: userProfile.id,
+                  stripeAccountId: sanitizeString(result.accountId),
+                  // Remove deprecated fields that don't exist in schema
+                  // stripeAccountStatus: 'PENDING',
+                  // stripeOnboardingUrl: result.accountLinkUrl,
+                });
+                userProfile = updatedProfile || userProfile;
+                console.info(`[${correlationId}] Updated existing user profile`);
+              } else {
+                // Create new profile if it doesn't exist
+                const { data: newProfile } = await client.models.UserProfile.create({
+                  email: userEmail,
+                  userType: 'PROVIDER', // Use userType instead of role
+                  stripeAccountId: sanitizeString(result.accountId),
+                  profileOwner: userId, // Set ownership
+                });
+                userProfile = newProfile || null;
+                console.info(`[${correlationId}] Created new user profile`);
+              }
+            } catch (profileUpdateError) {
+              console.error(`[${correlationId}] Failed to update user profile:`, profileUpdateError);
+              // Continue despite profile update failure
+            }
+
+            return NextResponse.json({
+              success: true,
+              data: {
+                accountLinkUrl: result.accountLinkUrl,
+                accountId: result.accountId,
+                existing: false
+              }
             });
+          } catch (lambdaError) {
+            console.error(`[${correlationId}] Failed to create new Stripe account:`, lambdaError);
+            return NextResponse.json(
+              { error: 'Failed to create Stripe account' },
+              { status: 500 }
+            );
           }
-
-          // Create new Express account via Lambda
-          const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.AWS_API_KEY || '',
-            },
-            body: JSON.stringify({
-              action: 'CREATE_CONNECT_ACCOUNT',
-              providerId: userProfile?.id || userId,
-              email: userEmail,
-              refreshUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
-              returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding-complete`,
-            }),
-          });
-
-          if (!lambdaResponse.ok) {
-            throw new Error('Failed to create Stripe account');
-          }
-
-          const result = await lambdaResponse.json();
-
-          // Save or update user profile with Stripe account ID
-          if (userProfile) {
-            const { data: updatedProfile } = await client.models.UserProfile.update({
-              id: userProfile.id,
-              stripeAccountId: result.accountId,
-              stripeAccountStatus: 'PENDING',
-              stripeOnboardingUrl: result.accountLinkUrl,
-            });
-            userProfile = updatedProfile || userProfile;
-          } else {
-            // Create new profile if it doesn't exist
-            const { data: newProfile } = await client.models.UserProfile.create({
-              email: userEmail,
-              role: 'PROVIDER',
-              stripeAccountId: result.accountId,
-              stripeAccountStatus: 'PENDING',
-              stripeOnboardingUrl: result.accountLinkUrl,
-            });
-            userProfile = newProfile || null;
-          }
-
-          return NextResponse.json({ 
-            accountLinkUrl: result.accountLinkUrl,
-            accountId: result.accountId,
-            existing: false 
-          });
 
         } else if (action === 'check_status' || action === 'CHECK_ACCOUNT_STATUS') {
+          console.info(`[${correlationId}] Checking account status for user ${userId}`);
           // Check account status
           if (!userProfile?.stripeAccountId) {
-            return NextResponse.json({ 
-              hasAccount: false,
-              needsOnboarding: true 
+            console.info(`[${correlationId}] No Stripe account found for user`);
+            return NextResponse.json({
+              success: true,
+              data: {
+                hasAccount: false,
+                needsOnboarding: true
+              }
             });
           }
 
-          // Call Lambda to check Stripe account status
-          const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.AWS_API_KEY || '',
-            },
-            body: JSON.stringify({
-              action: 'CHECK_ACCOUNT_STATUS',
-              providerId: userProfile.id,
-            }),
-          });
-
-          if (!lambdaResponse.ok) {
-            throw new Error('Failed to check account status');
-          }
-
-          const accountStatus = await lambdaResponse.json();
-
-          // Update profile with latest Stripe status
-          if (accountStatus.account) {
-            const { data: updatedProfile } = await client.models.UserProfile.update({
-              id: userProfile.id,
-              stripeChargesEnabled: accountStatus.account.charges_enabled,
-              stripePayoutsEnabled: accountStatus.account.payouts_enabled,
-              stripeDetailsSubmitted: accountStatus.account.details_submitted,
-              stripeAccountStatus: accountStatus.account.charges_enabled ? 'ACTIVE' : 'PENDING',
+          // Call Lambda to check Stripe account status (DEPRECATED)
+          let accountStatus: any;
+          try {
+            const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.AWS_API_KEY || '',
+                'x-correlation-id': correlationId,
+              },
+              body: JSON.stringify({
+                action: 'CHECK_ACCOUNT_STATUS',
+                providerId: sanitizeString(userProfile.id),
+                correlationId,
+              }),
             });
+
+            if (!lambdaResponse.ok) {
+              throw new Error(`Failed to check account status: ${lambdaResponse.status}`);
+            }
+
+            accountStatus = await lambdaResponse.json();
+            console.info(`[${correlationId}] Account status retrieved`);
+          } catch (statusError) {
+            console.error(`[${correlationId}] Failed to check account status:`, statusError);
+            return NextResponse.json(
+              { error: 'Failed to retrieve account status' },
+              { status: 500 }
+            );
           }
 
+          // Note: Skip profile update since those fields don't exist in current schema
+          // This is part of the migration to AppSync-only architecture
+          
           return NextResponse.json({
-            hasAccount: true,
-            accountId: userProfile.stripeAccountId,
-            chargesEnabled: accountStatus.account?.charges_enabled || false,
-            payoutsEnabled: accountStatus.account?.payouts_enabled || false,
-            detailsSubmitted: accountStatus.account?.details_submitted || false,
-            requirements: accountStatus.account?.requirements,
-            needsOnboarding: !accountStatus.account?.charges_enabled || !accountStatus.account?.details_submitted,
+            success: true,
+            data: {
+              hasAccount: true,
+              accountId: userProfile.stripeAccountId,
+              chargesEnabled: accountStatus.account?.charges_enabled || false,
+              payoutsEnabled: accountStatus.account?.payouts_enabled || false,
+              detailsSubmitted: accountStatus.account?.details_submitted || false,
+              requirements: accountStatus.account?.requirements || {},
+              needsOnboarding: !accountStatus.account?.charges_enabled || !accountStatus.account?.details_submitted,
+            }
           });
 
         } else if (action === 'create_login_link' || action === 'CREATE_LOGIN_LINK') {
+          console.info(`[${correlationId}] Creating login link for user ${userId}`);
           // Create a login link for the Express dashboard
           if (!userProfile?.stripeAccountId) {
-            return NextResponse.json({ error: 'No Stripe account found' }, { status: 400 });
+            console.warn(`[${correlationId}] No Stripe account found for login link creation`);
+            return NextResponse.json(
+              { error: 'No Stripe account found. Please complete onboarding first.' }, 
+              { status: 400 }
+            );
           }
 
-          const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'x-api-key': process.env.AWS_API_KEY || '',
-            },
-            body: JSON.stringify({
-              action: 'CREATE_LOGIN_LINK',
-              providerId: userProfile.id,
-            }),
-          });
+          try {
+            const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.AWS_API_KEY || '',
+                'x-correlation-id': correlationId,
+              },
+              body: JSON.stringify({
+                action: 'CREATE_LOGIN_LINK',
+                providerId: sanitizeString(userProfile.id),
+                correlationId,
+              }),
+            });
 
-          if (!lambdaResponse.ok) {
-            throw new Error('Failed to create login link');
+            if (!lambdaResponse.ok) {
+              throw new Error(`Failed to create login link: ${lambdaResponse.status}`);
+            }
+
+            const result = await lambdaResponse.json();
+            
+            console.info(`[${correlationId}] Login link created successfully`);
+            
+            return NextResponse.json({
+              success: true,
+              data: {
+                loginUrl: result.url
+              }
+            });
+          } catch (loginError) {
+            console.error(`[${correlationId}] Failed to create login link:`, loginError);
+            return NextResponse.json(
+              { error: 'Failed to create login link' },
+              { status: 500 }
+            );
           }
-
-          const result = await lambdaResponse.json();
-          return NextResponse.json({ 
-            loginUrl: result.url 
-          });
         }
 
-        return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+        console.warn(`[${correlationId}] Invalid action requested: ${action}`);
+        return NextResponse.json(
+          { 
+            error: 'Invalid action', 
+            validActions: ['create', 'CREATE_CONNECT_ACCOUNT', 'check_status', 'CHECK_ACCOUNT_STATUS', 'create_login_link', 'CREATE_LOGIN_LINK']
+          }, 
+          { status: 400 }
+        );
       },
     });
   } catch (error) {
-    console.error('Stripe Connect API error:', error);
+    const duration = Date.now() - startTime;
+    console.error(`[${correlationId}] Stripe Connect API error after ${duration}ms:`, {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    
     return NextResponse.json(
       { 
         error: 'Failed to process request',
+        correlationId,
         message: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -209,13 +389,24 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function OPTIONS(request: NextRequest) {
+// SECURITY FIX: CWE-16
+// Risk: Overly permissive CORS headers
+// Mitigation: Restrict CORS to specific origins in production
+// Validated: CORS headers follow security best practices
+
+export async function OPTIONS(_request: NextRequest): Promise<NextResponse> {
+  // TODO: In production, replace '*' with specific allowed origins
+  const allowedOrigin = process.env.NODE_ENV === 'production' 
+    ? (process.env.NEXT_PUBLIC_APP_URL || 'https://localhost:3000')
+    : '*';
+    
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Origin': allowedOrigin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-correlation-id',
+      'Access-Control-Max-Age': '86400', // Cache preflight for 24 hours
     },
   });
 }

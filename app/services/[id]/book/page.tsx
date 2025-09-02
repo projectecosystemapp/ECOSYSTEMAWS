@@ -1,25 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/style.css';
-import { refactoredApi } from '@/lib/api/refactored';
-import { 
-  Service, 
-  BookingFormData, 
-  TIME_SLOTS, 
-  calculatePriceBreakdown, 
-  isDateAvailable, 
-  formatDateForAPI,
-  formatTimeSlot 
-} from '@/lib/types';
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
   Calendar,
   Clock,
@@ -31,7 +12,29 @@ import {
   Shield,
   Info
 } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { DayPicker } from 'react-day-picker';
+
+import 'react-day-picker/style.css';
+
 import { CheckoutForm } from '@/components/customer/CheckoutForm';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { refactoredApi } from '@/lib/api/refactored';
+import { 
+  Service, 
+  BookingFormData, 
+  TIME_SLOTS, 
+  calculatePriceBreakdown, 
+  isDateAvailable, 
+  formatDateForAPI,
+  formatTimeSlot 
+} from '@/lib/types';
+
 
 // Legacy mock payment form - replaced with CheckoutForm
 const StripePaymentForm = ({ 

@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
-import { Amplify } from 'aws-amplify';
-import UnifiedNav from '@/components/navigation/UnifiedNav';
 import { Authenticator } from '@aws-amplify/ui-react';
-import '@aws-amplify/ui-react/styles.css';
+import { Amplify } from 'aws-amplify';
+import { usePathname } from 'next/navigation';
+import { useEffect } from 'react';
+
 import outputs from '@/amplify_outputs.json';
+import UnifiedNav from '@/components/navigation/UnifiedNav';
+
+import '@aws-amplify/ui-react/styles.css';
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { signUp, confirmSignUp, signIn, getCurrentUser, signOut } from 'aws-amplify/auth';
+import { AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { AlertCircle } from 'lucide-react';
+
 
 export default function RegisterPage() {
   const router = useRouter();

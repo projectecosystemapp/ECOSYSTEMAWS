@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { serviceApi } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+
 import LoadingSpinner from '@/components/provider/LoadingSpinner';
 import SearchBar from '@/components/search/SearchBar';
 import { SortDropdownCompact } from '@/components/search/SortDropdown';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { serviceApi } from '@/lib/api';
 import { Service } from '@/lib/types';
 
 export default function ProviderServices() {

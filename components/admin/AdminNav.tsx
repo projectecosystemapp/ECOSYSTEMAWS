@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 

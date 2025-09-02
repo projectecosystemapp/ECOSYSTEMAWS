@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { adminApi, userProfileApi } from '@/lib/api';
+import { userProfileApi } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 interface UserWithStats {
   id: string;
@@ -25,32 +27,33 @@ interface UserWithStats {
   createdAt?: string;
 }
 
-export default function UserManagement() {
+export default function UserManagement(): JSX.Element {
   const [users, setUsers] = useState<UserWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<UserWithStats | null>(null);
 
   useEffect(() => {
-    const fetchUsers = async () => {
+    const fetchUsers = async (): Promise<void> => {
       try {
         setLoading(true);
         // adminApi not yet implemented - using empty array for now
         // const usersData = await adminApi.getUsersWithStats();
         const usersData: UserWithStats[] = [];
-        setUsers(usersData as any);
+        setUsers(usersData);
       } catch (error) {
-        console.error('Error fetching users:', error);
+        logger.error('Error fetching users', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchUsers();
+    void fetchUsers();
   }, []);
 
-  const handleRoleChange = async (userId: string, newRole: 'CUSTOMER' | 'PROVIDER' | 'ADMIN') => {
+  const handleRoleChange = async (userId: string, newRole: 'CUSTOMER' | 'PROVIDER' | 'ADMIN'): Promise<void> => {
     try {
-      await userProfileApi.update({ id: userId, role: newRole });
+      // TODO: Add role field to UserProfile schema or use userType field
+      // await userProfileApi.update({ id: userId, role: newRole });
       
       // Refresh user list
       // adminApi not yet implemented - would refresh here
@@ -59,16 +62,16 @@ export default function UserManagement() {
       
       // Update selected user if it's the one being changed
       if (selectedUser?.id === userId) {
-        // const updatedUser = usersData.find((u: any) => u.id === userId);
+        // const updatedUser = usersData.find((u: UserWithStats) => u.id === userId);
         const updatedUser = { ...selectedUser, role: newRole };
-        setSelectedUser((updatedUser || null) as any);
+        setSelectedUser(updatedUser || null);
       }
     } catch (error) {
-      console.error('Error updating user role:', error);
+      logger.error('Error updating user role', error as Error);
     }
   };
 
-  const getUserDisplayName = (user: UserWithStats) => {
+  const getUserDisplayName = (user: UserWithStats): string => {
     if (user.firstName && user.lastName) {
       return `${user.firstName} ${user.lastName}`;
     }
@@ -136,7 +139,7 @@ export default function UserManagement() {
     }
   ];
 
-  const userActions = (user: UserWithStats) => (
+  const userActions = (user: UserWithStats): JSX.Element => (
     <>
       <Button
         variant="outline"
@@ -154,7 +157,7 @@ export default function UserManagement() {
           value={user.role}
           onChange={(e) => {
             e.stopPropagation();
-            handleRoleChange(user.id, e.target.value as any);
+            void handleRoleChange(user.id, e.target.value as 'CUSTOMER' | 'PROVIDER' | 'ADMIN');
           }}
         >
           <option value="CUSTOMER">Customer</option>

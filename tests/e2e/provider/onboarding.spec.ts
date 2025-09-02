@@ -7,7 +7,15 @@ import { ProfileCreationWizardPage } from '../../pages/provider/ProfileCreationW
 import { randomUUID } from 'crypto';
 import { join } from 'path';
 
-test.describe('E2E-002: Complete Provider Onboarding Journey', () => {
+// Dual-mode testing configuration
+const testModes = [
+  { name: 'Legacy Lambda URLs', useAppSync: false },
+  { name: 'AppSync Architecture', useAppSync: true }
+];
+
+// Run tests in both legacy and AppSync modes
+testModes.forEach(mode => {
+  test.describe(`E2E-002: Complete Provider Onboarding Journey (${mode.name})`, () => {
   let testUserHelper: TestUserHelper;
   let databaseHelper: DatabaseHelper;
   let signInPage: SignInPage;
@@ -29,11 +37,17 @@ test.describe('E2E-002: Complete Provider Onboarding Journey', () => {
   const testPostalCode = 'M5V 3A8';
   const testServiceRadius = 25;
   
-  let createdUserId: string | null = null;
-  let createdProfileId: string | null = null;
+  let createdUserId: string | null | undefined = null;
+  let createdProfileId: string | null | undefined = null;
   let uploadedImageUrls: string[] = [];
 
   test.beforeEach(async ({ page }) => {
+    // Set feature flag based on test mode
+    await page.addInitScript((useAppSync) => {
+      // Set the feature flag in localStorage or as a global variable
+      window.localStorage.setItem('NEXT_PUBLIC_USE_APPSYNC_STRIPE_CONNECT', useAppSync.toString());
+    }, mode.useAppSync);
+    
     // Initialize helpers and page objects
     testUserHelper = new TestUserHelper();
     databaseHelper = new DatabaseHelper();
@@ -346,6 +360,7 @@ test.describe('E2E-002: Complete Provider Onboarding Journey', () => {
       console.log('Profile images display correctly on public profile');
     }
     
-    console.log('✅ E2E-002: Complete Provider Onboarding Journey - All tests passed!');
+    console.log(`✅ E2E-002: Complete Provider Onboarding Journey (${mode.name}) - All tests passed!`);
   });
-});
+  }); // End of test.describe for this mode
+}); // End of forEach loop

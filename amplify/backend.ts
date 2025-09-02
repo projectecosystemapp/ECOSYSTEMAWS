@@ -113,19 +113,24 @@ backend.webhookReconciliation.resources.lambda.addToRolePolicy({
 });
 
 // Grant CloudWatch metrics permissions
+// Note: PutMetricData requires wildcard resource per AWS documentation
+// This is the minimum required permission for CloudWatch metrics
 backend.webhookReconciliation.resources.lambda.addToRolePolicy({
   actions: [
     'cloudwatch:PutMetricData',
   ],
-  resources: ['*'],
+  resources: ['*'], // CloudWatch PutMetricData doesn't support resource-level permissions
 });
 
-// Grant SNS permissions for alerts
+// Grant SNS permissions for alerts - scoped to specific topic
 backend.webhookReconciliation.resources.lambda.addToRolePolicy({
   actions: [
     'sns:Publish',
   ],
-  resources: ['arn:aws:sns:*:*:*'],
+  resources: [
+    `arn:aws:sns:${process.env.AWS_REGION || 'us-east-1'}:*:webhook-reconciliation-alerts`,
+    `arn:aws:sns:${process.env.AWS_REGION || 'us-east-1'}:*:critical-system-alerts`,
+  ],
 });
 
 // Schedule the reconciliation Lambda to run daily at 2 AM UTC

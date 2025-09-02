@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { useRouter } from 'next/navigation';
-import AdminNav from './AdminNav';
+import { useEffect, useState } from 'react';
+
 import { userProfileApi } from '@/lib/api';
+
+import AdminNav from './AdminNav';
+
 
 interface AdminLayoutProps {
   children: React.ReactNode;

@@ -1,14 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
 import { generateClient } from 'aws-amplify/api';
-import { Schema } from '@/amplify/data/resource';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { format } from 'date-fns';
 import { 
   CheckCircle2, 
   Calendar, 
@@ -25,9 +18,18 @@ import {
   Loader2,
   Home
 } from 'lucide-react';
-import { format } from 'date-fns';
-import { formatPrice } from '@/utils/format';
 import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+
+import { Schema } from '@/amplify/data/resource';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { formatPrice } from '@/utils/format';
+
 
 const client = generateClient<Schema>();
 
@@ -130,7 +132,7 @@ export default function BookingConfirmationPage() {
     };
 
     if (bookingId) {
-      fetchBookingDetails();
+      void fetchBookingDetails();
     }
   }, [bookingId]);
 

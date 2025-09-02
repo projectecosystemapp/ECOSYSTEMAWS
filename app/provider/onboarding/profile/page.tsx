@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/data';
+import { ArrowLeft, ArrowRight, Save, Eye } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback } from 'react';
+import { useForm, FormProvider } from 'react-hook-form';
+import { z } from 'zod';
+
 import type { Schema } from '@/amplify/data/resource';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
-import { Card } from '@/components/ui/card';
-import { ArrowLeft, ArrowRight, Save, Eye } from 'lucide-react';
+
 
 // Import step components
 import Step1Basics from './components/Step1Basics';

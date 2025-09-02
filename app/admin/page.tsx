@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
 import MetricCard from '@/components/admin/MetricCard';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { adminApi, bookingApi } from '@/lib/api';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { logger } from '@/lib/logger';
 import { getStatusColor } from '@/lib/types';
 
 interface DashboardMetrics {
@@ -31,13 +32,13 @@ interface RecentActivity {
   status?: string;
 }
 
-export default function AdminDashboard() {
+export default function AdminDashboard(): JSX.Element {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchDashboardData = async () => {
+    const fetchDashboardData = async (): Promise<void> => {
       try {
         setLoading(true);
         
@@ -48,11 +49,20 @@ export default function AdminDashboard() {
         setMetrics(metricsData);
 
         // Fetch recent activity (simplified)
-        const recentBookings: any[] = [];
+        interface RecentBooking {
+          id: string;
+          customerEmail: string;
+          providerEmail: string;
+          totalAmount?: number;
+          status: string;
+          createdAt?: string;
+        }
+        
+        const recentBookings: RecentBooking[] = [];
         const recentActivities: RecentActivity[] = [];
 
         // Add recent bookings to activity feed
-        recentBookings?.slice(0, 10).forEach((booking: any) => {
+        recentBookings?.slice(0, 10).forEach((booking: RecentBooking) => {
           recentActivities.push({
             id: booking.id,
             type: 'booking',
@@ -70,23 +80,23 @@ export default function AdminDashboard() {
 
         setRecentActivity(recentActivities.slice(0, 15));
       } catch (error) {
-        console.error('Error fetching dashboard data:', error);
+        logger.error('Error fetching dashboard data', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchDashboardData();
+    void fetchDashboardData();
   }, []);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number): string => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount);
   };
 
-  const formatTimeAgo = (timestamp: string) => {
+  const formatTimeAgo = (timestamp: string): string => {
     const now = new Date();
     const time = new Date(timestamp);
     const diffInHours = (now.getTime() - time.getTime()) / (1000 * 60 * 60);
@@ -201,7 +211,7 @@ export default function AdminDashboard() {
                         {activity.status && (
                           <Badge 
                             variant="outline" 
-                            className={`text-xs ${getStatusColor(activity.status as any)}`}
+                            className={`text-xs ${getStatusColor(activity.status as 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED')}`}
                           >
                             {activity.status}
                           </Badge>

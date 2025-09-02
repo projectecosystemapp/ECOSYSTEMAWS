@@ -1,6 +1,5 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
 import {
   useStripe,
   useElements,
@@ -8,13 +7,17 @@ import {
   Elements
 } from '@stripe/react-stripe-js';
 import { loadStripe, StripeElementsOptions } from '@stripe/stripe-js';
+import { generateClient } from 'aws-amplify/api';
+import { Loader2, CreditCard, Lock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+
+import { Schema } from '@/amplify/data/resource';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CreditCard, Lock, AlertCircle } from 'lucide-react';
 import { formatPrice } from '@/utils/format';
-import { generateClient } from 'aws-amplify/api';
-import { Schema } from '@/amplify/data/resource';
+
+
 
 const client = generateClient<Schema>();
 

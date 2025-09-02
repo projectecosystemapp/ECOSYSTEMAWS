@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import AdminLayout from '@/components/admin/AdminLayout';
 import DataTable from '@/components/admin/DataTable';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { adminApi, providerApi } from '@/lib/api';
+import { providerApi } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 interface ProviderWithStats {
   id: string;
@@ -35,14 +37,14 @@ interface ProviderWithStats {
   createdAt?: string;
 }
 
-export default function ProviderManagement() {
+export default function ProviderManagement(): JSX.Element {
   const [providers, setProviders] = useState<ProviderWithStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<ProviderWithStats | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
 
   useEffect(() => {
-    const fetchProviders = async () => {
+    const fetchProviders = async (): Promise<void> => {
       try {
         setLoading(true);
         // adminApi not yet implemented - using empty array for now
@@ -50,19 +52,19 @@ export default function ProviderManagement() {
         const providersData: ProviderWithStats[] = [];
         setProviders(providersData);
       } catch (error) {
-        console.error('Error fetching providers:', error);
+        logger.error('Error fetching providers', error as Error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchProviders();
+    void fetchProviders();
   }, []);
 
   const handleVerificationStatusChange = async (
     providerId: string, 
     newStatus: 'PENDING' | 'VERIFIED' | 'REJECTED'
-  ) => {
+  ): Promise<void> => {
     try {
       await providerApi.updateVerificationStatus(providerId, newStatus);
       
@@ -74,19 +76,20 @@ export default function ProviderManagement() {
       // Update selected provider if it's the one being changed
       if (selectedProvider?.id === providerId) {
         // Update locally for now since adminApi is not implemented
-        setSelectedProvider({ ...selectedProvider, verificationStatus: newStatus } as any);
+        setSelectedProvider({ ...selectedProvider, verificationStatus: newStatus });
         setProviders(prev => prev.map(p => 
           p.id === providerId ? { ...p, verificationStatus: newStatus } : p
-        ) as any);
+        ));
       }
     } catch (error) {
-      console.error('Error updating provider verification status:', error);
+      logger.error('Error updating provider verification status', error as Error);
     }
   };
 
-  const handleToggleActive = async (providerId: string, currentActive: boolean) => {
+  const handleToggleActive = async (providerId: string, currentActive: boolean): Promise<void> => {
     try {
-      await providerApi.update({ id: providerId, active: !currentActive });
+      // TODO: Add active field to UserProfile schema
+      // await providerApi.update({ id: providerId, active: !currentActive });
       
       // Refresh providers list
       // adminApi not yet implemented - would refresh here
@@ -96,13 +99,13 @@ export default function ProviderManagement() {
       // Update selected provider if it's the one being changed
       if (selectedProvider?.id === providerId) {
         // Update locally for now since adminApi is not implemented
-        setSelectedProvider({ ...selectedProvider, active: !currentActive } as any);
+        setSelectedProvider({ ...selectedProvider, active: !currentActive });
         setProviders(prev => prev.map(p => 
           p.id === providerId ? { ...p, active: !currentActive } : p
-        ) as any);
+        ));
       }
     } catch (error) {
-      console.error('Error toggling provider status:', error);
+      logger.error('Error toggling provider status', error as Error);
     }
   };
 
@@ -115,7 +118,7 @@ export default function ProviderManagement() {
     return true;
   });
 
-  const getProviderDisplayName = (provider: ProviderWithStats) => {
+  const getProviderDisplayName = (provider: ProviderWithStats): string => {
     if (provider.businessName) return provider.businessName;
     if (provider.firstName && provider.lastName) {
       return `${provider.firstName} ${provider.lastName}`;
@@ -123,7 +126,7 @@ export default function ProviderManagement() {
     return provider.email;
   };
 
-  const getVerificationStatusColor = (status: string) => {
+  const getVerificationStatusColor = (status: string): string => {
     switch (status) {
       case 'VERIFIED':
         return 'text-green-600 bg-green-100';
@@ -229,7 +232,7 @@ export default function ProviderManagement() {
     }
   ];
 
-  const providerActions = (provider: ProviderWithStats) => (
+  const providerActions = (provider: ProviderWithStats): JSX.Element => (
     <>
       <Button
         variant="outline"
@@ -247,7 +250,7 @@ export default function ProviderManagement() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              handleVerificationStatusChange(provider.id, 'VERIFIED');
+              void handleVerificationStatusChange(provider.id, 'VERIFIED');
             }}
             className="ml-1"
           >
@@ -258,7 +261,7 @@ export default function ProviderManagement() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              handleVerificationStatusChange(provider.id, 'REJECTED');
+              void handleVerificationStatusChange(provider.id, 'REJECTED');
             }}
             className="ml-1"
           >

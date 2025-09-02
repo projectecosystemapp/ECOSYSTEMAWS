@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from 'react';
+
 import "./globals.css";
 import '@aws-amplify/ui-react/styles.css';
 import ConfigureAmplifyClientSide from "./amplify-config";

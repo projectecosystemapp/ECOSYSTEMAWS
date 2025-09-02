@@ -1,18 +1,19 @@
 'use client';
 
+import { Search, MessageCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Search, MessageCircle } from 'lucide-react';
+import { getOtherParticipant } from '@/lib/api';
 import { 
   Message, 
   Conversation, 
   formatMessageTime, 
   truncateMessage 
 } from '@/lib/types';
-import { getOtherParticipant } from '@/lib/api';
 
 interface ConversationListProps {
   conversations: Conversation[];

@@ -1,13 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { refactoredApi } from '@/lib/api/refactored';
-import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
 import { 
   Search, 
   MapPin, 
@@ -25,6 +17,16 @@ import {
   Award,
   Heart
 } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { refactoredApi } from '@/lib/api/refactored';
+import { ServiceWithRating, SERVICE_CATEGORIES } from '@/lib/types';
+
 
 export default function ModernHomePage() {
   const router = useRouter();

@@ -1,8 +1,10 @@
 import { createServerRunner } from '@aws-amplify/adapter-nextjs';
-import { fetchAuthSession, fetchUserAttributes, getCurrentUser } from 'aws-amplify/auth/server';
 import { generateServerClientUsingCookies } from '@aws-amplify/adapter-nextjs/data';
-import outputs from '@/amplify_outputs.json';
+import { fetchAuthSession, fetchUserAttributes, getCurrentUser } from 'aws-amplify/auth/server';
 import { NextRequest } from 'next/server';
+
+import outputs from '@/amplify_outputs.json';
+
 
 export const { runWithAmplifyServerContext } = createServerRunner({
   config: outputs,

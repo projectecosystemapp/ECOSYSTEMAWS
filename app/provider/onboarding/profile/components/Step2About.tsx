@@ -1,14 +1,17 @@
 'use client';
 
+import { Sparkles, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { useFormContext } from 'react-hook-form';
-import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
-import { Textarea } from '@/components/ui/textarea';
+
 import { Button } from '@/components/ui/button';
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
-import { Sparkles, Loader2 } from 'lucide-react';
-import { ProfileFormData } from '../page';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+
+import { ProfileFormData } from '../page';
+
 
 export default function Step2About() {
   const { control, setValue, watch } = useFormContext<ProfileFormData>();

@@ -1,31 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
 import { getCurrentUser } from 'aws-amplify/auth';
-import { stripeEarningsApi, type EarningsOverview, type Transaction, type Payout, type MonthlyEarning, type ServicePerformance } from '@/lib/api/stripe-earnings';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
-import { Separator } from '@/components/ui/separator';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
 import {
   DollarSign,
   TrendingUp,
@@ -48,9 +23,36 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { formatPrice, formatDate } from '@/utils/format';
-import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
+import {
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
+
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { stripeEarningsApi, type EarningsOverview, type Transaction, type Payout, type MonthlyEarning, type ServicePerformance } from '@/lib/api/stripe-earnings';
+import { formatPrice, formatDate } from '@/utils/format';
+
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 

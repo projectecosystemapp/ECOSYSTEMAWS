@@ -1,8 +1,10 @@
 'use client';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Star, Clock, Users, MapPin, Shield, Zap } from 'lucide-react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Star, Clock, Users, MapPin, Shield, Zap } from 'lucide-react';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+
 
 interface ServiceCardProps {
   service: {

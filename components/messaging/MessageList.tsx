@@ -1,11 +1,12 @@
 'use client';
 
+import { Download, Image, FileText, AlertCircle } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { Message, formatMessageTime, formatFullMessageTime } from '@/lib/types';
+
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Download, Image, FileText, AlertCircle } from 'lucide-react';
+import { Message, formatMessageTime, formatFullMessageTime } from '@/lib/types';
 
 interface MessageListProps {
   messages: Message[];

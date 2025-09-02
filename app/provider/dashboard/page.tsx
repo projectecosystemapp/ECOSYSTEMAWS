@@ -1,18 +1,20 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/data';
+import { ExternalLink, DollarSign, CreditCard, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { useState, useEffect } from 'react';
+
 import type { Schema } from '@/amplify/data/resource';
-import { refactoredApi } from '@/lib/api/refactored';
+import LoadingSpinner from '@/components/provider/LoadingSpinner';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import LoadingSpinner from '@/components/provider/LoadingSpinner';
+import { refactoredApi } from '@/lib/api/refactored';
 import { Service, Booking, ProviderStats, LoadingStates } from '@/lib/types';
-import { ExternalLink, DollarSign, CreditCard, AlertCircle } from 'lucide-react';
+
 
 const client = generateClient<Schema>();
 

@@ -1,9 +1,5 @@
 'use client';
 
-import { ReactNode } from 'react';
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Button } from '@/components/ui/button';
 import { 
   Home,
   Calendar,
@@ -17,7 +13,12 @@ import {
   Menu,
   X
 } from 'lucide-react';
-import { useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { ReactNode , useState } from 'react';
+
+
+import { Button } from '@/components/ui/button';
 
 interface CustomerLayoutProps {
   children: ReactNode;

@@ -7,8 +7,8 @@
  * Compliant with AWS best practices for distributed systems as of September 2025.
  */
 
-import { randomUUID } from 'crypto';
 import { AsyncLocalStorage } from 'async_hooks';
+import { randomUUID } from 'crypto';
 
 // Use AsyncLocalStorage for context propagation (Node.js 16+)
 const correlationStorage = new AsyncLocalStorage<CorrelationContext>();

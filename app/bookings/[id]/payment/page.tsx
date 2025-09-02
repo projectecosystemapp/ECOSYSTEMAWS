@@ -1,15 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
+import { useAuthenticator } from '@aws-amplify/ui-react';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { loadStripe } from '@stripe/stripe-js';
+import { CreditCard, Lock, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { CreditCard, Lock, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+
 
 // Initialize Stripe
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -209,7 +211,7 @@ export default function BookingPaymentPage() {
 
   useEffect(() => {
     // Fetch booking details
-    fetchBookingDetails();
+    void fetchBookingDetails();
   }, [params.id]);
 
   const fetchBookingDetails = async () => {

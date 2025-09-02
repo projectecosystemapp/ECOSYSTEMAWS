@@ -13,12 +13,14 @@
  */
 
 import { generateClient } from 'aws-amplify/data';
+
 import type { Schema } from '@/amplify/data/resource';
+
 import { useNewArchitecture } from './feature-flags';
 import { CircuitBreaker } from './resilience/circuit-breaker';
 import { correlationTracker, withCorrelation } from './resilience/correlation-tracker';
-import { ResponseNormalizer, type NormalizedResponse } from './resilience/response-normalizer';
 import { PerformanceTracker } from './resilience/performance-tracker';
+import { ResponseNormalizer, type NormalizedResponse } from './resilience/response-normalizer';
 
 // Create the Amplify client with enhanced configuration
 const client = generateClient<Schema>({

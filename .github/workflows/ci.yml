@@ -42,6 +42,29 @@ jobs:
           NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY || 'pk_test_dummy' }}
           SKIP_ENV_VALIDATION: true
 
+      - name: Upload Sentry sourcemaps (if configured)
+        if: ${{ secrets.SENTRY_AUTH_TOKEN != '' }}
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_URL: ${{ secrets.SENTRY_URL || 'https://us.sentry.io' }}
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
+          RELEASE=${GITHUB_SHA::7}
+          sentry-cli releases new "$RELEASE"
+          # Upload Next.js client assets sourcemaps
+          sentry-cli sourcemaps upload \
+            --release "$RELEASE" \
+            --url-prefix "~/_next" \
+            .next/static || true
+          # Upload Next.js server/app sourcemaps
+          sentry-cli sourcemaps upload \
+            --release "$RELEASE" \
+            --url-prefix "~" \
+            .next/server/app || true
+          sentry-cli releases finalize "$RELEASE"
+
       - name: Run tests
         run: npm test -- --run
         continue-on-error: true # Don't fail if no tests exist yet

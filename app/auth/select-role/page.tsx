@@ -1,8 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Search, Store } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+
+import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
 export default function SelectRolePage() {
   const router = useRouter();
