@@ -8,7 +8,7 @@
 
 ### 2. **Removed Dead Code (484 files changed)**
 - 🗑️ **9 unused Lambda functions** (stripe-connect, payout-manager, messaging-handler, etc.)
-- 🗑️ **Dead configuration scripts** (setup-lambda-urls.sh, fix-this-shit.sh, etc.)
+- 🗑️ **Dead configuration scripts** (scripts/setup-lambda-urls.sh, fix-this-shit.sh, etc.)
 - 🗑️ **Duplicate documentation** (AGENT_CHARTERS/, old markdown files)
 - 🗑️ **Unused utilities** (amplify-client-wrapper.ts, amplifyServerUtils.ts)
 - 🗑️ **Orphaned GraphQL files** (API.ts, mutations.ts, queries.ts)

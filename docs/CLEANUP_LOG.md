@@ -22,10 +22,10 @@ Systematic removal of dead code after migrating from dual-backend architecture (
 - `/amplify/functions/booking-processor/` → DynamoDB stream processing (legitimate use)
 
 ## Removed: Configuration Files
-- `setup-lambda-urls.sh` → No longer needed with API routes
+- `scripts/setup-lambda-urls.sh` → No longer needed with API routes
 - `create-lambda-urls.sh` → Duplicate functionality
 - `fix-this-shit.sh` → Temporary debugging script
-- `fix-types.sh` → Temporary debugging script
+- `scripts/fix-types.sh` → Temporary debugging script
 - `commit-auth-fix.sh` → Temporary debugging script
 - `commit-auth-fix-typed.sh` → Temporary debugging script
 

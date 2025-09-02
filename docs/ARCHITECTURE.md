@@ -508,7 +508,7 @@ The platform is in the process of migrating from Lambda Function URLs to a pure 
 - ❌ NEVER create Lambda Function URLs
 - ❌ NEVER add `*_LAMBDA_URL` environment variables
 - ❌ NEVER use direct Lambda invocation from frontend
-- ❌ NEVER run `setup-lambda-urls.sh` or similar scripts
+- ❌ NEVER run `scripts/setup-lambda-urls.sh` or similar scripts
 
 ##### Required Practices
 - ✅ ALWAYS use AppSync mutations/queries for Lambda integration

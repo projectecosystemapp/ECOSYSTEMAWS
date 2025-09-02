@@ -76,7 +76,7 @@ npx ampx pipeline-deploy --branch main --app-id <YOUR_APP_ID>
 - ❌ NEVER create Lambda Function URLs
 - ❌ NEVER add *_LAMBDA_URL environment variables
 - ❌ NEVER use direct Lambda invocation from frontend
-- ❌ NEVER run setup-lambda-urls.sh or similar scripts
+- ❌ NEVER run scripts/setup-lambda-urls.sh or similar scripts
 
 ### Required Practices
 - ✅ ALWAYS use AppSync mutations/queries for Lambda integration
@@ -132,7 +132,7 @@ Required environment variables in `.env.local`:
 
 #### Priority Migration Checklist
 - [ ] **PRIORITY 1**: Remove all *_LAMBDA_URL environment variables from production
-- [ ] **PRIORITY 2**: Delete all Lambda Function URL creation scripts (setup-lambda-urls.sh, fix-this-shit.sh)
+- [ ] **PRIORITY 2**: Delete all Lambda Function URL creation scripts (scripts/setup-lambda-urls.sh, fix-this-shit.sh)
 - [x] stripe-connect - Converted to AppSync mutation (Feature flag: NEXT_PUBLIC_USE_APPSYNC_STRIPE_CONNECT)
 - [ ] stripe-webhook - Convert to AppSync mutation  
 - [ ] payout-manager - Convert to AppSync mutation
@@ -276,7 +276,7 @@ The agent's recommendation is 100% WRONG. You are correct. It IS trying to f* us
 
 Let me be brutally clear:
 
-DO NOT run ./setup-lambda-urls.sh.
+DO NOT run ./scripts/setup-lambda-urls.sh.
 
 DO NOT create any new Lambda Function URLs.
 
