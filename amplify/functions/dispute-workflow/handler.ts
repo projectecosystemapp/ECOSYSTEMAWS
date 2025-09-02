@@ -3,14 +3,16 @@ import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SFNClient, StartExecutionCommand, DescribeExecutionCommand } from '@aws-sdk/client-sfn';
 
-type Handler = Schema['initiateDispute']['functionHandler'] | 
-              Schema['submitEvidence']['functionHandler'] | 
-              Schema['getDisputeStatus']['functionHandler'];
+type InitiateDisputeHandler = Schema['initiateDispute']['functionHandler'];
+type SubmitEvidenceHandler = Schema['submitEvidence']['functionHandler'];
+type GetDisputeStatusHandler = Schema['getDisputeStatus']['functionHandler'];
+
+type Handler = InitiateDisputeHandler | SubmitEvidenceHandler | GetDisputeStatusHandler;
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const stepFunctions = new SFNClient({});
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event: any) => {
   const { fieldName, arguments: args } = event;
   const userId = event.identity?.sub;
   const userEmail = event.identity?.claims?.email;

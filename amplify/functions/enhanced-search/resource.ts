@@ -4,8 +4,8 @@ export const enhancedSearch = defineFunction({
   name: 'enhanced-search',
   entry: './handler.ts',
   environment: {
-    OPENSEARCH_ENDPOINT: 'https://search-marketplace-abc123.us-east-1.es.amazonaws.com',
-    OPENSEARCH_REGION: 'us-east-1',
+    SERVICE_TABLE_NAME: 'Service',
+    SERVICEREQUEST_TABLE_NAME: 'ServiceRequest',
   },
   runtime: 20,
   timeoutSeconds: 30,

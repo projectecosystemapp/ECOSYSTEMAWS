@@ -2,9 +2,11 @@ import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 
-type Handler = Schema['searchAll']['functionHandler'] | 
-              Schema['getSearchSuggestions']['functionHandler'] | 
-              Schema['getSearchAnalytics']['functionHandler'];
+type SearchAllHandler = Schema['searchAll']['functionHandler'];
+type GetSearchSuggestionsHandler = Schema['getSearchSuggestions']['functionHandler'];
+type GetSearchAnalyticsHandler = Schema['getSearchAnalytics']['functionHandler'];
+
+type Handler = SearchAllHandler | GetSearchSuggestionsHandler | GetSearchAnalyticsHandler;
 
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
@@ -18,7 +20,7 @@ function searchText(text: string, query: string): number {
   return 0;
 }
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event: any) => {
   const { fieldName, arguments: args } = event;
 
   try {

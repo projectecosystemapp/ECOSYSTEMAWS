@@ -1,4 +1,10 @@
 version: 1
+backend:
+  phases:
+    build:
+      commands:
+        - npm ci --prefix amplify
+        - npx ampx generate outputs --app-id $AWS_APP_ID --branch $AWS_BRANCH --out-dir ./
 frontend:
   phases:
     preBuild:
@@ -7,12 +13,10 @@ frontend:
     build:
       commands:
         - npm run build
-        - cp amplify_outputs.json .next/
   artifacts:
     baseDirectory: .next
     files:
       - '**/*'
-      - '../amplify_outputs.json'
   cache:
     paths:
       - node_modules/**/*

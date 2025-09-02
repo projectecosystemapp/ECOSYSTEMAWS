@@ -33,7 +33,7 @@ if (!process.env.NEXT_PUBLIC_APP_URL) {
 
 // Initialize Stripe with the correct API version
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-  apiVersion: '2024-11-20.acacia',
+  apiVersion: '2025-08-27.basil',
   typescript: true,
 });
 
@@ -128,11 +128,10 @@ function validateRefundParams(params: Partial<StripeConnectRequest>): RefundPara
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
   const startTime = Date.now();
-  let correlationId: string;
+  // Generate correlation ID for request tracking
+  const correlationId = `stripe-${Date.now()}-${Math.random().toString(36).substring(7)}`;
   
   try {
-    // Generate correlation ID for request tracking
-    correlationId = `stripe-${Date.now()}-${Math.random().toString(36).substring(7)}`;
     
     // 1. Authenticate the user
     const user = await getAuthenticatedUser(request);
@@ -199,7 +198,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        correlationId: correlationId || 'unknown'
+        correlationId
       },
       { status: 500 }
     );

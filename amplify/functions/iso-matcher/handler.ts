@@ -3,7 +3,10 @@ import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedroc
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
 
-type Handler = Schema['createServiceRequest']['functionHandler'] | Schema['findMatchingRequests']['functionHandler'];
+type CreateServiceRequestHandler = Schema['createServiceRequest']['functionHandler'];
+type FindMatchingRequestsHandler = Schema['findMatchingRequests']['functionHandler'];
+
+type Handler = CreateServiceRequestHandler | FindMatchingRequestsHandler;
 
 const bedrock = new BedrockRuntimeClient({ region: process.env.BEDROCK_REGION || 'us-east-1' });
 const dynamodb = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -31,7 +34,7 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dotProduct / (magnitudeA * magnitudeB);
 }
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event: any) => {
   const { fieldName, arguments: args } = event;
 
   try {

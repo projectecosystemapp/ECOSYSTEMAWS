@@ -580,7 +580,7 @@ export const data = defineData({
     },
     lambdaAuthorizationMode: {
       function: webhookAuthorizer,
-      ttl: 300, // Cache authorization results for 5 minutes
+      // ttl: 300, // Cache authorization results for 5 minutes - removed due to type error
     },
   },
 });
