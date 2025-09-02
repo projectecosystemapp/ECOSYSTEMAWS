@@ -16,6 +16,11 @@ import { webhookAuthorizer } from './functions/webhook-authorizer/resource.js';
 import { webhookReconciliation } from './functions/webhook-reconciliation/resource.js';
 import { workflowOrchestrator } from './functions/workflow-orchestrator/resource.js';
 import { searchIndexer } from './functions/search-indexer/resource.js';
+import { bioGenerator } from './functions/bio-generator/resource.js';
+import { isoMatcher } from './functions/iso-matcher/resource.js';
+import { realtimeMessaging } from './functions/realtime-messaging/resource.js';
+import { disputeWorkflow } from './functions/dispute-workflow/resource.js';
+import { enhancedSearch } from './functions/enhanced-search/resource.js';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
 
 // EventBridge and Step Functions imports
@@ -102,6 +107,11 @@ const backend = defineBackend({
   webhookReconciliation,
   workflowOrchestrator,
   searchIndexer,
+  bioGenerator,
+  isoMatcher,
+  realtimeMessaging,
+  disputeWorkflow,
+  enhancedSearch,
 });
 
 // ========== EventBridge Event Bus Configuration ==========
