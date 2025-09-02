@@ -49,20 +49,12 @@ jobs:
         
       - name: Create .env.test file
         run: |
-          echo "PLAYWRIGHT_TEST_BASE_URL=${{ vars.STAGING_URL }}" >> .env.test
-          echo "STAGING_URL=${{ vars.STAGING_URL }}" >> .env.test
-          echo "AWS_REGION=${{ vars.AWS_REGION }}" >> .env.test
+          echo "PLAYWRIGHT_TEST_BASE_URL=http://localhost:3000" >> .env.test
+          echo "AWS_REGION=us-west-2" >> .env.test
           echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env.test
           echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env.test
-          echo "TEST_COGNITO_USER_POOL_ID=${{ vars.TEST_COGNITO_USER_POOL_ID }}" >> .env.test
-          echo "TEST_COGNITO_CLIENT_ID=${{ vars.TEST_COGNITO_CLIENT_ID }}" >> .env.test
-          echo "TEST_COGNITO_REGION=${{ vars.AWS_REGION }}" >> .env.test
-          echo "TEST_DYNAMODB_TABLE_PREFIX=${{ vars.TEST_DYNAMODB_TABLE_PREFIX }}" >> .env.test
-          echo "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ vars.STRIPE_TEST_PUBLIC_KEY }}" >> .env.test
+          echo "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${{ secrets.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY }}" >> .env.test
           echo "STRIPE_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}" >> .env.test
-          echo "STRIPE_TEST_PUBLIC_KEY=${{ vars.STRIPE_TEST_PUBLIC_KEY }}" >> .env.test
-          echo "STRIPE_TEST_SECRET_KEY=${{ secrets.STRIPE_TEST_SECRET_KEY }}" >> .env.test
-          echo "AMPLIFY_ENV=staging" >> .env.test
       
       - name: Run E2E tests
         run: |
