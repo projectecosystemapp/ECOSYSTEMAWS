@@ -52,6 +52,9 @@ export async function getAuthenticatedUser(req: NextRequest): Promise<Authentica
   });
 }
 
-export const cookiesClient = generateServerClientUsingCookies({
-  config: outputs,
-});
+// Helper to create server client with cookies (must be called within server context)
+export function createServerClient() {
+  return generateServerClientUsingCookies({
+    config: outputs,
+  });
+}
