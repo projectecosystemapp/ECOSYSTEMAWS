@@ -1,0 +1,14 @@
+{
+  "name": "search-indexer",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@opensearch-project/opensearch": "^2.5.0",
+    "@aws-sdk/credential-provider-node": "^3.450.0",
+    "@aws-sdk/client-cloudwatch": "^3.450.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.143",
+    "@types/node": "^18.0.0"
+  }
+}

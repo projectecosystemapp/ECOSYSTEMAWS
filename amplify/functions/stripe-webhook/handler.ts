@@ -1,5 +1,6 @@
 import { AppSyncResolverHandler } from 'aws-lambda';
 import Stripe from 'stripe';
+<<<<<<< Updated upstream
 import { DynamoDBClient, UpdateItemCommand, PutItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { WebhookDeduplicationService } from '../../data/webhook-deduplication';
 import { correlationTracker } from '../../../lib/resilience/correlation-tracker';
@@ -111,6 +112,53 @@ export const handler: AppSyncResolverHandler<any, any> = async (event) => {
       try {
         // Process the event based on type
         switch (stripeEvent.type) {
+=======
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient, UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+
+const ssmClient = new SSMClient({});
+const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+
+let stripe: Stripe;
+let webhookSecret: string;
+
+async function initializeSecrets() {
+  if (!stripe) {
+    const secretKey = await ssmClient.send(new GetParameterCommand({
+      Name: '/amplify/stripe/secret-key',
+      WithDecryption: true
+    }));
+    stripe = new Stripe(secretKey.Parameter!.Value!);
+  }
+  
+  if (!webhookSecret) {
+    const secret = await ssmClient.send(new GetParameterCommand({
+      Name: '/amplify/stripe/webhook-secret',
+      WithDecryption: true
+    }));
+    webhookSecret = secret.Parameter!.Value!;
+  }
+}
+
+export const handler: APIGatewayProxyHandler = async (event) => {
+  await initializeSecrets();
+  
+  const sig = event.headers['stripe-signature'];
+
+  try {
+    const stripeEvent = stripe.webhooks.constructEvent(event.body!, sig!, webhookSecret);
+    
+    console.log(`Processing Stripe event: ${stripeEvent.type}`);
+    
+    switch (stripeEvent.type) {
+      case 'payment_intent.succeeded':
+        await handlePaymentSuccess(stripeEvent.data.object as Stripe.PaymentIntent);
+        break;
+      case 'payment_intent.payment_failed':
+        await handlePaymentFailed(stripeEvent.data.object as Stripe.PaymentIntent);
+        break;
+>>>>>>> Stashed changes
       case 'account.updated':
         await handleAccountUpdated(stripeEvent);
         break;

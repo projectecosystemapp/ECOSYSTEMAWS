@@ -7,6 +7,12 @@ import { bookingProcessor } from '../functions/booking-processor/resource';
 import { messagingHandler } from '../functions/messaging-handler/resource';
 import { notificationHandler } from '../functions/notification-handler/resource';
 import { webhookAuthorizer } from '../functions/webhook-authorizer/resource';
+import { workflowOrchestrator } from '../functions/workflow-orchestrator/resource';
+import { bioGenerator } from '../functions/bio-generator/resource';
+import { isoMatcher } from '../functions/iso-matcher/resource';
+import { realtimeMessaging } from '../functions/realtime-messaging/resource';
+import { disputeWorkflow } from '../functions/dispute-workflow/resource';
+import { enhancedSearch } from '../functions/enhanced-search/resource';
 
 const schema = a.schema({
   // ========== Data Models ==========
@@ -90,7 +96,7 @@ const schema = a.schema({
     allow.groups(['Admin']),
   ]),
 
-  // Message model for in-app messaging
+  // Message model for in-app messaging with real-time subscriptions
   Message: a.model({
     conversationId: a.string().required(),
     senderId: a.string().required(),
@@ -104,10 +110,127 @@ const schema = a.schema({
     readAt: a.string().array(),
     bookingId: a.string(),
     serviceId: a.string(),
+    requestId: a.string(),
   })
+  .secondaryIndexes((index) => [
+    index('conversationId'),
+    index('senderId'),
+    index('recipientId'),
+  ])
   .authorization((allow) => [
     allow.authenticated().to(['read']),
     allow.owner().to(['create', 'read', 'update']),
+  ]),
+
+  // Generated Bio model for AI-generated provider bios
+  GeneratedBio: a.model({
+    providerId: a.string().required(),
+    businessName: a.string().required(),
+    bio: a.string().required(),
+    specializations: a.string().array(),
+    keywords: a.string().array(),
+    yearsExperience: a.integer(),
+    generatedAt: a.datetime(),
+    status: a.string(),
+  })
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ISO System: Service Request model
+  ServiceRequest: a.model({
+    customerId: a.string().required(),
+    customerEmail: a.email().required(),
+    title: a.string().required(),
+    description: a.string().required(),
+    category: a.string().required(),
+    budget: a.float(),
+    desiredDate: a.datetime(),
+    location: a.string(),
+    status: a.string().required(),
+    embedding: a.float().array(),
+    expiresAt: a.datetime(),
+  })
+  .secondaryIndexes((index) => [
+    index('customerId'),
+    index('category'),
+    index('status'),
+  ])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // ISO System: Service Offer model
+  ServiceOffer: a.model({
+    requestId: a.id().required(),
+    providerId: a.string().required(),
+    providerEmail: a.email().required(),
+    message: a.string().required(),
+    proposedPrice: a.float(),
+    estimatedDuration: a.string(),
+    availableDate: a.datetime(),
+    status: a.string().required(),
+    request: a.belongsTo('ServiceRequest', 'requestId'),
+  })
+  .secondaryIndexes((index) => [
+    index('requestId'),
+    index('providerId'),
+    index('status'),
+  ])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
+  ]),
+
+  // Dispute Resolution: Main dispute model
+  Dispute: a.model({
+    bookingId: a.id().required(),
+    customerId: a.string().required(),
+    providerId: a.string().required(),
+    initiatedBy: a.string().required(),
+    reason: a.string().required(),
+    description: a.string().required(),
+    amount: a.float(),
+    status: a.string().required(),
+    resolution: a.string(),
+    resolutionReason: a.string(),
+    workflowExecutionArn: a.string(),
+    autoResolvedAt: a.datetime(),
+    resolvedAt: a.datetime(),
+    expiresAt: a.datetime(),
+  })
+  .secondaryIndexes((index) => [
+    index('bookingId'),
+    index('customerId'),
+    index('providerId'),
+    index('status'),
+  ])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update']),
+    allow.authenticated().to(['read']),
+    allow.groups(['Admin']).to(['read', 'update']),
+  ]),
+
+  // Dispute Resolution: Evidence collection
+  DisputeEvidence: a.model({
+    disputeId: a.id().required(),
+    submittedBy: a.string().required(),
+    evidenceType: a.string().required(),
+    description: a.string(),
+    fileUrl: a.string(),
+    metadata: a.json(),
+    dispute: a.belongsTo('Dispute', 'disputeId'),
+  })
+  .secondaryIndexes((index) => [
+    index('disputeId'),
+    index('submittedBy'),
+  ])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read']),
+    allow.authenticated().to(['read']),
+    allow.groups(['Admin']).to(['read']),
   ]),
 
   // ========== Lambda Function Operations (AppSync Integration) ==========
@@ -253,6 +376,197 @@ const schema = a.schema({
     .returns(a.json())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(notificationHandler)),
+
+  // ========== Step Functions Workflow Operations ==========
+  
+  // Start a workflow execution
+  startWorkflow: a
+    .mutation()
+    .arguments({
+      workflowType: a.string().required(),
+      input: a.json(),
+      executionName: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.groups(['Admin', 'Provider']),
+    ])
+    .handler(a.handler.function(workflowOrchestrator)),
+  
+  // Stop a running workflow execution
+  stopWorkflow: a
+    .mutation()
+    .arguments({
+      executionArn: a.string().required(),
+      workflowType: a.string().required(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.groups(['Admin']),
+    ])
+    .handler(a.handler.function(workflowOrchestrator)),
+    
+  // Get workflow execution status
+  getWorkflowStatus: a
+    .query()
+    .arguments({
+      executionArn: a.string().required(),
+      workflowType: a.string().required(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.groups(['Admin', 'Provider']),
+    ])
+    .handler(a.handler.function(workflowOrchestrator)),
+
+  // ========== EventBridge Event Publishing ==========
+  
+  // Publish custom marketplace events
+  publishEvent: a
+    .mutation()
+    .arguments({
+      source: a.string().required(),
+      detailType: a.string().required(),
+      detail: a.json().required(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [
+      allow.authenticated(),
+      allow.groups(['Admin']),
+    ])
+    .handler(a.handler.function(workflowOrchestrator)),
+
+  // AI Bio Generation using AWS Bedrock
+  generateBio: a
+    .mutation()
+    .arguments({
+      businessName: a.string().required(),
+      specializations: a.string().array(),
+      keywords: a.string().array(),
+      yearsExperience: a.integer(),
+      providerId: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(bioGenerator)),
+
+  // ISO System: Create service request with AI matching
+  createServiceRequest: a
+    .mutation()
+    .arguments({
+      title: a.string().required(),
+      description: a.string().required(),
+      category: a.string().required(),
+      budget: a.float(),
+      desiredDate: a.string(),
+      location: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(isoMatcher)),
+
+  // ISO System: Find matching requests for provider
+  findMatchingRequests: a
+    .query()
+    .arguments({
+      providerId: a.string().required(),
+      category: a.string(),
+      maxResults: a.integer(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(isoMatcher)),
+
+  // Real-time messaging: Send message with instant delivery
+  sendRealtimeMessage: a
+    .mutation()
+    .arguments({
+      conversationId: a.string().required(),
+      recipientId: a.string().required(),
+      content: a.string().required(),
+      messageType: a.string(),
+      requestId: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(realtimeMessaging)),
+
+  // Dispute Resolution: Initiate dispute workflow
+  initiateDispute: a
+    .mutation()
+    .arguments({
+      bookingId: a.string().required(),
+      reason: a.string().required(),
+      description: a.string().required(),
+      amount: a.float(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(disputeWorkflow)),
+
+  // Dispute Resolution: Submit evidence
+  submitEvidence: a
+    .mutation()
+    .arguments({
+      disputeId: a.string().required(),
+      evidenceType: a.string().required(),
+      description: a.string(),
+      fileUrl: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(disputeWorkflow)),
+
+  // Dispute Resolution: Get dispute status
+  getDisputeStatus: a
+    .query()
+    .arguments({
+      disputeId: a.string().required(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(disputeWorkflow)),
+
+  // Enhanced Search: Universal search across all content
+  searchAll: a
+    .query()
+    .arguments({
+      query: a.string().required(),
+      filters: a.json(),
+      location: a.string(),
+      radius: a.float(),
+      sortBy: a.string(),
+      limit: a.integer(),
+      offset: a.integer(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(enhancedSearch)),
+
+  // Enhanced Search: Get search suggestions/autocomplete
+  getSearchSuggestions: a
+    .query()
+    .arguments({
+      query: a.string().required(),
+      type: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(enhancedSearch)),
+
+  // Enhanced Search: Get search analytics
+  getSearchAnalytics: a
+    .query()
+    .arguments({
+      timeRange: a.string(),
+      type: a.string(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.groups(['Admin'])])
+    .handler(a.handler.function(enhancedSearch)),
 });
 
 export type Schema = ClientSchema<typeof schema>;

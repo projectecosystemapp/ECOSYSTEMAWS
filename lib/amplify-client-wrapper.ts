@@ -600,6 +600,246 @@ export async function processWebhook(params: {
   });
 }
 
+// ========== Step Functions Workflow Operations ==========
+
+export async function startWorkflow(params: {
+  workflowType: 'BOOKING_LIFECYCLE' | 'PAYMENT_PROCESSING' | 'DISPUTE_RESOLUTION' | 'PROVIDER_ONBOARDING';
+  input?: any;
+  executionName?: string;
+}): Promise<NormalizedResponse> {
+  return withCorrelation('workflow-start', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation metadata
+    correlationTracker.addMetadata({
+      workflowType: params.workflowType,
+      executionName: params.executionName
+    });
+
+    try {
+      console.log('🚀 Starting workflow:', {
+        workflowType: params.workflowType,
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const { data, errors } = await client.mutations.startWorkflow(params);
+      
+      if (errors) {
+        console.error('Workflow start errors:', errors);
+        throw new Error(errors[0]?.message || 'Failed to start workflow');
+      }
+      
+      const result = responseNormalizer.normalizeAppSyncResponse(data);
+      
+      // Track success metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric('workflow-start', duration, true, 'appsync');
+      
+      console.log('✅ Workflow started successfully:', {
+        workflowType: params.workflowType,
+        executionArn: result.data?.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('workflow-start', duration, false, 'appsync', errorType);
+      
+      console.error('❌ Workflow start failed:', {
+        workflowType: params.workflowType,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+export async function stopWorkflow(params: {
+  executionArn: string;
+  workflowType: 'BOOKING_LIFECYCLE' | 'PAYMENT_PROCESSING' | 'DISPUTE_RESOLUTION' | 'PROVIDER_ONBOARDING';
+}): Promise<NormalizedResponse> {
+  return withCorrelation('workflow-stop', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation metadata
+    correlationTracker.addMetadata({
+      executionArn: params.executionArn,
+      workflowType: params.workflowType
+    });
+
+    try {
+      console.log('🛑 Stopping workflow:', {
+        executionArn: params.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const { data, errors } = await client.mutations.stopWorkflow(params);
+      
+      if (errors) {
+        console.error('Workflow stop errors:', errors);
+        throw new Error(errors[0]?.message || 'Failed to stop workflow');
+      }
+      
+      const result = responseNormalizer.normalizeAppSyncResponse(data);
+      
+      // Track success metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric('workflow-stop', duration, true, 'appsync');
+      
+      console.log('✅ Workflow stopped successfully:', {
+        executionArn: params.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('workflow-stop', duration, false, 'appsync', errorType);
+      
+      console.error('❌ Workflow stop failed:', {
+        executionArn: params.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+export async function getWorkflowStatus(params: {
+  executionArn: string;
+  workflowType: 'BOOKING_LIFECYCLE' | 'PAYMENT_PROCESSING' | 'DISPUTE_RESOLUTION' | 'PROVIDER_ONBOARDING';
+}): Promise<NormalizedResponse> {
+  return withCorrelation('workflow-status', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation metadata
+    correlationTracker.addMetadata({
+      executionArn: params.executionArn,
+      workflowType: params.workflowType
+    });
+
+    try {
+      console.log('📊 Getting workflow status:', {
+        executionArn: params.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const { data, errors } = await client.queries.getWorkflowStatus(params);
+      
+      if (errors) {
+        console.error('Workflow status errors:', errors);
+        throw new Error(errors[0]?.message || 'Failed to get workflow status');
+      }
+      
+      const result = responseNormalizer.normalizeAppSyncResponse(data);
+      
+      // Track success metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric('workflow-status', duration, true, 'appsync');
+      
+      console.log('✅ Workflow status retrieved:', {
+        executionArn: params.executionArn,
+        status: result.data?.status,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('workflow-status', duration, false, 'appsync', errorType);
+      
+      console.error('❌ Workflow status retrieval failed:', {
+        executionArn: params.executionArn,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
+// ========== EventBridge Event Publishing ==========
+
+export async function publishEvent(params: {
+  source: string;
+  detailType: string;
+  detail: any;
+}): Promise<NormalizedResponse> {
+  return withCorrelation('event-publish', async () => {
+    const startTime = Date.now();
+    
+    // Add correlation metadata
+    correlationTracker.addMetadata({
+      source: params.source,
+      detailType: params.detailType
+    });
+
+    try {
+      console.log('📡 Publishing event:', {
+        source: params.source,
+        detailType: params.detailType,
+        correlationId: correlationTracker.getCurrentCorrelationId()
+      });
+      
+      const { data, errors } = await client.mutations.publishEvent(params);
+      
+      if (errors) {
+        console.error('Event publish errors:', errors);
+        throw new Error(errors[0]?.message || 'Failed to publish event');
+      }
+      
+      const result = responseNormalizer.normalizeAppSyncResponse(data);
+      
+      // Track success metrics
+      const duration = Date.now() - startTime;
+      performanceTracker.recordMetric('event-publish', duration, true, 'appsync');
+      
+      console.log('✅ Event published successfully:', {
+        source: params.source,
+        detailType: params.detailType,
+        eventId: result.data?.eventId,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration
+      });
+
+      return result;
+    } catch (error) {
+      // Track failure metrics
+      const duration = Date.now() - startTime;
+      const errorType = error instanceof Error ? error.constructor.name : 'UnknownError';
+      performanceTracker.recordMetric('event-publish', duration, false, 'appsync', errorType);
+      
+      console.error('❌ Event publish failed:', {
+        source: params.source,
+        detailType: params.detailType,
+        correlationId: correlationTracker.getCurrentCorrelationId(),
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      
+      throw error;
+    }
+  });
+}
+
 // ========== Helper Functions ==========
 
 /**
@@ -613,6 +853,8 @@ export function getArchitectureStatus() {
     refundProcessor: useNewArchitecture.refundProcessor ? 'AppSync' : 'Lambda URL',
     messagingHandler: useNewArchitecture.messagingHandler ? 'AppSync' : 'Lambda URL',
     notificationHandler: useNewArchitecture.notificationHandler ? 'AppSync' : 'Lambda URL',
+    stepFunctionsWorkflows: 'AppSync',
+    eventBridgePublishing: 'AppSync',
   };
 }
 

@@ -1,0 +1,209 @@
+{
+  "Comment": "Dispute Resolution Workflow - Transparent, automated dispute handling",
+  "StartAt": "InitiateDispute",
+  "States": {
+    "InitiateDispute": {
+      "Type": "Parallel",
+      "Comment": "Start dispute process with parallel actions",
+      "Branches": [
+        {
+          "StartAt": "FreezePayment",
+          "States": {
+            "FreezePayment": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "freezePayment",
+                "Payload": {
+                  "disputeId.$": "$.disputeId",
+                  "bookingId.$": "$.bookingId",
+                  "amount.$": "$.amount"
+                }
+              },
+              "End": true
+            }
+          }
+        },
+        {
+          "StartAt": "NotifyParties",
+          "States": {
+            "NotifyParties": {
+              "Type": "Task",
+              "Resource": "arn:aws:states:::lambda:invoke",
+              "Parameters": {
+                "FunctionName": "sendDisputeNotifications",
+                "Payload": {
+                  "disputeId.$": "$.disputeId",
+                  "customerId.$": "$.customerId",
+                  "providerId.$": "$.providerId",
+                  "reason.$": "$.reason"
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      ],
+      "Next": "EvidenceCollection"
+    },
+    "EvidenceCollection": {
+      "Type": "Wait",
+      "Comment": "Wait 3 days for evidence collection",
+      "Seconds": 259200,
+      "Next": "AutomatedReview"
+    },
+    "AutomatedReview": {
+      "Type": "Task",
+      "Comment": "AI-powered dispute analysis using Bedrock",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "analyzeDispute",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "bookingId.$": "$.bookingId"
+        }
+      },
+      "Next": "ResolutionDecision"
+    },
+    "ResolutionDecision": {
+      "Type": "Choice",
+      "Comment": "Route based on AI analysis confidence",
+      "Choices": [
+        {
+          "Variable": "$.confidence",
+          "NumericGreaterThan": 0.8,
+          "Next": "AutoResolve"
+        },
+        {
+          "Variable": "$.resolution",
+          "StringEquals": "REFUND",
+          "Next": "ProcessRefund"
+        },
+        {
+          "Variable": "$.resolution",
+          "StringEquals": "RELEASE",
+          "Next": "ReleaseFunds"
+        }
+      ],
+      "Default": "ManualReview"
+    },
+    "AutoResolve": {
+      "Type": "Task",
+      "Comment": "High-confidence automated resolution",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "autoResolveDispute",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "resolution.$": "$.resolution",
+          "confidence.$": "$.confidence",
+          "reasoning.$": "$.reasoning"
+        }
+      },
+      "Next": "NotifyResolution"
+    },
+    "ProcessRefund": {
+      "Type": "Task",
+      "Comment": "Process refund to customer",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "processDisputeRefund",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "amount.$": "$.amount",
+          "reason": "Dispute resolved in favor of customer"
+        }
+      },
+      "Next": "NotifyResolution"
+    },
+    "ReleaseFunds": {
+      "Type": "Task",
+      "Comment": "Release funds to provider",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "releaseFundsToProvider",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "amount.$": "$.amount",
+          "reason": "Dispute resolved in favor of provider"
+        }
+      },
+      "Next": "NotifyResolution"
+    },
+    "ManualReview": {
+      "Type": "Task",
+      "Comment": "Escalate to human moderator",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "escalateToModerator",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "aiAnalysis.$": "$.analysis",
+          "confidence.$": "$.confidence"
+        }
+      },
+      "Next": "WaitForModeratorDecision"
+    },
+    "WaitForModeratorDecision": {
+      "Type": "Wait",
+      "Comment": "Wait for human moderator decision (max 48 hours)",
+      "Seconds": 172800,
+      "Next": "CheckModeratorDecision"
+    },
+    "CheckModeratorDecision": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "getModeratorDecision",
+        "Payload": {
+          "disputeId.$": "$.disputeId"
+        }
+      },
+      "Next": "FinalResolution"
+    },
+    "FinalResolution": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Variable": "$.moderatorDecision",
+          "StringEquals": "REFUND",
+          "Next": "ProcessRefund"
+        },
+        {
+          "Variable": "$.moderatorDecision",
+          "StringEquals": "RELEASE",
+          "Next": "ReleaseFunds"
+        }
+      ],
+      "Default": "DefaultRefund"
+    },
+    "DefaultRefund": {
+      "Type": "Task",
+      "Comment": "Default to refund if no decision made",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "processDisputeRefund",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "amount.$": "$.amount",
+          "reason": "Default resolution - no moderator decision"
+        }
+      },
+      "Next": "NotifyResolution"
+    },
+    "NotifyResolution": {
+      "Type": "Task",
+      "Comment": "Notify all parties of final resolution",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName": "notifyDisputeResolution",
+        "Payload": {
+          "disputeId.$": "$.disputeId",
+          "resolution.$": "$.resolution",
+          "amount.$": "$.amount"
+        }
+      },
+      "End": true
+    }
+  }
+}

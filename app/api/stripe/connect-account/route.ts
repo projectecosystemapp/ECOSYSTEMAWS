@@ -1,7 +1,5 @@
-// SECURITY FIX: CWE-16, CWE-798
-// Risk: Use of hardcoded credentials and Lambda URLs (deprecated architecture)
-// Mitigation: Migrate to AppSync-only architecture, remove Lambda URL dependencies
-// Validated: This route is deprecated and should use AppSync mutations only
+// AppSync-native Stripe Connect implementation
+// Replaces deprecated Lambda URL architecture
 
 import { getCurrentUser } from 'aws-amplify/auth/server';
 import { generateClient } from 'aws-amplify/data';
@@ -13,14 +11,9 @@ import { type Schema } from '@/amplify/data/resource';
 import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
 import {
   type ApiResponse,
-  type AuthenticatedUser,
   sanitizeString,
   validateAndSanitizeInput,
 } from '@/lib/api-types';
-
-// DEPRECATED: Lambda URLs are being phased out in favor of AppSync
-// TODO: Remove this once migration to AppSync is complete
-const STRIPE_LAMBDA_URL = process.env.STRIPE_CONNECT_LAMBDA_URL || process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL;
 
 // Request validation schemas
 const ConnectAccountActionSchema = z.enum([
@@ -38,8 +31,7 @@ const ConnectAccountRequestSchema = z.object({
 
 type ConnectAccountRequest = z.infer<typeof ConnectAccountRequestSchema>;
 
-// DEPRECATED NOTICE: This entire route should be replaced with AppSync mutations
-console.warn('DEPRECATION WARNING: /api/stripe/connect-account route uses deprecated Lambda URLs. Migrate to AppSync.');
+// AppSync-native implementation - no more Lambda URLs
 
 // SECURITY FIX: CWE-287, CWE-863
 // Risk: Inadequate authentication and authorization controls
@@ -110,20 +102,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         const userId = user.userId;
         const userEmail = sanitizeString(user.signInDetails?.loginId || '');
 
-        // 5. Check Lambda URL configuration (DEPRECATED)
-        if (!STRIPE_LAMBDA_URL) {
-          console.error(`[${correlationId}] Stripe Lambda URL not configured - this is expected during AppSync migration`);
-          return NextResponse.json(
-            { 
-              error: 'Payment system temporarily unavailable during migration. Please use the new AppSync endpoint.',
-              migration: true,
-              recommendedEndpoint: '/api/stripe/connect/route-amplify'
-            },
-            { status: 503 }
-          );
-        }
-        
-        console.warn(`[${correlationId}] Using deprecated Lambda URL architecture for action: ${action}`);
+        // Use AppSync stripeConnect mutation instead of Lambda URLs
 
         // 6. Process actions with enhanced security and logging
         if (action === 'create' || action === 'CREATE_CONNECT_ACCOUNT') {
@@ -133,30 +112,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
           if (userProfile?.stripeAccountId) {
             console.info(`[${correlationId}] Existing Stripe account found: ${userProfile.stripeAccountId}`);
             
-            // Account exists, create a new onboarding link via Lambda (DEPRECATED)
+            // Use AppSync stripeConnect mutation
             try {
-              const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'x-api-key': process.env.AWS_API_KEY || '',
-                  'x-correlation-id': correlationId,
-                },
-                body: JSON.stringify({
-                  action: 'CREATE_ACCOUNT_LINK',
-                  providerId: sanitizeString(userProfile.id),
-                  accountId: sanitizeString(userProfile.stripeAccountId),
+              const { data, errors } = await client.queries.stripeConnect({
+                action: 'CREATE_ACCOUNT_LINK',
+                providerId: sanitizeString(userProfile.id),
+                connectedAccountId: sanitizeString(userProfile.stripeAccountId),
+                metadata: {
                   refreshUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
                   returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding-complete`,
                   correlationId,
-                }),
+                }
               });
 
-              if (!lambdaResponse.ok) {
-                throw new Error(`Lambda request failed with status ${lambdaResponse.status}`);
+              if (errors) {
+                throw new Error(errors[0].message);
               }
 
-              const result = await lambdaResponse.json();
+              const result = data as any;
               
               console.info(`[${correlationId}] Account link created for existing account`);
               
@@ -179,31 +152,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
           console.info(`[${correlationId}] Creating new Stripe Express account`);
           
-          // Create new Express account via Lambda (DEPRECATED)
+          // Use AppSync stripeConnect mutation
           try {
-            const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.AWS_API_KEY || '',
-                'x-correlation-id': correlationId,
-              },
-              body: JSON.stringify({
-                action: 'CREATE_CONNECT_ACCOUNT',
-                providerId: sanitizeString(userProfile?.id || userId),
+            const { data, errors } = await client.queries.stripeConnect({
+              action: 'CREATE_CONNECT_ACCOUNT',
+              providerId: sanitizeString(userProfile?.id || userId),
+              metadata: {
                 email: userEmail,
                 refreshUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
                 returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding-complete`,
                 correlationId,
-              }),
+              }
             });
 
-            if (!lambdaResponse.ok) {
-              const errorText = await lambdaResponse.text();
-              throw new Error(`Failed to create Stripe account: ${errorText}`);
+            if (errors) {
+              throw new Error(errors[0].message);
             }
 
-            const result = await lambdaResponse.json();
+            const result = data as any;
             
             console.info(`[${correlationId}] New Stripe account created: ${result.accountId}`);
 
@@ -265,28 +231,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             });
           }
 
-          // Call Lambda to check Stripe account status (DEPRECATED)
+          // Use AppSync stripeConnect query
           let accountStatus: any;
           try {
-            const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.AWS_API_KEY || '',
-                'x-correlation-id': correlationId,
-              },
-              body: JSON.stringify({
-                action: 'CHECK_ACCOUNT_STATUS',
-                providerId: sanitizeString(userProfile.id),
-                correlationId,
-              }),
+            const { data, errors } = await client.queries.stripeConnect({
+              action: 'CHECK_ACCOUNT_STATUS',
+              providerId: sanitizeString(userProfile.id),
             });
 
-            if (!lambdaResponse.ok) {
-              throw new Error(`Failed to check account status: ${lambdaResponse.status}`);
+            if (errors) {
+              throw new Error(errors[0].message);
             }
 
-            accountStatus = await lambdaResponse.json();
+            accountStatus = data as any;
             console.info(`[${correlationId}] Account status retrieved`);
           } catch (statusError) {
             console.error(`[${correlationId}] Failed to check account status:`, statusError);
@@ -324,25 +281,16 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
           }
 
           try {
-            const lambdaResponse = await fetch(STRIPE_LAMBDA_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-api-key': process.env.AWS_API_KEY || '',
-                'x-correlation-id': correlationId,
-              },
-              body: JSON.stringify({
-                action: 'CREATE_LOGIN_LINK',
-                providerId: sanitizeString(userProfile.id),
-                correlationId,
-              }),
+            const { data, errors } = await client.queries.stripeConnect({
+              action: 'CREATE_LOGIN_LINK',
+              providerId: sanitizeString(userProfile.id),
             });
 
-            if (!lambdaResponse.ok) {
-              throw new Error(`Failed to create login link: ${lambdaResponse.status}`);
+            if (errors) {
+              throw new Error(errors[0].message);
             }
 
-            const result = await lambdaResponse.json();
+            const result = data as any;
             
             console.info(`[${correlationId}] Login link created successfully`);
             

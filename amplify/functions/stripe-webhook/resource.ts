@@ -16,6 +16,7 @@ import { stripeSecrets } from '../../security/stripe-secrets.js';
 export const stripeWebhook = defineFunction({
   name: 'stripe-webhook',
   entry: './handler.ts',
+<<<<<<< Updated upstream
   
   // Performance Configuration
   timeoutSeconds: 60,      // Sufficient for webhook processing
@@ -37,4 +38,8 @@ export const stripeWebhook = defineFunction({
     // Environment Identification
     NODE_ENV: 'production',
   },
+=======
+  runtime: 20,
+  timeoutSeconds: 30,
+>>>>>>> Stashed changes
 });

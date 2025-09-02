@@ -10,6 +10,10 @@ import {
   Wand2
 } from 'lucide-react';
 import { useState } from 'react';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
+
+const client = generateClient<Schema>();
 
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -49,29 +53,35 @@ export function BioGenerator({ onBioGenerated, currentBio, providerId }: BioGene
     setError('');
 
     try {
-      const response = await fetch('/api/ai/generate-bio', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          businessName,
-          specializations,
-          yearsExperience: yearsExperience ? parseInt(yearsExperience) : undefined,
-          keywords,
-          providerId,
-        }),
+      const { data, errors } = await client.mutations.generateBio({
+        businessName,
+        specializations,
+        yearsExperience: yearsExperience && !isNaN(Number(yearsExperience)) ? Number(yearsExperience) : undefined,
+        keywords,
+        providerId,
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate bio');
+      if (errors) {
+        throw new Error(errors[0].message);
       }
 
-      setGeneratedBio(data.bio);
+      const result = data as any;
+      setGeneratedBio(result.bio);
+      
+      // Save to DynamoDB for caching
+      await client.models.GeneratedBio.create({
+        providerId: providerId || 'anonymous',
+        businessName,
+        bio: result.bio,
+        specializations,
+        keywords,
+        yearsExperience: result.yearsExperience,
+        generatedAt: result.generatedAt,
+        status: 'completed',
+      });
+
       if (onBioGenerated) {
-        onBioGenerated(data.bio);
+        onBioGenerated(result.bio);
       }
     } catch (err) {
       console.error('Error generating bio:', err);
@@ -88,6 +98,7 @@ export function BioGenerator({ onBioGenerated, currentBio, providerId }: BioGene
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error('Failed to copy:', err);
+      setError('Failed to copy to clipboard');
     }
   };
 
@@ -156,7 +167,7 @@ export function BioGenerator({ onBioGenerated, currentBio, providerId }: BioGene
               placeholder="Add a specialization"
               value={newSpecialization}
               onChange={(e) => setNewSpecialization(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSpecialization())}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addSpecialization())}
             />
             <Button 
               type="button"
@@ -190,7 +201,7 @@ export function BioGenerator({ onBioGenerated, currentBio, providerId }: BioGene
               placeholder="Add keywords for SEO"
               value={newKeyword}
               onChange={(e) => setNewKeyword(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
+              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
             />
             <Button 
               type="button"
