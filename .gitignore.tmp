@@ -53,5 +53,3 @@ playwright/.cache/
 tests/config/.env.test
 tests/config/.env.test.local
 **/test.env
-scripts/setup-secrets.sh
-AMPLIFY_ENV_VARIABLES.txt
