@@ -67,8 +67,8 @@ export default function MessagesPage() {
             ).length;
 
             return {
-              id: lastMessage.conversationId,
-              conversationId: lastMessage.conversationId,
+              id: nullableToString(lastMessage.conversationId),
+              conversationId: nullableToString(lastMessage.conversationId),
               participants: [currentUserEmail, otherParticipant],
               lastMessage,
               unreadCount,
@@ -110,8 +110,8 @@ export default function MessagesPage() {
               ).length;
 
               return {
-                id: lastMessage.conversationId,
-                conversationId: lastMessage.conversationId,
+                id: nullableToString(lastMessage.conversationId),
+                conversationId: nullableToString(lastMessage.conversationId),
                 participants: [currentUserEmail, otherParticipant],
                 lastMessage,
                 unreadCount,

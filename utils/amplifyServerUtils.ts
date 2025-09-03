@@ -3,6 +3,7 @@ import { fetchAuthSession, fetchUserAttributes, getCurrentUser } from 'aws-ampli
 import { generateServerClientUsingCookies } from '@aws-amplify/adapter-nextjs/data';
 import outputs from '@/amplify_outputs.json'; // Use aliased path
 import { NextRequest } from 'next/server';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // This is the core of our server-side Amplify configuration
 export const { runWithAmplifyServerContext } = createServerRunner({
@@ -28,8 +29,8 @@ export async function getAuthenticatedUser(req: NextRequest) {
         const attributes = await fetchUserAttributes(contextSpec);
 
         return {
-          userId: user.userId,
-          username: user.username,
+          userId: nullableToString(user.userId),
+          username: nullableToString(user.username),
           attributes,
           // Safely access Cognito groups from the ID token payload
           groups: session.tokens.idToken.payload['cognito:groups'] || [],

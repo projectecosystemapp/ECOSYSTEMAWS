@@ -25,7 +25,7 @@ export class TestUserHelper {
 
   constructor() {
     this.cognito = new CognitoIdentityProviderClient({ 
-      region: testConfig.staging.awsRegion,
+      region: nullableToString(testConfig.staging.awsRegion),
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -45,7 +45,7 @@ export class TestUserHelper {
     try {
       // Create user in Cognito
       const createResponse = await this.cognito.send(new AdminCreateUserCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: username,
         MessageAction: 'SUPPRESS', // Don't send welcome email
         TemporaryPassword: password,
@@ -58,7 +58,7 @@ export class TestUserHelper {
 
       // Set permanent password
       await this.cognito.send(new AdminSetUserPasswordCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: username,
         Password: password,
         Permanent: true,
@@ -98,7 +98,7 @@ export class TestUserHelper {
   async deleteTestUser(username: string): Promise<void> {
     try {
       await this.cognito.send(new AdminDeleteUserCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: username,
       }));
       
@@ -118,7 +118,7 @@ export class TestUserHelper {
   async getUserDetails(username: string): Promise<any> {
     try {
       const response = await this.cognito.send(new AdminGetUserCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: username,
       }));
       
@@ -142,7 +142,7 @@ export class TestUserHelper {
   async confirmUserSignUp(username: string): Promise<void> {
     try {
       await this.cognito.send(new AdminConfirmSignUpCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: username,
       }));
     } catch (error) {
@@ -158,13 +158,13 @@ export class TestUserHelper {
     try {
       // Confirm the sign-up
       await this.cognito.send(new AdminConfirmSignUpCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: email,
       }));
       
       // Get the user's sub
       const userResponse = await this.cognito.send(new AdminGetUserCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Username: email,
       }));
       
@@ -196,7 +196,7 @@ export class TestUserHelper {
     const deletePromises = this.createdUsers.map(async (username) => {
       try {
         await this.cognito.send(new AdminDeleteUserCommand({
-          UserPoolId: this.userPoolId,
+          UserPoolId: nullableToString(this.userPoolId),
           Username: username,
         }));
         console.log(`Deleted test user: ${username}`);
@@ -217,7 +217,7 @@ export class TestUserHelper {
   async cleanupOldTestUsers(olderThanHours: number = 24): Promise<void> {
     try {
       const response = await this.cognito.send(new ListUsersCommand({
-        UserPoolId: this.userPoolId,
+        UserPoolId: nullableToString(this.userPoolId),
         Filter: `email ^= "${testConfig.testData.userPrefix}"`,
       }));
 

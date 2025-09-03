@@ -46,7 +46,7 @@ export default function QuickMessage({
         senderEmail,
         recipientEmail,
         content: message.trim(),
-        bookingId: context?.bookingId,
+        bookingId: nullableToString(context?.bookingId),
         serviceId: context?.serviceId
       });
 

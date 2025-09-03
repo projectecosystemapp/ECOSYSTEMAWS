@@ -1,4 +1,5 @@
 import { Construct } from 'constructs';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 import {
   Domain as OpenSearchDomain,
   EngineVersion,
@@ -87,7 +88,7 @@ export class EcosystemOpenSearchDomain extends Construct {
     const encryptionKey = new Key(this, 'OpenSearchEncryptionKey', {
       description: 'KMS key for OpenSearch domain encryption',
       enableKeyRotation: true,
-      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
+      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : nullableToString(RemovalPolicy.DESTROY),
     });
     
     // Service role for OpenSearch
@@ -128,20 +129,20 @@ export class EcosystemOpenSearchDomain extends Construct {
     // CloudWatch log groups for OpenSearch logs
     const indexSlowLogGroup = new LogGroup(this, 'IndexSlowLogGroup', {
       logGroupName: `/aws/opensearch/domains/ecosystem-marketplace-${environment}/index-slow`,
-      retention: RetentionDays.TWO_WEEKS,
-      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
+      retention: nullableToString(RetentionDays.TWO_WEEKS),
+      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : nullableToString(RemovalPolicy.DESTROY),
     });
     
     const searchSlowLogGroup = new LogGroup(this, 'SearchSlowLogGroup', {
       logGroupName: `/aws/opensearch/domains/ecosystem-marketplace-${environment}/search-slow`,
-      retention: RetentionDays.TWO_WEEKS,
-      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
+      retention: nullableToString(RetentionDays.TWO_WEEKS),
+      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : nullableToString(RemovalPolicy.DESTROY),
     });
     
     const applicationLogGroup = new LogGroup(this, 'ApplicationLogGroup', {
       logGroupName: `/aws/opensearch/domains/ecosystem-marketplace-${environment}/application`,
-      retention: RetentionDays.ONE_WEEK,
-      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
+      retention: nullableToString(RetentionDays.ONE_WEEK),
+      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : nullableToString(RemovalPolicy.DESTROY),
     });
     
     // Security group for VPC deployment
@@ -237,7 +238,7 @@ export class EcosystemOpenSearchDomain extends Construct {
       // VPC configuration (optional)
       vpc: vpc ? {
         subnets: vpc.selectSubnets({
-          subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+          subnetType: nullableToString(SubnetType.PRIVATE_WITH_EGRESS),
         }).subnets,
         securityGroups: securityGroup ? [securityGroup] : undefined,
       } : undefined,
@@ -251,14 +252,13 @@ export class EcosystemOpenSearchDomain extends Construct {
       } as EncryptionAtRestOptions,
       
       // TLS security policy
-      tlsSecurityPolicy: TLSSecurityPolicy.TLS_1_2,
-      
+      tlsSecurityPolicy: nullableToString(TLSSecurityPolicy.TLS_1_2),
       // Domain endpoint configuration
       domainEndpointOptions: {
         enforceHttps: true,
-        tlsSecurityPolicy: TLSSecurityPolicy.TLS_1_2,
+        tlsSecurityPolicy: nullableToString(TLSSecurityPolicy.TLS_1_2),
         customDomainEnabled: !!props.customDomainName,
-        customDomain: props.customDomainName,
+        customDomain: nullableToString(props.customDomainName),
       } as DomainEndpointOptions,
       
       // Fine-grained access control (disabled for cost optimization in dev/staging)
@@ -269,9 +269,9 @@ export class EcosystemOpenSearchDomain extends Construct {
       
       // Cognito authentication (optional)
       cognitoKibanaAuth: props.cognitoUserPoolId ? {
-        userPoolId: props.cognitoUserPoolId,
-        identityPoolId: props.cognitoIdentityPoolId,
-        role: this.serviceRole,
+        userPoolId: nullableToString(props.cognitoUserPoolId),
+        identityPoolId: nullableToString(props.cognitoIdentityPoolId),
+        role: nullableToString(this.serviceRole),
       } as CognitoOptions : undefined,
       
       // Logging configuration
@@ -311,8 +311,7 @@ export class EcosystemOpenSearchDomain extends Construct {
       ],
       
       // Removal policy
-      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : RemovalPolicy.DESTROY,
-      
+      removalPolicy: environment === 'production' ? RemovalPolicy.RETAIN : nullableToString(RemovalPolicy.DESTROY),
       // Enable UltraWarm for cost optimization in production (optional)
       useUnsignedBasicAuth: false,
       
@@ -364,8 +363,8 @@ export class EcosystemOpenSearchDomain extends Construct {
    */
   public getClientConfig() {
     return {
-      endpoint: this.domainEndpoint,
-      region: this.domain.stack.region,
+      endpoint: nullableToString(this.domainEndpoint),
+      region: nullableToString(this.domain.stack.region),
       service: 'es',
     };
   }

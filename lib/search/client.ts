@@ -1,5 +1,6 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '@/amplify/data/resource';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // PERFORMANCE: Frontend search client with intelligent caching and request optimization
 // Baseline: Direct API calls, no caching, redundant requests
@@ -120,13 +121,13 @@ class SearchClient {
   private async executeServiceSearch(options: SearchOptions): Promise<SearchResult> {
     const response = await this.client.queries.searchEngine({
       action: 'searchServices',
-      query: options.query,
-      filters: options.filters,
-      location: options.location,
-      radius: options.radius,
-      sort: options.sort,
-      pagination: options.pagination,
-      aggregations: options.aggregations,
+      query: nullableToString(options.query),
+      filters: nullableToString(options.filters),
+      location: nullableToString(options.location),
+      radius: nullableToString(options.radius),
+      sort: nullableToString(options.sort),
+      pagination: nullableToString(options.pagination),
+      aggregations: nullableToString(options.aggregations),
       includeAnalytics: options.includeAnalytics
     });
 
@@ -175,10 +176,10 @@ class SearchClient {
     return this.requestDeduplicator.execute(cacheKey, async () => {
       const response = await this.client.queries.searchEngine({
         action: 'geoSearch',
-        location: options.location,
+        location: nullableToString(options.location),
         radius: options.radius || 10,
-        filters: options.filters,
-        sort: options.sort,
+        filters: nullableToString(options.filters),
+        sort: nullableToString(options.sort),
         pagination: options.pagination
       });
 
@@ -250,9 +251,9 @@ class SearchClient {
 
     const response = await this.client.queries.searchEngine({
       action: 'searchBookings',
-      filters: options.filters,
-      sort: options.sort,
-      pagination: options.pagination,
+      filters: nullableToString(options.filters),
+      sort: nullableToString(options.sort),
+      pagination: nullableToString(options.pagination),
       aggregations: options.aggregations
     });
 
@@ -339,14 +340,14 @@ class SearchClient {
   private generateCacheKey(type: string, options: SearchOptions): string {
     const keyData = {
       type,
-      query: options.query,
-      filters: options.filters,
+      query: nullableToString(options.query),
+      filters: nullableToString(options.filters),
       location: options.location ? {
         lat: Math.round(options.location.latitude * 100) / 100, // Round to 2 decimals for cache efficiency
         lon: Math.round(options.location.longitude * 100) / 100
       } : undefined,
-      radius: options.radius,
-      sort: options.sort,
+      radius: nullableToString(options.radius),
+      sort: nullableToString(options.sort),
       pagination: options.pagination
     };
 
@@ -469,7 +470,7 @@ class SearchCache {
     }
 
     return {
-      totalEntries: this.memoryCache.size,
+      totalEntries: nullableToString(this.memoryCache.size),
       validEntries,
       expiredEntries,
       hitRate: this.hitRate

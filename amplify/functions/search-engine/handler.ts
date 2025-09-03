@@ -4,6 +4,7 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { openSearchConfig } from '../../search/resource';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // PERFORMANCE: High-performance search engine with geo-location and analytics
 // Baseline: Linear DynamoDB scans, no geo search, limited filtering
@@ -82,7 +83,7 @@ class SearchEngine {
         service: 'aoss',
         getCredentials: () => defaultProvider()(),
       }),
-      node: process.env.OPENSEARCH_ENDPOINT,
+      node: nullableToString(process.env.OPENSEARCH_ENDPOINT),
       maxRetries: 2,
       requestTimeout: 15000,
       sniffOnStart: false,
@@ -98,7 +99,7 @@ class SearchEngine {
 
     try {
       logger.info('Processing search request', {
-        action: event.arguments.action,
+        action: nullableToString(event.arguments.action),
         requestId: context.awsRequestId
       });
 
@@ -153,8 +154,8 @@ class SearchEngine {
       await this.cache.set(cacheKey, result, 300); // 5 minutes TTL
 
       logger.info('Search completed', {
-        action: event.arguments.action,
-        totalHits: result.hits.total,
+        action: nullableToString(event.arguments.action),
+        totalHits: nullableToString(result.hits.total),
         searchTime: result.performanceMetrics.searchTime
       });
 
@@ -162,8 +163,8 @@ class SearchEngine {
 
     } catch (error) {
       logger.error('Search failed', {
-        error: error.message,
-        action: event.arguments.action,
+        error: nullableToString(error.message),
+        action: nullableToString(event.arguments.action),
         requestId: context.awsRequestId
       });
       throw error;
@@ -174,7 +175,7 @@ class SearchEngine {
     const query = this.buildServiceSearchQuery(params);
     
     const response = await this.client.search({
-      index: openSearchConfig.indices.services.name,
+      index: nullableToString(openSearchConfig.indices.services.name),
       body: query,
       timeout: '10s'
     });
@@ -210,7 +211,7 @@ class SearchEngine {
     if (params.query) {
       query.query.bool.must.push({
         multi_match: {
-          query: params.query,
+          query: nullableToString(params.query),
           fields: [
             'title^3',           // Boost title matches
             'title.suggest^2',   // Boost autocomplete matches
@@ -228,7 +229,7 @@ class SearchEngine {
       // Add phrase matching for better relevance
       query.query.bool.should.push({
         multi_match: {
-          query: params.query,
+          query: nullableToString(params.query),
           fields: ['title^2', 'description'],
           type: 'phrase',
           boost: 2
@@ -247,7 +248,7 @@ class SearchEngine {
         geo_distance: {
           distance: `${params.radius}km`,
           'location.coordinates': {
-            lat: params.location.latitude,
+            lat: nullableToString(params.location.latitude),
             lon: params.location.longitude
           }
         }
@@ -257,7 +258,7 @@ class SearchEngine {
       query.sort.unshift({
         _geo_distance: {
           'location.coordinates': {
-            lat: params.location.latitude,
+            lat: nullableToString(params.location.latitude),
             lon: params.location.longitude
           },
           order: 'asc',
@@ -388,7 +389,7 @@ class SearchEngine {
               geo_distance: {
                 distance: `${radius}km`,
                 'location.coordinates': {
-                  lat: params.location.latitude,
+                  lat: nullableToString(params.location.latitude),
                   lon: params.location.longitude
                 }
               }
@@ -400,7 +401,7 @@ class SearchEngine {
         {
           _geo_distance: {
             'location.coordinates': {
-              lat: params.location.latitude,
+              lat: nullableToString(params.location.latitude),
               lon: params.location.longitude
             },
             order: 'asc',
@@ -414,7 +415,7 @@ class SearchEngine {
           script: {
             source: "doc['location.coordinates'].arcDistance(params.lat, params.lon) / 1000",
             params: {
-              lat: params.location.latitude,
+              lat: nullableToString(params.location.latitude),
               lon: params.location.longitude
             }
           }
@@ -423,7 +424,7 @@ class SearchEngine {
     };
 
     const response = await this.client.search({
-      index: openSearchConfig.indices.services.name,
+      index: nullableToString(openSearchConfig.indices.services.name),
       body: query
     });
 
@@ -446,7 +447,7 @@ class SearchEngine {
           must: [
             {
               multi_match: {
-                query: params.query,
+                query: nullableToString(params.query),
                 fields: ['title.suggest', 'category'],
                 type: 'bool_prefix'
               }
@@ -463,7 +464,7 @@ class SearchEngine {
     };
 
     const response = await this.client.search({
-      index: openSearchConfig.indices.services.name,
+      index: nullableToString(openSearchConfig.indices.services.name),
       body: query
     });
 
@@ -474,7 +475,7 @@ class SearchEngine {
     const query = this.buildBookingSearchQuery(params);
     
     const response = await this.client.search({
-      index: openSearchConfig.indices.bookings.name,
+      index: nullableToString(openSearchConfig.indices.bookings.name),
       body: query
     });
 
@@ -581,7 +582,7 @@ class SearchEngine {
           must: params.query ? [
             {
               multi_match: {
-                query: params.query,
+                query: nullableToString(params.query),
                 fields: ['firstName', 'lastName', 'email'],
                 fuzziness: 'AUTO'
               }
@@ -593,7 +594,7 @@ class SearchEngine {
     };
 
     const response = await this.client.search({
-      index: openSearchConfig.indices.users.name,
+      index: nullableToString(openSearchConfig.indices.users.name),
       body: query
     });
 
@@ -660,7 +661,7 @@ class SearchEngine {
       analyticsQuery.query.bool.filter.push({
         range: {
           createdAt: {
-            gte: params.filters.dateRange.start,
+            gte: nullableToString(params.filters.dateRange.start),
             lte: params.filters.dateRange.end
           }
         }
@@ -669,11 +670,11 @@ class SearchEngine {
 
     const [servicesResponse, bookingsResponse] = await Promise.all([
       this.client.search({
-        index: openSearchConfig.indices.services.name,
+        index: nullableToString(openSearchConfig.indices.services.name),
         body: analyticsQuery
       }),
       this.client.search({
-        index: openSearchConfig.indices.bookings.name,
+        index: nullableToString(openSearchConfig.indices.bookings.name),
         body: analyticsQuery
       })
     ]);
@@ -696,7 +697,7 @@ class SearchEngine {
   private extractTermsAggregation(agg: any): Array<{ key: string; count: number }> {
     if (!agg?.buckets) return [];
     return agg.buckets.map((bucket: any) => ({
-      key: bucket.key,
+      key: nullableToString(bucket.key),
       count: bucket.doc_count
     }));
   }
@@ -733,17 +734,17 @@ class SearchEngine {
   private formatSearchResponse(response: any): SearchResult {
     return {
       hits: {
-        total: typeof response.hits.total === 'object' ? response.hits.total.value : response.hits.total,
+        total: typeof response.hits.total === 'object' ? response.hits.total.value : nullableToString(response.hits.total),
         maxScore: response.hits.max_score || 0,
         items: response.hits.hits.map((hit: any) => ({
-          id: hit._id,
-          score: hit._score,
-          source: hit._source,
-          highlight: hit.highlight,
+          id: nullableToString(hit._id),
+          score: nullableToString(hit._score),
+          source: nullableToString(hit._source),
+          highlight: nullableToString(hit.highlight),
           fields: hit.fields // For script fields like distance
         }))
       },
-      aggregations: response.aggregations,
+      aggregations: nullableToString(response.aggregations),
       performanceMetrics: { searchTime: 0, cacheHit: false }
     };
   }
@@ -751,12 +752,12 @@ class SearchEngine {
   private generateCacheKey(params: SearchRequest): string {
     // Generate a cache key based on search parameters
     const key = JSON.stringify({
-      action: params.action,
-      query: params.query,
-      filters: params.filters,
-      location: params.location,
-      radius: params.radius,
-      sort: params.sort,
+      action: nullableToString(params.action),
+      query: nullableToString(params.query),
+      filters: nullableToString(params.filters),
+      location: nullableToString(params.location),
+      radius: nullableToString(params.radius),
+      sort: nullableToString(params.sort),
       pagination: params.pagination
     });
     

@@ -72,11 +72,11 @@ export function BioGenerator({ onBioGenerated, currentBio, providerId }: BioGene
       await client.models.GeneratedBio.create({
         providerId: providerId || 'anonymous',
         businessName,
-        bio: result.bio,
+        bio: nullableToString(result.bio),
         specializations,
         keywords,
-        yearsExperience: result.yearsExperience,
-        generatedAt: result.generatedAt,
+        yearsExperience: nullableToString(result.yearsExperience),
+        generatedAt: nullableToString(result.generatedAt),
         status: 'completed',
       });
 

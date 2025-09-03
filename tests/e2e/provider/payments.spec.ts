@@ -5,6 +5,7 @@ import { LoginPage } from '../../pages/login.page';
 import { ProviderDashboardPage } from '../../pages/provider/dashboard.page';
 import { PayoutsOnboardingPage } from '../../pages/provider/payouts-onboarding.page';
 import { EarningsDashboardPage } from '../../pages/provider/earnings-dashboard.page';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 test.describe('E2E-004: Provider Payment System', () => {
   let testUserHelper: TestUserHelper;
@@ -315,7 +316,7 @@ test.describe('E2E-004: Provider Payment System', () => {
     // Customer completes a booking
     await testDataSeeder.createCompletedBooking({
       providerId,
-      customerId: customer.id,
+      customerId: nullableToString(customer.id),
       serviceTitle: 'New Cleaning Service',
       amount: 10000
     });

@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { DynamoDBClient, PutItemCommand, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
 import { createLogger, Logger } from '../utils/logger';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -37,10 +38,10 @@ export const handler: APIGatewayProxyHandler = async (event, context: Context) =
   
   logger.logInput(event);
   logger.info('Booking processor request received', {
-    httpMethod: event.httpMethod,
-    path: event.path,
-    sourceIP: event.requestContext.identity.sourceIp,
-    requestId: event.requestContext.requestId,
+    httpMethod: nullableToString(event.httpMethod),
+    path: nullableToString(event.path),
+    sourceIP: nullableToString(event.requestContext.identity.sourceIp),
+    requestId: nullableToString(event.requestContext.requestId),
   });
 
   const headers = {
@@ -198,14 +199,14 @@ async function createBookingWithPayment(params: any, headers: any, logger: Logge
       currency: 'usd',
       application_fee_amount: Math.round(pricing.platformFee * 100),
       transfer_data: {
-        destination: provider.stripeAccountId,
+        destination: nullableToString(provider.stripeAccountId),
       },
       metadata: {
         bookingId,
         serviceId,
         customerId,
-        providerId: service.providerId,
-        serviceTitle: service.title,
+        providerId: nullableToString(service.providerId),
+        serviceTitle: nullableToString(service.title),
         startDateTime,
         endDateTime,
         groupSize: groupSize.toString(),
@@ -222,23 +223,23 @@ async function createBookingWithPayment(params: any, headers: any, logger: Logge
     const booking = await createBookingRecord({
       bookingId,
       serviceId,
-      providerId: service.providerId,
+      providerId: nullableToString(service.providerId),
       customerId,
       customerEmail,
       customerPhone,
-      providerEmail: provider.email,
+      providerEmail: nullableToString(provider.email),
       startDateTime,
       endDateTime,
       groupSize,
       specialRequests,
-      amount: pricing.totalAmount,
-      platformFee: pricing.platformFee,
-      providerEarnings: pricing.providerEarnings,
-      paymentIntentId: paymentIntent.id,
+      amount: nullableToString(pricing.totalAmount),
+      platformFee: nullableToString(pricing.platformFee),
+      providerEarnings: nullableToString(pricing.providerEarnings),
+      paymentIntentId: nullableToString(paymentIntent.id),
       service: {
-        title: service.title,
-        category: service.category,
-        location: service.address,
+        title: nullableToString(service.title),
+        category: nullableToString(service.category),
+        location: nullableToString(service.address),
       },
     });
 
@@ -250,13 +251,13 @@ async function createBookingWithPayment(params: any, headers: any, logger: Logge
       headers,
       body: JSON.stringify({
         bookingId,
-        clientSecret: paymentIntent.client_secret,
+        clientSecret: nullableToString(paymentIntent.client_secret),
         booking: {
           id: bookingId,
           status: 'PENDING',
           service: {
-            title: service.title,
-            category: service.category,
+            title: nullableToString(service.title),
+            category: nullableToString(service.category),
           },
           dateTime: {
             start: startDateTime,
@@ -303,7 +304,7 @@ async function confirmBooking(bookingId: string, headers: any) {
     // Update booking status
     logger.info('Updating booking status to CONFIRMED', {
       bookingId,
-      previousStatus: booking.status,
+      previousStatus: nullableToString(booking.status),
       newStatus: 'CONFIRMED'
     });
 
@@ -325,8 +326,8 @@ async function confirmBooking(bookingId: string, headers: any) {
 
     logger.info('Booking confirmed successfully', {
       bookingId,
-      customerId: booking.customerId,
-      providerId: booking.providerId,
+      customerId: nullableToString(booking.customerId),
+      providerId: nullableToString(booking.providerId),
       amount: booking.amount
     });
 
@@ -374,7 +375,7 @@ async function cancelBooking(bookingId: string, reason: string, headers: any) {
       } catch (error) {
         logger.info('Payment intent already processed or cancelled', { 
           bookingId,
-          paymentIntentId: booking.paymentIntentId,
+          paymentIntentId: nullableToString(booking.paymentIntentId),
           error: (error as Error).message
         });
       }
@@ -383,7 +384,7 @@ async function cancelBooking(bookingId: string, reason: string, headers: any) {
     // Update booking status
     logger.info('Updating booking status to CANCELLED', {
       bookingId,
-      previousStatus: booking.status,
+      previousStatus: nullableToString(booking.status),
       newStatus: 'CANCELLED',
       reason
     });
@@ -601,7 +602,7 @@ async function checkServiceAvailability(params: any, headers: any, logger: Logge
         serviceId,
         startDateTime,
         endDateTime,
-        available: availability.available,
+        available: nullableToString(availability.available),
         reason: availability.reason || 'No specific reason provided',
       }),
     };

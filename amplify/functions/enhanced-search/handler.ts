@@ -1,6 +1,7 @@
 import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 type SearchAllHandler = Schema['searchAll']['functionHandler'];
 type GetSearchSuggestionsHandler = Schema['getSearchSuggestions']['functionHandler'];
@@ -29,14 +30,14 @@ export const handler: Handler = async (event: any) => {
       
       // Search across Services table using DynamoDB scan
       const serviceResults = await dynamodb.send(new ScanCommand({
-        TableName: process.env.SERVICE_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICE_TABLE_NAME),
         FilterExpression: filters.category ? 'category = :category' : undefined,
         ExpressionAttributeValues: filters.category ? { ':category': filters.category } : undefined,
       }));
 
       // Search across ServiceRequest table
       const requestResults = await dynamodb.send(new ScanCommand({
-        TableName: process.env.SERVICEREQUEST_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICEREQUEST_TABLE_NAME),
         FilterExpression: filters.category ? 'category = :category' : undefined,
         ExpressionAttributeValues: filters.category ? { ':category': filters.category } : undefined,
       }));
@@ -56,8 +57,8 @@ export const handler: Handler = async (event: any) => {
           score += searchText(item.category || '', query) * 2;
           
           return {
-            id: item.id,
-            type: item.type,
+            id: nullableToString(item.id),
+            type: nullableToString(item.type),
             score,
             source: item,
           };
@@ -68,7 +69,7 @@ export const handler: Handler = async (event: any) => {
       
       return {
         results: scoredResults,
-        total: scoredResults.length,
+        total: nullableToString(scoredResults.length),
         suggestions: [],
         aggregations: {},
         took: 50,
@@ -80,7 +81,7 @@ export const handler: Handler = async (event: any) => {
       
       // Simple prefix matching for suggestions
       const serviceResults = await dynamodb.send(new ScanCommand({
-        TableName: process.env.SERVICE_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICE_TABLE_NAME),
         ProjectionExpression: 'title',
       }));
 

@@ -58,7 +58,7 @@ export default function FilterSidebar({
 
   // Price range state for sliders
   const [priceRange, setPriceRange] = useState({
-    min: filters.minPrice,
+    min: nullableToString(filters.minPrice),
     max: filters.maxPrice
   });
 
@@ -101,7 +101,7 @@ export default function FilterSidebar({
     
     onChange({
       ...filters,
-      minPrice: newPriceRange.min,
+      minPrice: nullableToString(newPriceRange.min),
       maxPrice: newPriceRange.max
     });
   };

@@ -3,6 +3,7 @@ import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // PERFORMANCE: Circuit breaker pattern for resilient OpenSearch operations
 class CircuitBreaker {
@@ -189,7 +190,7 @@ class DocumentTransformer {
     if (eventName === 'REMOVE') {
       return {
         index: `services-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
-        id: record.Keys.id.S,
+        id: nullableToString(record.Keys.id.S),
         action: 'delete'
       };
     }
@@ -197,20 +198,20 @@ class DocumentTransformer {
     if (!serviceData) return null;
 
     const transformedDoc = {
-      id: serviceData.id?.S,
-      title: serviceData.title?.S,
-      description: serviceData.description?.S,
-      category: serviceData.category?.S,
-      providerId: serviceData.providerId?.S,
+      id: nullableToString(serviceData.id?.S),
+      title: nullableToString(serviceData.title?.S),
+      description: nullableToString(serviceData.description?.S),
+      category: nullableToString(serviceData.category?.S),
+      providerId: nullableToString(serviceData.providerId?.S),
       price: serviceData.price?.N ? parseFloat(serviceData.price.N) : 0,
-      priceType: serviceData.priceType?.S,
+      priceType: nullableToString(serviceData.priceType?.S),
       currency: serviceData.currency?.S || 'USD',
       maxGroupSize: serviceData.maxGroupSize?.N ? parseInt(serviceData.maxGroupSize.N) : 1,
       duration: serviceData.duration?.N ? parseInt(serviceData.duration.N) : 60,
-      address: serviceData.address?.S,
+      address: nullableToString(serviceData.address?.S),
       active: serviceData.active?.BOOL === true,
       tags: serviceData.tags?.SS || [],
-      createdAt: serviceData.createdAt?.S,
+      createdAt: nullableToString(serviceData.createdAt?.S),
       updatedAt: serviceData.updatedAt?.S || new Date().toISOString(),
       // Add search-optimized fields
       searchText: [
@@ -238,7 +239,7 @@ class DocumentTransformer {
     if (eventName === 'REMOVE') {
       return {
         index: `bookings-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
-        id: record.Keys.id.S,
+        id: nullableToString(record.Keys.id.S),
         action: 'delete'
       };
     }
@@ -246,19 +247,19 @@ class DocumentTransformer {
     if (!bookingData) return null;
 
     const transformedDoc = {
-      id: bookingData.id?.S,
-      serviceId: bookingData.serviceId?.S,
-      customerId: bookingData.customerId?.S,
-      providerId: bookingData.providerId?.S,
-      customerEmail: bookingData.customerEmail?.S,
-      providerEmail: bookingData.providerEmail?.S,
-      startDateTime: bookingData.startDateTime?.S,
-      endDateTime: bookingData.endDateTime?.S,
-      status: bookingData.status?.S,
-      paymentStatus: bookingData.paymentStatus?.S,
+      id: nullableToString(bookingData.id?.S),
+      serviceId: nullableToString(bookingData.serviceId?.S),
+      customerId: nullableToString(bookingData.customerId?.S),
+      providerId: nullableToString(bookingData.providerId?.S),
+      customerEmail: nullableToString(bookingData.customerEmail?.S),
+      providerEmail: nullableToString(bookingData.providerEmail?.S),
+      startDateTime: nullableToString(bookingData.startDateTime?.S),
+      endDateTime: nullableToString(bookingData.endDateTime?.S),
+      status: nullableToString(bookingData.status?.S),
+      paymentStatus: nullableToString(bookingData.paymentStatus?.S),
       amount: bookingData.amount?.N ? parseFloat(bookingData.amount.N) : 0,
       currency: bookingData.currency?.S || 'USD',
-      createdAt: bookingData.createdAt?.S,
+      createdAt: nullableToString(bookingData.createdAt?.S),
       updatedAt: bookingData.updatedAt?.S || new Date().toISOString(),
       // Add analytics fields
       bookingMonth: bookingData.startDateTime?.S ? 
@@ -282,7 +283,7 @@ class DocumentTransformer {
     if (eventName === 'REMOVE') {
       return {
         index: `users-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
-        id: record.Keys.id.S,
+        id: nullableToString(record.Keys.id.S),
         action: 'delete'
       };
     }
@@ -290,12 +291,12 @@ class DocumentTransformer {
     if (!userData) return null;
 
     const transformedDoc = {
-      id: userData.id?.S,
-      email: userData.email?.S,
-      firstName: userData.firstName?.S,
-      lastName: userData.lastName?.S,
-      userType: userData.userType?.S,
-      createdAt: userData.createdAt?.S,
+      id: nullableToString(userData.id?.S),
+      email: nullableToString(userData.email?.S),
+      firstName: nullableToString(userData.firstName?.S),
+      lastName: nullableToString(userData.lastName?.S),
+      userType: nullableToString(userData.userType?.S),
+      createdAt: nullableToString(userData.createdAt?.S),
       updatedAt: userData.updatedAt?.S || new Date().toISOString(),
       // Add search fields
       fullName: [userData.firstName?.S, userData.lastName?.S].filter(Boolean).join(' '),
@@ -327,8 +328,8 @@ export const handler = async (event: DynamoDBStreamEvent, context: Context) => {
   const startTime = Date.now();
   
   console.log('Processing DynamoDB Stream event:', {
-    recordCount: event.Records.length,
-    requestId: context.awsRequestId,
+    recordCount: nullableToString(event.Records.length),
+    requestId: nullableToString(context.awsRequestId),
   });
 
   if (!process.env.OPENSEARCH_DOMAIN_ENDPOINT) {
@@ -354,8 +355,8 @@ export const handler = async (event: DynamoDBStreamEvent, context: Context) => {
       }
     } catch (error) {
       console.error('Failed to transform record:', {
-        recordId: record.eventID,
-        error: error.message,
+        recordId: nullableToString(record.eventID),
+        error: nullableToString(error.message),
         record: JSON.stringify(record, null, 2)
       });
       
@@ -376,14 +377,14 @@ export const handler = async (event: DynamoDBStreamEvent, context: Context) => {
   const totalTime = Date.now() - startTime;
   
   console.log('DynamoDB Stream processing completed:', {
-    recordsReceived: event.Records.length,
-    operationsCreated: operations.length,
+    recordsReceived: nullableToString(event.Records.length),
+    operationsCreated: nullableToString(operations.length),
     processingTimeMs: totalTime,
   });
 
   return { 
     statusCode: 200, 
-    processedRecords: operations.length,
+    processedRecords: nullableToString(operations.length),
     processingTime: totalTime
   };
 };

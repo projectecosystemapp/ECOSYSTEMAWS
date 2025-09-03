@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { env } from '$amplify/env/webhook-authorizer';
 import { correlationTracker } from '@/lib/resilience/correlation-tracker';
 import { WebhookDeduplicationService } from '@/amplify/data/webhook-deduplication';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const webhookDedup = new WebhookDeduplicationService();
 
@@ -33,7 +34,7 @@ interface WebhookAuthorizerEvent {
 
 export const handler: AppSyncAuthorizerHandler<WebhookAuthorizerEvent> = async (event) => {
   console.log('[WebhookAuthorizer] Received authorization request', {
-    operationName: event.requestContext.operationName,
+    operationName: nullableToString(event.requestContext.operationName),
     requestId: event.requestContext.requestId
   });
 
@@ -190,7 +191,7 @@ function validateStripeWebhook(
         const event = JSON.parse(payload);
         return {
           isValid: true,
-          eventId: event.id,
+          eventId: nullableToString(event.id),
           eventType: event.type
         };
       } catch {

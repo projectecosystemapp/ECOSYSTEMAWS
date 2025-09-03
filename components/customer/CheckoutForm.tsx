@@ -183,7 +183,7 @@ function CheckoutFormContent({
             id: bookingId,
             status: 'CONFIRMED',
             paymentStatus: 'ESCROW_HELD',
-            paymentIntentId: paymentIntent.id,
+            paymentIntentId: nullableToString(paymentIntent.id),
           });
 
           // Call success callback with payment intent ID
@@ -301,7 +301,7 @@ function CheckoutFormContent({
 export function CheckoutForm(props: CheckoutFormProps) {
   const elementsOptions: StripeElementsOptions = {
     mode: 'payment',
-    amount: props.amountCents,
+    amount: nullableToString(props.amountCents),
     currency: 'cad',
     appearance: {
       theme: 'stripe',

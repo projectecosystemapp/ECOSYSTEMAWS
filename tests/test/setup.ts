@@ -1,72 +1,71 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
 
 // Mock AWS Amplify
-vi.mock('aws-amplify/data', () => ({
-  generateClient: vi.fn(() => ({
+jest.mock('aws-amplify/data', () => ({
+  generateClient: jest.fn(() => ({
     models: {
       Service: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       Booking: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       Review: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       UserProfile: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       Message: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       Transaction: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
       Notification: {
-        create: vi.fn(),
-        get: vi.fn(),
-        list: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
+        create: jest.fn(),
+        get: jest.fn(),
+        list: jest.fn(),
+        update: jest.fn(),
+        delete: jest.fn(),
       },
     },
   })),
 }));
 
 // Mock Next.js router
-vi.mock('next/navigation', () => ({
+jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: vi.fn(),
-    replace: vi.fn(),
-    back: vi.fn(),
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
   }),
   useSearchParams: () => ({
-    get: vi.fn(),
+    get: jest.fn(),
   }),
   usePathname: () => '/',
 }));

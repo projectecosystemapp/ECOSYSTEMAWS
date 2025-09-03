@@ -8,6 +8,7 @@
  */
 
 import { AppSyncResolverEvent, Context } from 'aws-lambda';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 import { 
   BookingStatus, 
@@ -579,7 +580,7 @@ export function withPerformanceTracking<TArgs, TResult>(
       }
       
       console.log('Lambda execution completed', {
-        functionName: context.functionName,
+        functionName: nullableToString(context.functionName),
         correlationId,
         duration,
         success: true,
@@ -590,7 +591,7 @@ export function withPerformanceTracking<TArgs, TResult>(
       const duration = Date.now() - startTime;
       
       console.error('Lambda execution failed', {
-        functionName: context.functionName,
+        functionName: nullableToString(context.functionName),
         correlationId,
         duration,
         error: error instanceof Error ? error.message : 'Unknown error',

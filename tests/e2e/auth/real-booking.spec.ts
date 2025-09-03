@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { getTestAuthHelper } from '../../helpers/auth.helper';
 import { TestDataSeeder } from '../../helpers/test-data.seeder';
 import type { TestUser } from '../../helpers/auth.helper';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 test.describe('Real Booking Flow with Authentication', () => {
   let authHelper: ReturnType<typeof getTestAuthHelper>;
@@ -155,8 +156,8 @@ test.describe('Real Booking Flow with Authentication', () => {
     
     // Create a booking as the customer
     const booking = await dataSeeder.createCompletedBooking({
-      providerId: provider.userId,
-      customerId: customer.userId,
+      providerId: nullableToString(provider.userId),
+      customerId: nullableToString(customer.userId),
       serviceTitle: 'API Test Service',
       amount: 5000 // $50
     });

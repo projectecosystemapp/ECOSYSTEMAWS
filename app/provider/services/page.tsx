@@ -49,7 +49,7 @@ export default function ProviderServices() {
   const handleToggleActive = async (service: Service) => {
     try {
       const updatedService = await serviceApi.update({
-        id: service.id,
+        id: nullableToString(service.id),
         active: !service.active
       });
 

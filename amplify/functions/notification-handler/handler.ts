@@ -3,6 +3,7 @@ import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../data/resource.js';
 import { createLogger } from '../utils/lambda-logger.js';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Configure Amplify for Lambda environment
 Amplify.configure(
@@ -188,7 +189,7 @@ async function sendMessageEmailNotification(data: SendEmailNotificationData) {
 
   // For now, just create an in-app notification as well
   await createInAppNotification({
-    userId: recipient.id,
+    userId: nullableToString(recipient.id),
     type: 'MESSAGE_RECEIVED',
     title: `New message from ${senderName}`,
     message: messagePreview.length > 100 
@@ -423,12 +424,12 @@ export async function createBookingNotification(
   }
 
   await createInAppNotification({
-    userId: recipient.id,
+    userId: nullableToString(recipient.id),
     type: notificationType,
     title,
     message,
     bookingId,
-    serviceId: booking.data.serviceId,
+    serviceId: nullableToString(booking.data.serviceId),
     actionUrl: `/bookings/${bookingId}`,
     actionText: 'View Booking'
   });

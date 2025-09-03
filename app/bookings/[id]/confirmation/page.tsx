@@ -87,13 +87,13 @@ export default function BookingConfirmationPage() {
         
         // Fetch provider profile
         const providerResponse = await client.models.ProviderProfile.list({
-          filter: { ownerId: { eq: bookingData.providerId } }
+          filter: { owner: { eq: bookingData.providerId } }
         });
         
         const providerProfile = providerResponse.data?.[0];
         
         // Fetch customer details
-        const customerResponse = await client.models.User.get({ ownerId: bookingData.customerId });
+        const customerResponse = await client.models.User.get({ id: bookingData.customerId || '' });
 
         // Combine all data
         const completeBooking: BookingDetails = {

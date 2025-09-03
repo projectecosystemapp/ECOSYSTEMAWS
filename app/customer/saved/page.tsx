@@ -72,13 +72,13 @@ export default function SavedProvidersPage() {
         const mockSavedProviders: SavedProvider[] = services?.slice(0, 4).map((service, index) => ({
           id: `saved-${index + 1}`,
           providerId: `provider-${index + 1}`,
-          providerName: service.providerName,
-          providerEmail: service.providerEmail,
+          providerName: nullableToString(service.providerName),
+          providerEmail: nullableToString(service.providerEmail),
           businessName: `${service.providerName} Services`,
-          city: service.serviceCity,
-          state: service.serviceState,
-          averageRating: service.rating,
-          reviewCount: service.reviewCount,
+          city: nullableToString(service.serviceCity),
+          state: nullableToString(service.serviceState),
+          averageRating: nullableToString(service.rating),
+          reviewCount: nullableToString(service.reviewCount),
           services: [service], // In reality, this would be all services from this provider
           savedAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString()
         })) || [];

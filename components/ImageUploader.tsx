@@ -88,7 +88,7 @@ export default function ImageUploader({
         path,
         data: file,
         options: {
-          contentType: file.type,
+          contentType: nullableToString(file.type),
           onProgress: ({ transferredBytes, totalBytes }) => {
             if (totalBytes) {
               const progress = Math.round((transferredBytes / totalBytes) * 100);

@@ -5,6 +5,7 @@
 
 import { Context } from 'aws-lambda';
 import { randomUUID } from 'crypto';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
@@ -69,20 +70,20 @@ class Logger {
       timestamp: new Date().toISOString(),
       level,
       message,
-      correlationId: this.correlationId,
-      service: this.functionName,
-      environment: this.environment,
+      correlationId: nullableToString(this.correlationId),
+      service: nullableToString(this.functionName),
+      environment: nullableToString(this.environment),
       metadata: {
         ...metadata,
-        coldStart: this.isColdStart,
-        functionName: this.functionName,
+        coldStart: nullableToString(this.isColdStart),
+        functionName: nullableToString(this.functionName),
       }
     };
 
     if (error) {
       logEntry.error = {
-        name: error.name,
-        message: error.message,
+        name: nullableToString(error.name),
+        message: nullableToString(error.message),
         stack: error.stack
       };
     }

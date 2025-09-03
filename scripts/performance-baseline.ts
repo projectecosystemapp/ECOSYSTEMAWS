@@ -362,7 +362,7 @@ async function sendMetricsToCloudWatch(stats: PerformanceStats[]): Promise<void>
     // Cold start metrics
     metrics.push({
       MetricName: 'ColdStartDuration',
-      Value: stat.featureFlagOff.avgColdStart,
+      Value: nullableToString(stat.featureFlagOff.avgColdStart),
       Unit: 'Milliseconds',
       Timestamp: new Date(),
       Dimensions: [
@@ -373,7 +373,7 @@ async function sendMetricsToCloudWatch(stats: PerformanceStats[]): Promise<void>
     
     metrics.push({
       MetricName: 'ColdStartDuration',
-      Value: stat.featureFlagOn.avgColdStart,
+      Value: nullableToString(stat.featureFlagOn.avgColdStart),
       Unit: 'Milliseconds',
       Timestamp: new Date(),
       Dimensions: [
@@ -385,7 +385,7 @@ async function sendMetricsToCloudWatch(stats: PerformanceStats[]): Promise<void>
     // Warm start metrics
     metrics.push({
       MetricName: 'WarmStartDuration',
-      Value: stat.featureFlagOff.avgWarmStart,
+      Value: nullableToString(stat.featureFlagOff.avgWarmStart),
       Unit: 'Milliseconds',
       Timestamp: new Date(),
       Dimensions: [
@@ -396,7 +396,7 @@ async function sendMetricsToCloudWatch(stats: PerformanceStats[]): Promise<void>
     
     metrics.push({
       MetricName: 'WarmStartDuration',
-      Value: stat.featureFlagOn.avgWarmStart,
+      Value: nullableToString(stat.featureFlagOn.avgWarmStart),
       Unit: 'Milliseconds',
       Timestamp: new Date(),
       Dimensions: [

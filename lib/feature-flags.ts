@@ -47,7 +47,7 @@ export const getMigrationStatus = (): {
   const migrated = flags.filter(([_, enabled]) => enabled).length;
   
   return {
-    total: flags.length,
+    total: nullableToString(flags.length),
     migrated,
     percentage: Math.round((migrated / flags.length) * 100),
     details: useNewArchitecture,

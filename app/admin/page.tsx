@@ -64,7 +64,7 @@ export default function AdminDashboard(): JSX.Element {
         // Add recent bookings to activity feed
         recentBookings?.slice(0, 10).forEach((booking: RecentBooking) => {
           recentActivities.push({
-            id: booking.id,
+            id: nullableToString(booking.id),
             type: 'booking',
             title: `New booking for ${booking.totalAmount ? `$${booking.totalAmount}` : 'service'}`,
             subtitle: `${booking.customerEmail} → ${booking.providerEmail}`,

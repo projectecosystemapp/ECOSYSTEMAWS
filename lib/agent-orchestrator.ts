@@ -5,6 +5,7 @@
  */
 
 import { writeFileSync } from 'fs';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export type AgentType = 'architect' | 'builder' | 'guardian' | 'sentinel' | 'optimizer';
 export type TaskType =
@@ -169,7 +170,7 @@ export class AgentOrchestrator {
     const newTaskId = this.assignTask({
       agent: toAgent,
       type: 'review',
-      priority: oldTask.priority,
+      priority: nullableToString(oldTask.priority),
       description: `Review: ${oldTask.description}`,
       dependencies: [taskId],
     });
@@ -199,7 +200,7 @@ export class AgentOrchestrator {
     this.createCriticalAlert({
       severity: 'critical',
       issue: `Task ${taskId} escalated: ${reason}`,
-      impact: task.description,
+      impact: nullableToString(task.description),
       requiredAgents: [task.agent],
     });
   }

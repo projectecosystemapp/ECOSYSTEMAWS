@@ -1,6 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, UpdateItemCommand, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -31,10 +32,10 @@ const TRANSACTION_TABLE = process.env.TRANSACTION_TABLE_NAME || 'Transaction';
  */
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.log('Refund processor request received:', {
-    httpMethod: event.httpMethod,
-    path: event.path,
-    sourceIP: event.requestContext.identity.sourceIp,
-    requestId: event.requestContext.requestId,
+    httpMethod: nullableToString(event.httpMethod),
+    path: nullableToString(event.path),
+    sourceIP: nullableToString(event.requestContext.identity.sourceIp),
+    requestId: nullableToString(event.requestContext.requestId),
     timestamp: new Date().toISOString(),
   });
 
@@ -126,7 +127,7 @@ async function processRefund(bookingId: string, params: any, headers: any) {
 
     // Process the refund through Stripe
     const stripeRefund = await stripe.refunds.create({
-      payment_intent: booking.paymentIntentId,
+      payment_intent: nullableToString(booking.paymentIntentId),
       amount: Math.round(refundBreakdown.customerRefund * 100), // Convert to cents
       reason: mapRefundReason(reason) as Stripe.RefundCreateParams.Reason,
       metadata: {
@@ -143,9 +144,9 @@ async function processRefund(bookingId: string, params: any, headers: any) {
     // Create refund transaction record
     await createRefundTransaction({
       bookingId,
-      customerId: booking.customerId,
-      providerId: booking.providerId,
-      refundId: stripeRefund.id,
+      customerId: nullableToString(booking.customerId),
+      providerId: nullableToString(booking.providerId),
+      refundId: nullableToString(stripeRefund.id),
       refundBreakdown,
       reason,
     });
@@ -162,8 +163,8 @@ async function processRefund(bookingId: string, params: any, headers: any) {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        refundId: stripeRefund.id,
-        status: stripeRefund.status,
+        refundId: nullableToString(stripeRefund.id),
+        status: nullableToString(stripeRefund.status),
         refundBreakdown,
         message: 'Refund processed successfully',
       }),
@@ -260,8 +261,8 @@ async function getRefundStatus(bookingId: string, headers: any) {
       headers,
       body: JSON.stringify({
         bookingId,
-        status: booking.status,
-        paymentStatus: booking.paymentStatus,
+        status: nullableToString(booking.status),
+        paymentStatus: nullableToString(booking.paymentStatus),
         refunds,
         totalRefunded: refunds.reduce((sum, r: any) => sum + (r.amount || 0), 0),
       }),
@@ -356,7 +357,7 @@ function calculateRefundBreakdown(booking: any, refundAmount: number, providerCo
   const providerRefund = refundAmount - platformFeeRefund - providerCompensation;
 
   return {
-    originalAmount: booking.amount,
+    originalAmount: nullableToString(booking.amount),
     refundAmount,
     customerRefund,
     platformFeeRefund,

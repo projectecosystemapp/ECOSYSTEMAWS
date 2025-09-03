@@ -79,7 +79,7 @@ export default function ProviderOnboarding() {
       // Use the new wrapper that supports feature flags
       const data = await stripeConnectOperation({
         action: 'CHECK_ACCOUNT_STATUS',
-        providerId: user.userId,
+        providerId: nullableToString(user.userId),
       });
       setStripeStatus(data);
       setAccountId(data.accountId);
@@ -116,7 +116,7 @@ export default function ProviderOnboarding() {
       // Use the new wrapper for creating Stripe account
       const data = await stripeConnectOperation({
         action: 'CREATE_ACCOUNT',
-        providerId: user.userId,
+        providerId: nullableToString(user.userId),
       });
 
       if (data.onboardingUrl) {
@@ -144,7 +144,7 @@ export default function ProviderOnboarding() {
       // Use the new wrapper for creating account link
       const data = await stripeConnectOperation({
         action: 'CREATE_ACCOUNT_LINK',
-        providerId: user.userId,
+        providerId: nullableToString(user.userId),
         connectedAccountId: accountId,
       });
       

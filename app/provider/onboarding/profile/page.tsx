@@ -129,7 +129,7 @@ export default function ProfileCreationWizard() {
 
       // Check for existing profile
       const { data: profiles } = await client.models.ProviderProfile.list({
-        filter: { ownerId: { eq: user.userId } }
+        filter: { owner: { eq: user.userId } }
       });
 
       if (profiles && profiles.length > 0) {
@@ -175,7 +175,7 @@ export default function ProfileCreationWizard() {
       setIsSaving(true);
       
       const profileData = {
-        ownerId: userId,
+        owner: userId,
         businessName: data.businessName,
         bio: data.bio || '',
         publicEmail: data.publicEmail || null,

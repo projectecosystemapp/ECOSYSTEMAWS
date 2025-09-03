@@ -3,12 +3,12 @@
 // Mitigation: Strict input validation, rate limiting, sanitized queries
 // Validated: All message operations use type-safe validation
 
-import { getCurrentUser } from 'aws-amplify/auth/server';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
-import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
+import { runWithAmplifyServerContext, getAuthenticatedUser } from '@/lib/amplify-server-utils';
+import { nullableToString } from '@/lib/type-utils';
 import {
   MessageRequestSchema,
   type MessageRequest,
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
         // 2. Authenticate user
-        const user = await getCurrentUser(contextSpec);
+        const user = await getAuthenticatedUser(request);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
           return NextResponse.json(
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
         logger.info(`[${correlationId}] Authenticated user: ${user.userId}`);
 
         // 3. Validate email ownership and authorization
-        const currentUserEmail = user.signInDetails?.loginId;
+        const currentUserEmail = user.attributes.email || user.username;
         if (!currentUserEmail || !isValidEmail(currentUserEmail)) {
           logger.error(`[${correlationId}] Invalid user email in session`, new Error('Invalid user session'), { correlationId, userEmail: currentUserEmail });
           return NextResponse.json(

@@ -11,6 +11,7 @@
 import { generateClient } from 'aws-amplify/data';
 
 import type { Schema } from '@/amplify/data/resource';
+import { nullableToString, nullableToNumber, nullableToOptionalNumber } from '@/lib/type-utils';
 
 // Generate the GraphQL client
 // Factory to create an Amplify Data client when needed.
@@ -88,7 +89,7 @@ export const serviceApi = {
           const rating = await reviewApi.getServiceRating(service.id);
           return {
             ...service,
-            rating: rating.averageRating,
+            rating: nullableToString(rating.averageRating),
             reviewCount: rating.reviewCount
           };
         } catch (err) {
@@ -445,10 +446,10 @@ export const messageApi = {
     const messageData = {
       conversationId,
       senderId: data.senderEmail, // Using email as ID for simplicity
-      senderEmail: data.senderEmail,
+      senderEmail: nullableToString(data.senderEmail),
       recipientId: data.recipientEmail, // Using email as ID for simplicity
-      recipientEmail: data.recipientEmail,
-      content: data.content,
+      recipientEmail: nullableToString(data.recipientEmail),
+      content: nullableToString(data.content),
       read: false,
       ...(data.bookingId && { bookingId: data.bookingId }),
       ...(data.serviceId && { serviceId: data.serviceId }),
@@ -647,10 +648,10 @@ export const adminApi = {
       const platformCommission = totalRevenue * 0.08;
 
       return {
-        totalUsers: users.length,
-        totalServices: services.length,
-        totalBookings: bookings.length,
-        totalProviders: providers.length,
+        totalUsers: nullableToString(users.length),
+        totalServices: nullableToString(services.length),
+        totalBookings: nullableToString(bookings.length),
+        totalProviders: nullableToString(providers.length),
         totalRevenue,
         platformCommission,
         activeServices: services.filter(s => s?.active === true).length,
@@ -690,8 +691,8 @@ export const adminApi = {
 
         return {
           ...user,
-          bookingsCount: userBookings.length,
-          servicesCount: userServices.length,
+          bookingsCount: nullableToString(userBookings.length),
+          servicesCount: nullableToString(userServices.length),
           reviewsCount: 0, // Review system not implemented
           totalSpent: userBookings
             .filter(b => b.customerEmail === user.email)
@@ -730,7 +731,7 @@ export const adminApi = {
 
         return {
           ...service,
-          bookingsCount: serviceBookings.length,
+          bookingsCount: nullableToString(serviceBookings.length),
           reviewsCount: 0, // Review system not implemented
           averageRating: 0, // Review system not implemented
           totalRevenue: serviceBookings.reduce((sum, b) => sum + (b.amount || 0), 0),
@@ -810,8 +811,8 @@ export const adminApi = {
 
         return {
           ...provider,
-          servicesCount: providerServices.length,
-          bookingsCount: providerBookings.length,
+          servicesCount: nullableToString(providerServices.length),
+          bookingsCount: nullableToString(providerBookings.length),
           reviewsCount: 0, // Review system not implemented
           averageRating: 0, // Review system not implemented
           totalRevenue,
@@ -919,7 +920,7 @@ export const adminApi = {
         },
         topProviders,
         userGrowth: {
-          total: users.length,
+          total: nullableToString(users.length),
           customers: users.filter(u => u?.userType === 'CUSTOMER').length,
           providers: users.filter(u => u?.userType === 'PROVIDER').length,
           admins: users.filter(u => u?.userType === 'ADMIN').length

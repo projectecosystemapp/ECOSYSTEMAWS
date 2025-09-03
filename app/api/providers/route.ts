@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { client } from '@/lib/amplify-client';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const CreateProviderSchema = z.object({
   name: z.string(),
@@ -22,15 +23,15 @@ export async function POST(request: NextRequest) {
       pk: `PROVIDER#${providerId}`,
       sk: 'METADATA',
       entityType: 'Provider',
-      gsi1pk: data.slug,
+      gsi1pk: nullableToString(data.slug),
       gsi1sk: 'PROVIDER',
       gsi2pk: 'PROVIDER',
       gsi2sk: 'draft',
-      name: data.name,
-      slug: data.slug,
-      email: data.email,
-      description: data.description,
-      category: data.category,
+      name: nullableToString(data.name),
+      slug: nullableToString(data.slug),
+      email: nullableToString(data.email),
+      description: nullableToString(data.description),
+      category: nullableToString(data.category),
       status: 'draft',
       role: 'provider',
       createdAt: new Date().toISOString(),

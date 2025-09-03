@@ -11,6 +11,7 @@ import { DynamoDBClient, PutItemCommand, GetItemCommand, QueryCommand, DeleteIte
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import { correlationTracker } from '@/lib/resilience/correlation-tracker';
 import crypto from 'crypto';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export interface WebhookRecord {
   eventId: string;
@@ -83,7 +84,7 @@ export class WebhookDeduplicationService {
           } else {
             console.log('[WebhookDedup] Webhook is currently being processed', {
               eventId,
-              status: existingRecord.status,
+              status: nullableToString(existingRecord.status),
               correlationId
             });
             return { acquired: false, existingRecord };
@@ -91,14 +92,14 @@ export class WebhookDeduplicationService {
         } else if (existingRecord.status === 'COMPLETED') {
           console.log('[WebhookDedup] Webhook already processed successfully', {
             eventId,
-            processedAt: existingRecord.processedAt,
+            processedAt: existingRecord.processedAt ? new Date(existingRecord.processedAt).toISOString() : null,
             correlationId
           });
           return { acquired: false, existingRecord };
         } else if (existingRecord.status === 'FAILED' && existingRecord.retryCount >= 3) {
           console.log('[WebhookDedup] Webhook processing failed max retries', {
             eventId,
-            retryCount: existingRecord.retryCount,
+            retryCount: existingRecord.retryCount ?? 0,
             correlationId
           });
           return { acquired: false, existingRecord };
@@ -136,7 +137,7 @@ export class WebhookDeduplicationService {
         : undefined;
 
       await this.dynamoClient.send(new PutItemCommand({
-        TableName: this.tableName,
+        TableName: nullableToString(this.tableName),
         Item: marshall(webhookRecord),
         ConditionExpression: conditionalExpression,
         ExpressionAttributeNames: expressionAttributeNames,
@@ -159,12 +160,12 @@ export class WebhookDeduplicationService {
         
         // Try to get the existing record for context
         const existingRecord = await this.getWebhookRecord(eventId);
-        return { acquired: false, existingRecord };
+        return { acquired: false, existingRecord: existingRecord || undefined };
       }
       
       console.error('[WebhookDedup] Error acquiring processing lock', {
         eventId,
-        error: error.message,
+        error: nullableToString(error.message),
         correlationId
       });
       throw error;
@@ -183,7 +184,7 @@ export class WebhookDeduplicationService {
 
     try {
       await this.dynamoClient.send(new PutItemCommand({
-        TableName: this.tableName,
+        TableName: nullableToString(this.tableName),
         Item: marshall({
           eventId,
           status: 'COMPLETED',
@@ -207,7 +208,7 @@ export class WebhookDeduplicationService {
     } catch (error: any) {
       console.error('[WebhookDedup] Error marking webhook as completed', {
         eventId,
-        error: error.message,
+        error: nullableToString(error.message),
         correlationId
       });
       throw error;
@@ -231,7 +232,7 @@ export class WebhookDeduplicationService {
       const status = shouldRetry && retryCount < 3 ? 'FAILED' : 'FAILED';
 
       await this.dynamoClient.send(new PutItemCommand({
-        TableName: this.tableName,
+        TableName: nullableToString(this.tableName),
         Item: marshall({
           eventId,
           status,
@@ -252,7 +253,7 @@ export class WebhookDeduplicationService {
     } catch (error: any) {
       console.error('[WebhookDedup] Error marking webhook as failed', {
         eventId,
-        error: error.message,
+        error: nullableToString(error.message),
         correlationId
       });
       throw error;
@@ -265,7 +266,7 @@ export class WebhookDeduplicationService {
   async getWebhookRecord(eventId: string): Promise<WebhookRecord | null> {
     try {
       const response = await this.dynamoClient.send(new GetItemCommand({
-        TableName: this.tableName,
+        TableName: nullableToString(this.tableName),
         Key: marshall({ eventId })
       }));
 
@@ -301,7 +302,7 @@ export class WebhookDeduplicationService {
     try {
       // Query for old records (this would need a GSI on processedAt in production)
       const response = await this.dynamoClient.send(new QueryCommand({
-        TableName: this.tableName,
+        TableName: nullableToString(this.tableName),
         IndexName: 'ProcessedAtIndex', // Assumes GSI exists
         KeyConditionExpression: 'processedAt < :cutoff',
         ExpressionAttributeValues: marshall({
@@ -313,7 +314,7 @@ export class WebhookDeduplicationService {
         for (const item of response.Items) {
           const record = unmarshall(item) as WebhookRecord;
           await this.dynamoClient.send(new DeleteItemCommand({
-            TableName: this.tableName,
+            TableName: nullableToString(this.tableName),
             Key: marshall({ eventId: record.eventId })
           }));
           deletedCount++;

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export async function POST() {
   try {
@@ -22,9 +23,9 @@ export async function POST() {
 
     return NextResponse.json({
       success: true,
-      accountId: account.id,
-      country: account.country,
-      currency: account.default_currency,
+      accountId: nullableToString(account.id),
+      country: nullableToString(account.country),
+      currency: nullableToString(account.default_currency),
       message: 'Stripe connection successful!',
     });
   } catch (error: any) {
@@ -41,7 +42,7 @@ export async function POST() {
     return NextResponse.json(
       { 
         error: error.message || 'Failed to connect to Stripe',
-        type: error.type,
+        type: nullableToString(error.type),
       },
       { status: 500 }
     );

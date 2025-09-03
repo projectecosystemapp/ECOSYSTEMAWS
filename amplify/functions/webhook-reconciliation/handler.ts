@@ -14,6 +14,7 @@
 
 import { ScheduledHandler } from 'aws-lambda';
 import Stripe from 'stripe';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 import { 
   DynamoDBClient, 
   QueryCommand, 
@@ -87,7 +88,7 @@ export const handler: ScheduledHandler = async (event) => {
   
   return correlationTracker.runWithCorrelation('webhook-reconciliation', async () => {
     console.log('[WebhookReconciliation] Starting scheduled reconciliation', {
-      eventTime: event.time,
+      eventTime: nullableToString(event.time),
       correlationId: correlationTracker.getCurrentCorrelationId(),
     });
 
@@ -121,8 +122,8 @@ export const handler: ScheduledHandler = async (event) => {
           
           if (CRITICAL_EVENT_TYPES.includes(stripeEvent.type)) {
             result.discrepancies.push({
-              eventId: stripeEvent.id,
-              type: stripeEvent.type,
+              eventId: nullableToString(stripeEvent.id),
+              type: nullableToString(stripeEvent.type),
               issue: 'Event never processed',
               severity: 'CRITICAL',
             });
@@ -131,8 +132,8 @@ export const handler: ScheduledHandler = async (event) => {
             await processMissedEvent(stripeEvent, result);
           } else {
             result.discrepancies.push({
-              eventId: stripeEvent.id,
-              type: stripeEvent.type,
+              eventId: nullableToString(stripeEvent.id),
+              type: nullableToString(stripeEvent.type),
               issue: 'Event never processed',
               severity: 'MEDIUM',
             });
@@ -146,8 +147,8 @@ export const handler: ScheduledHandler = async (event) => {
             await retryFailedEvent(stripeEvent, webhookRecord, result);
           } else {
             result.discrepancies.push({
-              eventId: stripeEvent.id,
-              type: stripeEvent.type,
+              eventId: nullableToString(stripeEvent.id),
+              type: nullableToString(stripeEvent.type),
               issue: `Failed after ${webhookRecord.retryCount} attempts: ${webhookRecord.error}`,
               severity: 'HIGH',
             });
@@ -158,8 +159,8 @@ export const handler: ScheduledHandler = async (event) => {
           
           if (processingDuration > 300000) { // 5 minutes
             result.discrepancies.push({
-              eventId: stripeEvent.id,
-              type: stripeEvent.type,
+              eventId: nullableToString(stripeEvent.id),
+              type: nullableToString(stripeEvent.type),
               issue: `Stuck in processing for ${Math.floor(processingDuration / 60000)} minutes`,
               severity: 'HIGH',
             });
@@ -238,7 +239,7 @@ async function fetchRecentStripeEvents(since: Date): Promise<Stripe.Event[]> {
  * Process a missed webhook event
  */
 async function processMissedEvent(
-  event: Stripe.Event,
+  event: nullableToString(Stripe.Event),
   result: ReconciliationResult
 ): Promise<void> {
   try {
@@ -270,7 +271,7 @@ async function processMissedEvent(
  * Retry a failed webhook event
  */
 async function retryFailedEvent(
-  event: Stripe.Event,
+  event: nullableToString(Stripe.Event),
   webhookRecord: any,
   result: ReconciliationResult
 ): Promise<void> {
@@ -302,7 +303,7 @@ async function retryFailedEvent(
  * Verify data consistency between Stripe and our database
  */
 async function verifyDataConsistency(
-  stripeEvent: Stripe.Event,
+  stripeEvent: nullableToString(Stripe.Event),
   webhookRecord: any,
   result: ReconciliationResult
 ): Promise<void> {
@@ -325,25 +326,25 @@ async function verifyDataConsistency(
  * Verify payment intent consistency
  */
 async function verifyPaymentIntentConsistency(
-  event: Stripe.Event,
+  event: nullableToString(Stripe.Event),
   result: ReconciliationResult
 ): Promise<void> {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   
   // Check if booking exists with this payment intent ID
   const response = await dynamodb.send(new QueryCommand({
-    TableName: env.BOOKING_TABLE_NAME,
+    TableName: nullableToString(env.BOOKING_TABLE_NAME),
     IndexName: 'PaymentIntentIndex',
     KeyConditionExpression: 'paymentIntentId = :pid',
     ExpressionAttributeValues: marshall({
-      ':pid': paymentIntent.id,
+      ':pid': nullableToString(paymentIntent.id),
     }),
   }));
 
   if (!response.Items || response.Items.length === 0) {
     result.discrepancies.push({
-      eventId: event.id,
-      type: event.type,
+      eventId: nullableToString(event.id),
+      type: nullableToString(event.type),
       issue: `No booking found for payment intent ${paymentIntent.id}`,
       severity: 'HIGH',
     });
@@ -354,7 +355,7 @@ async function verifyPaymentIntentConsistency(
  * Verify charge consistency
  */
 async function verifyChargeConsistency(
-  event: Stripe.Event,
+  event: nullableToString(Stripe.Event),
   result: ReconciliationResult
 ): Promise<void> {
   const charge = event.data.object as Stripe.Charge;
@@ -362,11 +363,11 @@ async function verifyChargeConsistency(
   // Verify charge amount matches booking amount
   if (charge.payment_intent) {
     const response = await dynamodb.send(new QueryCommand({
-      TableName: env.BOOKING_TABLE_NAME,
+      TableName: nullableToString(env.BOOKING_TABLE_NAME),
       IndexName: 'PaymentIntentIndex',
       KeyConditionExpression: 'paymentIntentId = :pid',
       ExpressionAttributeValues: marshall({
-        ':pid': charge.payment_intent,
+        ':pid': nullableToString(charge.payment_intent),
       }),
     }));
 
@@ -375,8 +376,8 @@ async function verifyChargeConsistency(
       
       if (booking.amount * 100 !== charge.amount) { // Convert to cents
         result.discrepancies.push({
-          eventId: event.id,
-          type: event.type,
+          eventId: nullableToString(event.id),
+          type: nullableToString(event.type),
           issue: `Charge amount mismatch: Stripe=${charge.amount}, Booking=${booking.amount * 100}`,
           severity: 'CRITICAL',
         });
@@ -389,7 +390,7 @@ async function verifyChargeConsistency(
  * Verify transfer consistency
  */
 async function verifyTransferConsistency(
-  event: Stripe.Event,
+  event: nullableToString(Stripe.Event),
   result: ReconciliationResult
 ): Promise<void> {
   const transfer = event.data.object as Stripe.Transfer;
@@ -407,7 +408,7 @@ async function checkOrphanedRecords(
 ): Promise<void> {
   // Scan for bookings without corresponding Stripe records
   const response = await dynamodb.send(new ScanCommand({
-    TableName: env.BOOKING_TABLE_NAME,
+    TableName: nullableToString(env.BOOKING_TABLE_NAME),
     FilterExpression: 'createdAt > :since AND paymentStatus = :status',
     ExpressionAttributeValues: marshall({
       ':since': since.toISOString(),
@@ -426,7 +427,7 @@ async function checkOrphanedRecords(
           
           if (paymentIntent.status === 'succeeded' && booking.paymentStatus === 'pending') {
             result.discrepancies.push({
-              eventId: booking.id,
+              eventId: nullableToString(booking.id),
               type: 'booking',
               issue: `Booking ${booking.id} shows pending but Stripe shows succeeded`,
               severity: 'HIGH',
@@ -435,7 +436,7 @@ async function checkOrphanedRecords(
         } catch (error) {
           // Payment intent doesn't exist in Stripe
           result.discrepancies.push({
-            eventId: booking.id,
+            eventId: nullableToString(booking.id),
             type: 'booking',
             issue: `Payment intent ${booking.paymentIntentId} not found in Stripe`,
             severity: 'CRITICAL',
@@ -453,31 +454,31 @@ async function sendMetrics(result: ReconciliationResult): Promise<void> {
   const metrics: MetricDatum[] = [
     {
       MetricName: 'WebhookReconciliation.EventsChecked',
-      Value: result.totalEventsChecked,
+      Value: nullableToString(result.totalEventsChecked),
       Unit: 'Count',
       Timestamp: new Date(),
     },
     {
       MetricName: 'WebhookReconciliation.MissedEvents',
-      Value: result.missedEvents,
+      Value: nullableToString(result.missedEvents),
       Unit: 'Count',
       Timestamp: new Date(),
     },
     {
       MetricName: 'WebhookReconciliation.FailedEvents',
-      Value: result.failedEvents,
+      Value: nullableToString(result.failedEvents),
       Unit: 'Count',
       Timestamp: new Date(),
     },
     {
       MetricName: 'WebhookReconciliation.SuccessfulRetries',
-      Value: result.successfulRetries,
+      Value: nullableToString(result.successfulRetries),
       Unit: 'Count',
       Timestamp: new Date(),
     },
     {
       MetricName: 'WebhookReconciliation.Discrepancies',
-      Value: result.discrepancies.length,
+      Value: nullableToString(result.discrepancies.length),
       Unit: 'Count',
       Timestamp: new Date(),
     },
@@ -499,9 +500,9 @@ async function sendAlert(result: ReconciliationResult): Promise<void> {
     Subject: '🚨 Critical Webhook Reconciliation Issues',
     Message: JSON.stringify({
       summary: `Found ${criticalIssues.length} critical issues during webhook reconciliation`,
-      totalChecked: result.totalEventsChecked,
-      missedEvents: result.missedEvents,
-      failedEvents: result.failedEvents,
+      totalChecked: nullableToString(result.totalEventsChecked),
+      missedEvents: nullableToString(result.missedEvents),
+      failedEvents: nullableToString(result.failedEvents),
       criticalIssues,
       correlationId: correlationTracker.getCurrentCorrelationId(),
     }, null, 2),
@@ -509,9 +510,9 @@ async function sendAlert(result: ReconciliationResult): Promise<void> {
 
   if (env.ALERT_TOPIC_ARN) {
     await sns.send(new PublishCommand({
-      TopicArn: env.ALERT_TOPIC_ARN,
-      Subject: message.Subject,
-      Message: message.Message,
+      TopicArn: nullableToString(env.ALERT_TOPIC_ARN),
+      Subject: nullableToString(message.Subject),
+      Message: nullableToString(message.Message),
     }));
   }
 
@@ -526,7 +527,7 @@ async function sendCriticalAlert(error: any): Promise<void> {
     Subject: '🔥 Webhook Reconciliation System Failure',
     Message: JSON.stringify({
       error: error?.message || 'Unknown error',
-      stack: error?.stack,
+      stack: nullableToString(error?.stack),
       correlationId: correlationTracker.getCurrentCorrelationId(),
       timestamp: new Date().toISOString(),
     }, null, 2),
@@ -534,9 +535,9 @@ async function sendCriticalAlert(error: any): Promise<void> {
 
   if (env.ALERT_TOPIC_ARN) {
     await sns.send(new PublishCommand({
-      TopicArn: env.ALERT_TOPIC_ARN,
-      Subject: message.Subject,
-      Message: message.Message,
+      TopicArn: nullableToString(env.ALERT_TOPIC_ARN),
+      Subject: nullableToString(message.Subject),
+      Message: nullableToString(message.Message),
     }));
   }
 

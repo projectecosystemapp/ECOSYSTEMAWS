@@ -1,6 +1,7 @@
 import { APIGatewayProxyHandler, ScheduledEvent } from 'aws-lambda';
 import Stripe from 'stripe';
 import { DynamoDBClient, ScanCommand, UpdateItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -113,7 +114,7 @@ async function processScheduledPayouts() {
       } catch (error) {
         console.error(`Failed to process payout for provider ${provider.id}:`, error);
         results.push({
-          providerId: provider.id,
+          providerId: nullableToString(provider.id),
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
         });
@@ -124,7 +125,7 @@ async function processScheduledPayouts() {
     return {
       statusCode: 200,
       body: JSON.stringify({
-        processedCount: results.length,
+        processedCount: nullableToString(results.length),
         successCount: results.filter(r => r.success).length,
         results,
       }),
@@ -207,7 +208,7 @@ async function schedulePayout(providerId: string, amount: number, headers: any) 
         headers,
         body: JSON.stringify({
           error: 'Insufficient earnings',
-          available: earnings.totalEarnings,
+          available: nullableToString(earnings.totalEarnings),
           requested: amount,
         }),
       };
@@ -293,10 +294,10 @@ async function processInstantPayout(providerId: string, amount: number, headers:
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        payoutId: payout.id,
+        payoutId: nullableToString(payout.id),
         amount: amount,
-        status: payout.status,
-        arrivalDate: payout.arrival_date,
+        status: nullableToString(payout.status),
+        arrivalDate: nullableToString(payout.arrival_date),
         fee: 'Instant payout fee applied',
       }),
     };
@@ -343,7 +344,7 @@ async function getPayoutHistory(providerId: string, headers: any) {
       body: JSON.stringify({
         providerId,
         payouts,
-        totalPayouts: payouts.length,
+        totalPayouts: nullableToString(payouts.length),
       }),
     };
   } catch (error) {
@@ -388,7 +389,7 @@ async function processProviderPayout(provider: { id: string; stripeAccountId: st
     // Skip if no earnings
     if (earnings.totalEarnings <= 0) {
       return {
-        providerId: provider.id,
+        providerId: nullableToString(provider.id),
         success: true,
         message: 'No earnings to payout',
         amount: 0,
@@ -402,13 +403,13 @@ async function processProviderPayout(provider: { id: string; stripeAccountId: st
         currency: 'usd',
         description: `Scheduled payout for provider ${provider.id}`,
         metadata: {
-          providerId: provider.id,
+          providerId: nullableToString(provider.id),
           type: 'scheduled',
           bookingCount: earnings.bookingCount.toString(),
         },
       },
       {
-        stripeAccount: provider.stripeAccountId,
+        stripeAccount: nullableToString(provider.stripeAccountId),
       }
     );
 
@@ -416,11 +417,11 @@ async function processProviderPayout(provider: { id: string; stripeAccountId: st
     await releaseEscrowFunds(provider.id, earnings.totalEarnings);
 
     return {
-      providerId: provider.id,
+      providerId: nullableToString(provider.id),
       success: true,
-      payoutId: payout.id,
-      amount: earnings.totalEarnings,
-      bookingCount: earnings.bookingCount,
+      payoutId: nullableToString(payout.id),
+      amount: nullableToString(earnings.totalEarnings),
+      bookingCount: nullableToString(earnings.bookingCount),
     };
   } catch (error) {
     console.error(`Payout processing failed for provider ${provider.id}:`, error);

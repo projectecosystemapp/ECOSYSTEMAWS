@@ -1,6 +1,7 @@
 import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 type Handler = Schema['sendRealtimeMessage']['functionHandler'];
 
@@ -37,7 +38,7 @@ export const handler: Handler = async (event) => {
 
     // Store message in DynamoDB
     await dynamodb.send(new PutCommand({
-      TableName: process.env.MESSAGE_TABLE_NAME,
+      TableName: nullableToString(process.env.MESSAGE_TABLE_NAME),
       Item: message,
     }));
 
@@ -46,7 +47,7 @@ export const handler: Handler = async (event) => {
       success: true,
       messageId,
       conversationId,
-      timestamp: message.createdAt,
+      timestamp: nullableToString(message.createdAt),
     };
   } catch (error) {
     console.error('Real-time messaging error:', error);

@@ -4,6 +4,7 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { openSearchConfig } from './resource';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // PERFORMANCE: High-throughput DynamoDB Streams to OpenSearch sync
 // Baseline: Manual data replication, eventual consistency issues
@@ -44,7 +45,7 @@ class OpenSearchSyncHandler {
         service: 'aoss', // OpenSearch Serverless
         getCredentials: () => defaultProvider()(),
       }),
-      node: process.env.OPENSEARCH_ENDPOINT,
+      node: nullableToString(process.env.OPENSEARCH_ENDPOINT),
       maxRetries: 3,
       requestTimeout: 30000,
       sniffOnStart: false, // Disable for serverless
@@ -68,7 +69,7 @@ class OpenSearchSyncHandler {
     
     try {
       logger.info('Processing DynamoDB stream event', {
-        recordCount: event.Records.length,
+        recordCount: nullableToString(event.Records.length),
         requestId: context.awsRequestId
       });
 
@@ -90,7 +91,7 @@ class OpenSearchSyncHandler {
       await this.reportMetrics();
 
       logger.info('Stream processing completed', {
-        totalRecords: event.Records.length,
+        totalRecords: nullableToString(event.Records.length),
         successfulRecords: totalResults.filter(r => r.success).length,
         failedRecords: totalResults.filter(r => !r.success).length,
         processingTimeMs: Date.now() - startTime
@@ -98,7 +99,7 @@ class OpenSearchSyncHandler {
 
     } catch (error) {
       logger.error('Failed to process stream event', {
-        error: error.message,
+        error: nullableToString(error.message),
         requestId: context.awsRequestId
       });
       throw error;
@@ -195,8 +196,8 @@ class OpenSearchSyncHandler {
 
   private getIndexName(tableName: string): string | null {
     const mapping: Record<string, string> = {
-      'Service': openSearchConfig.indices.services.name,
-      'Booking': openSearchConfig.indices.bookings.name,
+      'Service': nullableToString(openSearchConfig.indices.services.name),
+      'Booking': nullableToString(openSearchConfig.indices.bookings.name),
       'UserProfile': openSearchConfig.indices.users.name
     };
     return mapping[tableName] || null;
@@ -310,7 +311,7 @@ class OpenSearchSyncHandler {
       // This would normally call a geocoding service
       // For now, add placeholder for geo search capability
       document.location = {
-        address: document.address,
+        address: nullableToString(document.address),
         coordinates: null // Would be populated by geocoding
       };
     }
@@ -428,7 +429,7 @@ class BatchProcessor {
           
           this.logger.warn('Batch had errors', {
             batchIndex,
-            failedCount: failedItems.length,
+            failedCount: nullableToString(failedItems.length),
             totalCount: response.body.items.length
           });
 
@@ -461,7 +462,7 @@ class BatchProcessor {
         if (retryCount > this.RETRY_DELAYS.length) {
           this.logger.error('Batch failed after all retries', {
             batchIndex,
-            error: error.message,
+            error: nullableToString(error.message),
             retryCount
           });
 
@@ -470,7 +471,7 @@ class BatchProcessor {
             results.push({
               success: false,
               recordId: `batch_${batchIndex}_${i / 2}`,
-              error: error.message,
+              error: nullableToString(error.message),
               retryCount
             });
           }

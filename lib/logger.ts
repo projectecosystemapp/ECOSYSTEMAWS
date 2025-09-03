@@ -47,8 +47,8 @@ class LoggerService {
     return JSON.stringify({
       ...entry,
       error: entry.error ? {
-        message: entry.error.message,
-        stack: entry.error.stack,
+        message: nullableToString(entry.error.message),
+        stack: nullableToString(entry.error.stack),
         name: entry.error.name
       } : undefined
     });
@@ -61,8 +61,8 @@ class LoggerService {
       message,
       context,
       error,
-      userId: this.userId,
-      requestId: this.requestId,
+      userId: nullableToString(this.userId),
+      requestId: nullableToString(this.requestId),
       environment: this.environment
     };
 

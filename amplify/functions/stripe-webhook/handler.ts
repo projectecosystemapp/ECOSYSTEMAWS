@@ -1,5 +1,6 @@
 import { AppSyncResolverHandler } from 'aws-lambda';
 import Stripe from 'stripe';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 <<<<<<< Updated upstream
 import { DynamoDBClient, UpdateItemCommand, PutItemCommand, GetItemCommand } from '@aws-sdk/client-dynamodb';
 import { WebhookDeduplicationService } from '../../data/webhook-deduplication';
@@ -43,7 +44,7 @@ export const handler: AppSyncResolverHandler<any, any> = async (event) => {
   return correlationTracker.runWithCorrelation('stripe-webhook-processing', async () => {
     console.log('[StripeWebhook] Processing event', {
       correlationId,
-      arguments: event.arguments,
+      arguments: nullableToString(event.arguments),
     });
 
     try {
@@ -79,8 +80,8 @@ export const handler: AppSyncResolverHandler<any, any> = async (event) => {
 
       if (!acquired) {
         console.log('[StripeWebhook] Event already processed or being processed', {
-          eventId: stripeEvent.id,
-          status: existingRecord?.status,
+          eventId: nullableToString(stripeEvent.id),
+          status: nullableToString(existingRecord?.status),
           correlationId,
         });
         
@@ -88,7 +89,7 @@ export const handler: AppSyncResolverHandler<any, any> = async (event) => {
         if (existingRecord?.status === 'COMPLETED' && existingRecord.result) {
           return {
             success: true,
-            data: existingRecord.result,
+            data: nullableToString(existingRecord.result),
             deduplicated: true,
           };
         }
@@ -101,9 +102,9 @@ export const handler: AppSyncResolverHandler<any, any> = async (event) => {
       }
 
       console.log('[StripeWebhook] Processing new event', {
-        id: stripeEvent.id,
-        type: stripeEvent.type,
-        created: stripeEvent.created,
+        id: nullableToString(stripeEvent.id),
+        type: nullableToString(stripeEvent.type),
+        created: nullableToString(stripeEvent.created),
         correlationId,
       });
 
@@ -225,8 +226,8 @@ export const handler: APIGatewayProxyHandler = async (event) => {
         return {
           success: true,
           data: processingResult,
-          eventId: stripeEvent.id,
-          eventType: stripeEvent.type,
+          eventId: nullableToString(stripeEvent.id),
+          eventType: nullableToString(stripeEvent.type),
           duration,
         };
       } catch (processingError) {
@@ -271,10 +272,10 @@ async function handleAccountUpdated(event: Stripe.Event) {
   const account = event.data.object as Stripe.Account;
   
   console.log('Processing account update:', {
-    accountId: account.id,
-    chargesEnabled: account.charges_enabled,
-    payoutsEnabled: account.payouts_enabled,
-    detailsSubmitted: account.details_submitted,
+    accountId: nullableToString(account.id),
+    chargesEnabled: nullableToString(account.charges_enabled),
+    payoutsEnabled: nullableToString(account.payouts_enabled),
+    detailsSubmitted: nullableToString(account.details_submitted),
   });
 
   const providerId = account.metadata?.providerId || null;
@@ -320,8 +321,8 @@ async function handleAccountUpdated(event: Stripe.Event) {
     console.log('Updated provider account status:', {
       providerId,
       status: accountStatus,
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
+      chargesEnabled: nullableToString(account.charges_enabled),
+      payoutsEnabled: nullableToString(account.payouts_enabled),
     });
   }
 }
@@ -333,9 +334,9 @@ async function handlePaymentSucceeded(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   
   console.log('Payment succeeded:', {
-    paymentIntentId: paymentIntent.id,
-    amount: paymentIntent.amount,
-    bookingId: paymentIntent.metadata.bookingId,
+    paymentIntentId: nullableToString(paymentIntent.id),
+    amount: nullableToString(paymentIntent.amount),
+    bookingId: nullableToString(paymentIntent.metadata.bookingId),
   });
 
   const bookingId = paymentIntent.metadata?.bookingId || null;
@@ -388,9 +389,9 @@ async function handlePaymentFailed(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   
   console.log('Payment failed:', {
-    paymentIntentId: paymentIntent.id,
+    paymentIntentId: nullableToString(paymentIntent.id),
     lastPaymentError: paymentIntent.last_payment_error?.message || 'No error message',
-    bookingId: paymentIntent.metadata.bookingId,
+    bookingId: nullableToString(paymentIntent.metadata.bookingId),
   });
 
   // Handle failed payment (notify customer, update booking status, etc.)
@@ -404,10 +405,10 @@ async function handleDisputeCreated(event: Stripe.Event) {
   const dispute = event.data.object as Stripe.Dispute;
   
   console.log('Dispute created:', {
-    disputeId: dispute.id,
-    amount: dispute.amount,
-    reason: dispute.reason,
-    status: dispute.status,
+    disputeId: nullableToString(dispute.id),
+    amount: nullableToString(dispute.amount),
+    reason: nullableToString(dispute.reason),
+    status: nullableToString(dispute.status),
   });
 
   // Handle dispute (notify provider, gather evidence, etc.)
@@ -421,9 +422,9 @@ async function handlePaymentCreated(event: Stripe.Event) {
   const paymentIntent = event.data.object as Stripe.PaymentIntent;
   
   console.log('Payment intent created:', {
-    paymentIntentId: paymentIntent.id,
-    amount: paymentIntent.amount,
-    bookingId: paymentIntent.metadata.bookingId,
+    paymentIntentId: nullableToString(paymentIntent.id),
+    amount: nullableToString(paymentIntent.amount),
+    bookingId: nullableToString(paymentIntent.metadata.bookingId),
   });
 
   const bookingId = paymentIntent.metadata?.bookingId || null;
@@ -453,9 +454,9 @@ async function handleChargeSucceeded(event: Stripe.Event) {
   const charge = event.data.object as Stripe.Charge;
   
   console.log('Charge succeeded:', {
-    chargeId: charge.id,
-    amount: charge.amount,
-    paymentIntentId: charge.payment_intent,
+    chargeId: nullableToString(charge.id),
+    amount: nullableToString(charge.amount),
+    paymentIntentId: nullableToString(charge.payment_intent),
   });
 
   // Update transaction record with charge ID
@@ -489,9 +490,9 @@ async function handleTransferUpdated(event: Stripe.Event) {
   const transfer = event.data.object as Stripe.Transfer;
   
   console.log('Transfer updated:', {
-    transferId: transfer.id,
-    amount: transfer.amount,
-    destinationAccount: transfer.destination,
+    transferId: nullableToString(transfer.id),
+    amount: nullableToString(transfer.amount),
+    destinationAccount: nullableToString(transfer.destination),
   });
 
   // Update booking with transfer information
@@ -519,10 +520,10 @@ async function handlePayoutUpdated(event: Stripe.Event) {
   const payout = event.data.object as Stripe.Payout;
   
   console.log('Payout updated:', {
-    payoutId: payout.id,
-    amount: payout.amount,
-    status: payout.status,
-    arrivalDate: payout.arrival_date,
+    payoutId: nullableToString(payout.id),
+    amount: nullableToString(payout.amount),
+    status: nullableToString(payout.status),
+    arrivalDate: nullableToString(payout.arrival_date),
   });
 
   // Create payout transaction record
@@ -530,7 +531,7 @@ async function handlePayoutUpdated(event: Stripe.Event) {
     await createTransactionRecord({
       bookingId: null, // Payout might be for multiple bookings
       customerId: null,
-      providerId: payout.metadata.providerId,
+      providerId: nullableToString(payout.metadata.providerId),
       payoutData: payout,
       type: 'PAYOUT',
     });
@@ -544,9 +545,9 @@ async function handleInvoicePaymentSucceeded(event: Stripe.Event) {
   const invoice = event.data.object as Stripe.Invoice;
   
   console.log('Invoice payment succeeded:', {
-    invoiceId: invoice.id,
+    invoiceId: nullableToString(invoice.id),
     subscriptionId: (invoice as any).subscription || null,
-    amount: invoice.amount_paid,
+    amount: nullableToString(invoice.amount_paid),
   });
 
   // Update subscription record if needed
@@ -564,8 +565,8 @@ async function handleSubscriptionUpdated(event: Stripe.Event) {
   const subscription = event.data.object as Stripe.Subscription;
   
   console.log('Subscription updated:', {
-    subscriptionId: subscription.id,
-    status: subscription.status,
+    subscriptionId: nullableToString(subscription.id),
+    status: nullableToString(subscription.status),
     customerId: typeof subscription.customer === 'string' ? subscription.customer : subscription.customer?.id || 'unknown',
   });
 

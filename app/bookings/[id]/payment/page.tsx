@@ -51,12 +51,12 @@ function PaymentForm({ booking }: { booking: BookingDetails }) {
         },
         body: JSON.stringify({
           action: 'CREATE_PAYMENT_INTENT',
-          amount: booking.totalAmount,
-          bookingId: booking.id,
-          customerId: user?.userId,
-          providerId: booking.providerId,
-          providerStripeAccountId: booking.providerStripeAccountId,
-          serviceTitle: booking.serviceTitle,
+          amount: nullableToString(booking.totalAmount),
+          bookingId: nullableToString(booking.id),
+          customerId: nullableToString(user?.userId),
+          providerId: nullableToString(booking.providerId),
+          providerStripeAccountId: nullableToString(booking.providerStripeAccountId),
+          serviceTitle: nullableToString(booking.serviceTitle),
         }),
       });
 

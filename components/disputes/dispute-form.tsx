@@ -57,8 +57,8 @@ export function DisputeForm({ bookingId, bookingAmount, onDisputeCreated }: Disp
     try {
       const { data, errors } = await client.mutations.initiateDispute({
         bookingId,
-        reason: formData.reason,
-        description: formData.description,
+        reason: nullableToString(formData.reason),
+        description: nullableToString(formData.description),
         amount: formData.amount ? parseFloat(formData.amount) : undefined,
       });
 

@@ -200,18 +200,18 @@ export default function BookServicePage() {
       const customerEmail = user.signInDetails?.loginId || user.username || '';
 
       const bookingData = {
-        serviceId: service.id,
+        serviceId: nullableToString(service.id),
         providerId: service.providerEmail, // Using email as ID for now
-        providerEmail: service.providerEmail,
+        providerEmail: nullableToString(service.providerEmail),
         customerId: customerEmail, // Using email as ID for now
         customerEmail: customerEmail,
         scheduledDate: formatDateForAPI(selectedDate),
         scheduledTime: selectedTime,
         duration: service.duration || 60,
         status: 'CONFIRMED' as const, // Since payment is processed
-        totalAmount: priceBreakdown.totalAmount,
-        platformFee: priceBreakdown.platformCommission,
-        providerEarnings: priceBreakdown.providerAmount,
+        totalAmount: nullableToString(priceBreakdown.totalAmount),
+        platformFee: nullableToString(priceBreakdown.platformCommission),
+        providerEarnings: nullableToString(priceBreakdown.providerAmount),
         notes: notes || undefined,
         paymentIntentId: paymentIntentId,
       };
@@ -221,13 +221,13 @@ export default function BookServicePage() {
       if (booking) {
         // Success notification
         console.log('🎉 Booking Created Successfully!', {
-          bookingId: booking.id,
-          service: service.title,
+          bookingId: nullableToString(booking.id),
+          service: nullableToString(service.title),
           date: selectedDate.toLocaleDateString(),
           time: formatTimeSlot(selectedTime),
           customer: customerEmail,
-          provider: service.providerEmail,
-          amount: priceBreakdown.totalAmount,
+          provider: nullableToString(service.providerEmail),
+          amount: nullableToString(priceBreakdown.totalAmount),
           paymentIntentId: paymentIntentId
         });
 

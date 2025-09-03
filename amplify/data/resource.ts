@@ -24,23 +24,52 @@ const schema = a.schema({
       processedAt: a.datetime(),
       result: a.json(),
       eventType: a.string(),
+      ownerId: a.string(),
     })
     .identifier(['eventId'])
     .authorization((allow) => [
       allow.custom(), // For webhook processing
       allow.groups(['Admin']), // For admin viewing
+      allow.owner(), // Allow owner access via ownerId
     ]),
 
-  // User profile model
+  // User model
+  User: a.model({
+    email: a.email().required(),
+    firstName: a.string(),
+    lastName: a.string(),
+    name: a.string(),
+    phone: a.phone(),
+    role: a.enum(['CUSTOMER', 'PROVIDER', 'ADMIN']),
+    accountType: a.string(),
+    profilePicture: a.url(),
+    city: a.string(),
+    state: a.string(),
+    province: a.string(),
+    stripeAccountId: a.string(),
+    userType: a.string(),
+  })
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
+  ]),
+
+  // User profile model (alias for User)
   UserProfile: a.model({
     email: a.email().required(),
     firstName: a.string(),
     lastName: a.string(),
+    name: a.string(),
     phone: a.phone(),
     role: a.enum(['CUSTOMER', 'PROVIDER', 'ADMIN']),
+    accountType: a.string(),
     profilePicture: a.url(),
     city: a.string(),
     state: a.string(),
+    province: a.string(),
+    stripeAccountId: a.string(),
+    userType: a.string(),
+    profileOwner: a.string(),
   })
   .authorization((allow) => [
     allow.owner().to(['create', 'read', 'update', 'delete']),
@@ -57,6 +86,33 @@ const schema = a.schema({
     address: a.string(),
     city: a.string(),
     state: a.string(),
+    province: a.string(),
+    zipCode: a.string(),
+    stripeAccountId: a.string(),
+    stripeOnboardingComplete: a.boolean(),
+    verificationStatus: a.enum(['PENDING', 'APPROVED', 'REJECTED']),
+    active: a.boolean(),
+  })
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
+  ]),
+
+  // Provider profile model (alias for Provider)
+  ProviderProfile: a.model({
+    email: a.email().required(),
+    firstName: a.string(),
+    lastName: a.string(),
+    businessName: a.string(),
+    phone: a.phone(),
+    publicEmail: a.string(),
+    phoneNumber: a.string(),
+    bio: a.string(),
+    profileImageUrl: a.url(),
+    address: a.string(),
+    city: a.string(),
+    state: a.string(),
+    province: a.string(),
     zipCode: a.string(),
     stripeAccountId: a.string(),
     stripeOnboardingComplete: a.boolean(),
@@ -81,7 +137,7 @@ const schema = a.schema({
   .authorization((allow) => [
     allow.owner().to(['create', 'read', 'update', 'delete']),
     allow.groups(['Providers', 'Admins']).to(['create', 'read', 'update', 'delete']),
-    allow.private().to(['read']),
+    allow.authenticated().to(['read']),
   ]),
 
   // Booking model
@@ -91,8 +147,16 @@ const schema = a.schema({
     providerEmail: a.email().required(),
     scheduledDate: a.date().required(),
     scheduledTime: a.time().required(),
+    startDateTime: a.datetime(),
+    endDateTime: a.datetime(),
     status: a.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED']),
+    paymentStatus: a.string(),
     totalAmount: a.float().required(),
+    amountCents: a.integer(),
+    platformFeeCents: a.integer(),
+    paymentIntentId: a.string(),
+    providerId: a.string(),
+    customerId: a.string(),
     notes: a.string(),
   })
   .authorization((allow) => [
@@ -113,7 +177,7 @@ const schema = a.schema({
   })
   .authorization((allow) => [
     allow.owner().to(['create', 'read', 'update', 'delete']),
-    allow.public().to(['read']),
+    allow.guest().to(['read']),
     allow.groups(['Admins']).to(['create', 'read', 'update', 'delete']),
   ]),
 
@@ -165,6 +229,29 @@ const schema = a.schema({
   .authorization((allow) => [
     allow.owner().to(['create', 'read', 'update', 'delete']),
     allow.groups(['Admin']).to(['read', 'update', 'delete']),
+  ]),
+
+  // Generic marketplace data model
+  EcosystemMarketplace: a.model({
+    pk: a.string().required(),
+    sk: a.string().required(),
+    entityType: a.string(),
+    gsi1pk: a.string(),
+    gsi1sk: a.string(),
+    gsi2pk: a.string(),
+    gsi2sk: a.string(),
+    name: a.string(),
+    slug: a.string(),
+    email: a.string(),
+    description: a.string(),
+    category: a.string(),
+    status: a.string(),
+    role: a.string(),
+  })
+  .identifier(['pk', 'sk'])
+  .authorization((allow) => [
+    allow.owner().to(['create', 'read', 'update', 'delete']),
+    allow.authenticated().to(['read']),
   ]),
 
   // Generated Bio model for AI-generated provider bios

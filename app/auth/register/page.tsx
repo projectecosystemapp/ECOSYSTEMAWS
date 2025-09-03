@@ -58,14 +58,14 @@ export default function RegisterPage() {
 
     try {
       const { isSignUpComplete, nextStep } = await signUp({
-        username: formData.email,
-        password: formData.password,
+        username: nullableToString(formData.email),
+        password: nullableToString(formData.password),
         options: {
           userAttributes: {
-            email: formData.email,
-            given_name: formData.firstName,
-            family_name: formData.lastName,
-            phone_number: formData.phone,
+            email: nullableToString(formData.email),
+            given_name: nullableToString(formData.firstName),
+            family_name: nullableToString(formData.lastName),
+            phone_number: nullableToString(formData.phone),
           },
         },
       });
@@ -90,15 +90,15 @@ export default function RegisterPage() {
 
     try {
       const { isSignUpComplete } = await confirmSignUp({
-        username: formData.email,
+        username: nullableToString(formData.email),
         confirmationCode: verificationCode,
       });
 
       if (isSignUpComplete) {
         // Auto sign in after verification
         const { isSignedIn } = await signIn({
-          username: formData.email,
-          password: formData.password,
+          username: nullableToString(formData.email),
+          password: nullableToString(formData.password),
         });
 
         if (isSignedIn) {
@@ -109,10 +109,10 @@ export default function RegisterPage() {
           try {
             const { userProfileApi } = await import('@/lib/api');
             await userProfileApi.create({
-              email: formData.email,
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-              phone: formData.phone,
+              email: nullableToString(formData.email),
+              firstName: nullableToString(formData.firstName),
+              lastName: nullableToString(formData.lastName),
+              phone: nullableToString(formData.phone),
               role: pendingRole.toUpperCase() as 'CUSTOMER' | 'PROVIDER',
             });
           } catch (profileErr) {

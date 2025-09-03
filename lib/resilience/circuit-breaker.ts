@@ -12,6 +12,7 @@ import { randomUUID } from 'crypto';
 
 import { DynamoDBClient, GetItemCommand, PutItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Circuit Breaker States
 export enum CircuitState {
@@ -102,9 +103,9 @@ export class CircuitBreaker {
       // Check if we should attempt the request
       if (!this.canAttempt()) {
         console.log(`[CircuitBreaker] Circuit OPEN for ${this.config.serviceName}`, {
-          correlationId: this.correlationId,
+          correlationId: nullableToString(this.correlationId),
           requestId,
-          state: this.state,
+          state: nullableToString(this.state),
           metrics: this.metrics
         });
 
@@ -182,9 +183,9 @@ export class CircuitBreaker {
     this.updateErrorRate();
 
     console.log(`[CircuitBreaker] Success for ${this.config.serviceName}`, {
-      correlationId: this.correlationId,
+      correlationId: nullableToString(this.correlationId),
       duration,
-      state: this.state,
+      state: nullableToString(this.state),
       consecutiveSuccesses: this.metrics.consecutiveSuccesses
     });
 
@@ -210,10 +211,10 @@ export class CircuitBreaker {
     this.updateErrorRate();
 
     console.error(`[CircuitBreaker] Failure for ${this.config.serviceName}`, {
-      correlationId: this.correlationId,
+      correlationId: nullableToString(this.correlationId),
       duration,
-      state: this.state,
-      consecutiveFailures: this.metrics.consecutiveFailures,
+      state: nullableToString(this.state),
+      consecutiveFailures: nullableToString(this.metrics.consecutiveFailures),
       error: error.message || error
     });
 
@@ -263,7 +264,7 @@ export class CircuitBreaker {
     }
 
     console.log(`[CircuitBreaker] State transition for ${this.config.serviceName}`, {
-      correlationId: this.correlationId,
+      correlationId: nullableToString(this.correlationId),
       oldState,
       newState,
       metrics: this.metrics
@@ -278,7 +279,7 @@ export class CircuitBreaker {
   private async loadState(): Promise<void> {
     try {
       const response = await this.dynamoClient.send(new GetItemCommand({
-        TableName: this.config.tableName,
+        TableName: nullableToString(this.config.tableName),
         Key: marshall({ serviceName: this.config.serviceName })
       }));
 
@@ -293,7 +294,7 @@ export class CircuitBreaker {
           this.lastStateChange = record.lastStateChange;
           
           console.log(`[CircuitBreaker] Loaded state for ${this.config.serviceName}`, {
-            state: this.state,
+            state: nullableToString(this.state),
             metrics: this.metrics
           });
         }
@@ -312,16 +313,16 @@ export class CircuitBreaker {
       const ttl = Math.floor(Date.now() / 1000) + (24 * 60 * 60); // 24 hour TTL
       
       const record: CircuitStateRecord = {
-        serviceName: this.config.serviceName,
-        state: this.state,
-        metrics: this.metrics,
-        lastStateChange: this.lastStateChange,
-        correlationId: this.correlationId,
+        serviceName: nullableToString(this.config.serviceName),
+        state: nullableToString(this.state),
+        metrics: nullableToString(this.metrics),
+        lastStateChange: nullableToString(this.lastStateChange),
+        correlationId: nullableToString(this.correlationId),
         ttl
       };
 
       await this.dynamoClient.send(new PutItemCommand({
-        TableName: this.config.tableName,
+        TableName: nullableToString(this.config.tableName),
         Item: marshall(record)
       }));
     } catch (error) {
@@ -335,7 +336,7 @@ export class CircuitBreaker {
    */
   getStatus(): { state: CircuitState; metrics: CircuitMetrics; correlationId: string } {
     return {
-      state: this.state,
+      state: nullableToString(this.state),
       metrics: { ...this.metrics },
       correlationId: this.correlationId
     };

@@ -28,6 +28,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { refactoredApi } from '@/lib/api/refactored';
 import type { Booking } from '@/lib/types';
 import { getStatusColor, getStatusText } from '@/lib/types';
+import { nullableToString, nullableToNumber, nullableToBoolean } from '@/lib/type-utils';
 
 export default function CustomerBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);

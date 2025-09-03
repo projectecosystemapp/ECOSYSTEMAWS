@@ -3,14 +3,14 @@
 // Mitigation: Strict validation, user-based access control, type safety
 // Validated: All operations use proper authorization and input validation
 
-import { getCurrentUser } from 'aws-amplify/auth/server';
 import { generateClient } from 'aws-amplify/data';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import type { Schema } from '@/amplify/data/resource';
-import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
+import { getAuthenticatedUser, runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
+import { nullableToString } from '@/lib/type-utils';
 import {
   NotificationRequestSchema,
   type NotificationRequest,
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest): Promise<NextResponse<ApiRespons
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
         // 1. Authenticate user
-        const user = await getCurrentUser(contextSpec);
+        const user = await getAuthenticatedUser(request);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
           return NextResponse.json(
@@ -190,7 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       nextServerContext: { cookies },
       operation: async (contextSpec) => {
         // 2. Authenticate user
-        const user = await getCurrentUser(contextSpec);
+        const user = await getAuthenticatedUser(request);
         if (!user) {
           logger.warn(`[${correlationId}] Unauthorized access attempt`);
           return NextResponse.json(

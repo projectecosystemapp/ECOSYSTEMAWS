@@ -9,6 +9,7 @@ import { Stack } from 'aws-cdk-lib';
 import { Topic, Subscription, SubscriptionProtocol } from 'aws-cdk-lib/aws-sns';
 import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export function createSnsTopics(stack: Stack) {
   // Webhook Reconciliation Alerts Topic
@@ -40,7 +41,7 @@ export function createSnsTopics(stack: Stack) {
 
   // Add access policy for Lambda functions
   const lambdaPublishPolicy = new PolicyStatement({
-    effect: Effect.ALLOW,
+    effect: nullableToString(Effect.ALLOW),
     principals: [], // Will be filled by Lambda execution role
     actions: ['sns:Publish'],
     resources: [
@@ -54,7 +55,7 @@ export function createSnsTopics(stack: Stack) {
 
   // Export topic ARNs for use in Lambda environment variables
   return {
-    webhookAlertsTopicArn: webhookAlertsTopic.topicArn,
-    criticalAlertsTopicArn: criticalAlertsTopic.topicArn,
+    webhookAlertsTopicArn: nullableToString(webhookAlertsTopic.topicArn),
+    criticalAlertsTopicArn: nullableToString(criticalAlertsTopic.topicArn),
   };
 }

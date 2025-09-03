@@ -4,6 +4,7 @@ import { fetchAuthSession, fetchUserAttributes, getCurrentUser } from 'aws-ampli
 import { NextRequest } from 'next/server';
 
 import outputs from '@/amplify_outputs.json';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 
 export const { runWithAmplifyServerContext } = createServerRunner({
@@ -39,8 +40,8 @@ export async function getAuthenticatedUser(req: NextRequest): Promise<Authentica
         const groups = Array.isArray(cognitoGroups) ? cognitoGroups as string[] : [];
 
         return {
-          userId: user.userId,
-          username: user.username,
+          userId: nullableToString(user.userId),
+          username: nullableToString(user.username),
           attributes,
           groups,
         };

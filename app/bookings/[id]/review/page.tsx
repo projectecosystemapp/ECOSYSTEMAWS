@@ -91,10 +91,10 @@ export default function ReviewBookingPage() {
 
       // Create review
       await reviewApi.create({
-        serviceId: booking.serviceId,
-        bookingId: booking.id,
-        customerEmail: booking.customerEmail,
-        providerEmail: booking.providerEmail,
+        serviceId: nullableToString(booking.serviceId),
+        bookingId: nullableToString(booking.id),
+        customerEmail: nullableToString(booking.customerEmail),
+        providerEmail: nullableToString(booking.providerEmail),
         rating,
         comment
       });

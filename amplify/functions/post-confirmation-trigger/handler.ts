@@ -3,13 +3,14 @@ import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import { type Schema } from '../../data/resource';
 import { env } from '$amplify/env/post-confirmation-trigger';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 Amplify.configure(
   {
     API: {
       GraphQL: {
-        endpoint: env.AMPLIFY_DATA_GRAPHQL_ENDPOINT,
-        region: env.AWS_REGION,
+        endpoint: nullableToString(env.AMPLIFY_DATA_GRAPHQL_ENDPOINT),
+        region: nullableToString(env.AWS_REGION),
         defaultAuthMode: 'iam',
       },
     },
@@ -19,9 +20,9 @@ Amplify.configure(
       credentialsProvider: {
         getCredentialsAndIdentityId: async () => ({
           credentials: {
-            accessKeyId: env.AWS_ACCESS_KEY_ID,
-            secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-            sessionToken: env.AWS_SESSION_TOKEN,
+            accessKeyId: nullableToString(env.AWS_ACCESS_KEY_ID),
+            secretAccessKey: nullableToString(env.AWS_SECRET_ACCESS_KEY),
+            sessionToken: nullableToString(env.AWS_SESSION_TOKEN),
           },
         }),
         clearCredentialsAndIdentityId: () => {

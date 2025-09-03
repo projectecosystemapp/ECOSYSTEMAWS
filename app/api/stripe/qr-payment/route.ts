@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import Stripe from 'stripe';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-08-27.basil',
@@ -91,7 +92,7 @@ async function createQRPayment(params: any) {
         quantity: 1,
       }],
       payment_intent_data: {
-        metadata: paymentIntent.metadata,
+        metadata: nullableToString(paymentIntent.metadata),
       },
       after_completion: {
         type: 'redirect',
@@ -104,12 +105,12 @@ async function createQRPayment(params: any) {
     // Generate QR code data URL
     const qrCodeData = {
       type: 'ECOSYSTEM_PAYMENT',
-      paymentIntentId: paymentIntent.id,
+      paymentIntentId: nullableToString(paymentIntent.id),
       providerId,
       serviceId,
       amount,
       currency,
-      paymentUrl: paymentLink.url,
+      paymentUrl: nullableToString(paymentLink.url),
       expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
     };
     
@@ -129,13 +130,13 @@ async function createQRPayment(params: any) {
     });
     
     return NextResponse.json({
-      paymentIntentId: paymentIntent.id,
-      paymentLinkUrl: paymentLink.url,
+      paymentIntentId: nullableToString(paymentIntent.id),
+      paymentLinkUrl: nullableToString(paymentLink.url),
       qrCodeDataUrl: qrCodeUrl,
       simpleQRCodeUrl: simpleQRCode,
       amount,
       platformFee,
-      expiresAt: qrCodeData.expiresAt,
+      expiresAt: nullableToString(qrCodeData.expiresAt),
       escrowEnabled,
     });
   } catch (error) {
@@ -187,11 +188,11 @@ async function verifyQRPayment(params: any) {
     return NextResponse.json({
       valid: true,
       paymentIntent: {
-        id: paymentIntent.id,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: paymentIntent.status,
-        metadata: paymentIntent.metadata,
+        id: nullableToString(paymentIntent.id),
+        amount: nullableToString(paymentIntent.amount),
+        currency: nullableToString(paymentIntent.currency),
+        status: nullableToString(paymentIntent.status),
+        metadata: nullableToString(paymentIntent.metadata),
       },
       qrData,
     });
@@ -242,8 +243,8 @@ async function processQRPayment(params: any) {
       if (paymentIntent.metadata.escrow === 'true') {
         return NextResponse.json({
           success: true,
-          paymentIntentId: confirmedPayment.id,
-          status: confirmedPayment.status,
+          paymentIntentId: nullableToString(confirmedPayment.id),
+          status: nullableToString(confirmedPayment.status),
           escrowEnabled: true,
           message: 'Payment authorized and held in escrow',
         });
@@ -254,24 +255,24 @@ async function processQRPayment(params: any) {
         // Transfer is handled automatically via application_fee_amount
         return NextResponse.json({
           success: true,
-          paymentIntentId: confirmedPayment.id,
-          status: confirmedPayment.status,
+          paymentIntentId: nullableToString(confirmedPayment.id),
+          status: nullableToString(confirmedPayment.status),
           message: 'Payment processed and transferred to provider',
         });
       }
       
       return NextResponse.json({
         success: true,
-        paymentIntentId: confirmedPayment.id,
-        status: confirmedPayment.status,
+        paymentIntentId: nullableToString(confirmedPayment.id),
+        status: nullableToString(confirmedPayment.status),
         message: 'Payment processed successfully',
       });
     }
     
     return NextResponse.json({
       success: true,
-      paymentIntentId: updatedPaymentIntent.id,
-      status: updatedPaymentIntent.status,
+      paymentIntentId: nullableToString(updatedPaymentIntent.id),
+      status: nullableToString(updatedPaymentIntent.status),
       requiresConfirmation: updatedPaymentIntent.status === 'requires_confirmation',
     });
   } catch (error) {
@@ -292,11 +293,11 @@ export async function GET(request: NextRequest) {
     const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
     
     return NextResponse.json({
-      id: paymentIntent.id,
-      amount: paymentIntent.amount,
-      currency: paymentIntent.currency,
-      status: paymentIntent.status,
-      metadata: paymentIntent.metadata,
+      id: nullableToString(paymentIntent.id),
+      amount: nullableToString(paymentIntent.amount),
+      currency: nullableToString(paymentIntent.currency),
+      status: nullableToString(paymentIntent.status),
+      metadata: nullableToString(paymentIntent.metadata),
     });
   } catch (error) {
     console.error('Get payment intent error:', error);

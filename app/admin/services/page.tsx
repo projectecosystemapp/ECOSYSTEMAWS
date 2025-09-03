@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { serviceApi } from '@/lib/api';
 import { logger } from '@/lib/logger';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 interface ServiceWithStats {
   id: string;
@@ -81,11 +82,11 @@ export default function ServiceModeration(): JSX.Element {
   const handleEditService = (service: ServiceWithStats): void => {
     setEditingService(service);
     setEditForm({
-      title: service.title,
-      description: service.description,
-      price: service.price,
-      category: service.category,
-      duration: service.duration,
+      title: nullableToString(service.title),
+      description: nullableToString(service.description),
+      price: service.price?.toString() || '',
+      category: nullableToString(service.category),
+      duration: service.duration?.toString() || '',
       active: service.active
     });
   };
@@ -95,7 +96,7 @@ export default function ServiceModeration(): JSX.Element {
 
     try {
       await serviceApi.update({
-        id: editingService.id,
+        id: nullableToString(editingService.id),
         ...editForm
       });
 

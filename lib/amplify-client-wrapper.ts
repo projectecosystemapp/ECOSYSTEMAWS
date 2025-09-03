@@ -21,6 +21,7 @@ import { CircuitBreaker } from './resilience/circuit-breaker';
 import { correlationTracker, withCorrelation } from './resilience/correlation-tracker';
 import { PerformanceTracker } from './resilience/performance-tracker';
 import { ResponseNormalizer, type NormalizedResponse } from './resilience/response-normalizer';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Create the Amplify client with enhanced configuration
 const client = generateClient<Schema>({
@@ -31,11 +32,11 @@ const client = generateClient<Schema>({
 const LAMBDA_URLS = {
   stripeConnect: process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL || process.env.STRIPE_CONNECT_LAMBDA_URL,
   stripeWebhook: process.env.NEXT_PUBLIC_STRIPE_WEBHOOK_URL || process.env.STRIPE_WEBHOOK_LAMBDA_URL,
-  bookingProcessor: process.env.BOOKING_PROCESSOR_LAMBDA_URL,
-  payoutManager: process.env.PAYOUT_MANAGER_LAMBDA_URL,
-  refundProcessor: process.env.REFUND_PROCESSOR_LAMBDA_URL,
-  messagingHandler: process.env.MESSAGING_HANDLER_LAMBDA_URL,
-  notificationHandler: process.env.NOTIFICATION_HANDLER_LAMBDA_URL,
+  bookingProcessor: nullableToString(process.env.BOOKING_PROCESSOR_LAMBDA_URL),
+  payoutManager: nullableToString(process.env.PAYOUT_MANAGER_LAMBDA_URL),
+  refundProcessor: nullableToString(process.env.REFUND_PROCESSOR_LAMBDA_URL),
+  messagingHandler: nullableToString(process.env.MESSAGING_HANDLER_LAMBDA_URL),
+  notificationHandler: nullableToString(process.env.NOTIFICATION_HANDLER_LAMBDA_URL),
 };
 
 // Initialize circuit breakers for each service
@@ -120,7 +121,7 @@ export async function stripeConnectOperation(params: {
     
     // Add correlation headers
     correlationTracker.addMetadata({
-      action: params.action,
+      action: nullableToString(params.action),
       providerId: params.providerId
     });
 
@@ -225,7 +226,7 @@ export async function processBooking(params: {
     
     // Add correlation metadata
     correlationTracker.addMetadata({
-      action: params.action,
+      action: nullableToString(params.action),
       bookingId: params.bookingId
     });
 
@@ -561,8 +562,8 @@ export async function processWebhook(params: {
 
       // For webhooks, we always use AppSync with custom authorization
       const { data, errors } = await client.mutations.stripeWebhook({
-        body: params.body,
-        signature: params.signature,
+        body: nullableToString(params.body),
+        signature: nullableToString(params.signature),
       });
       
       if (errors) {
@@ -612,13 +613,13 @@ export async function startWorkflow(params: {
     
     // Add correlation metadata
     correlationTracker.addMetadata({
-      workflowType: params.workflowType,
+      workflowType: nullableToString(params.workflowType),
       executionName: params.executionName
     });
 
     try {
       console.log('🚀 Starting workflow:', {
-        workflowType: params.workflowType,
+        workflowType: nullableToString(params.workflowType),
         correlationId: correlationTracker.getCurrentCorrelationId()
       });
       
@@ -636,8 +637,8 @@ export async function startWorkflow(params: {
       performanceTracker.recordMetric('workflow-start', duration, true, 'appsync');
       
       console.log('✅ Workflow started successfully:', {
-        workflowType: params.workflowType,
-        executionArn: result.data?.executionArn,
+        workflowType: nullableToString(params.workflowType),
+        executionArn: nullableToString(result.data?.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration
       });
@@ -650,7 +651,7 @@ export async function startWorkflow(params: {
       performanceTracker.recordMetric('workflow-start', duration, false, 'appsync', errorType);
       
       console.error('❌ Workflow start failed:', {
-        workflowType: params.workflowType,
+        workflowType: nullableToString(params.workflowType),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -670,13 +671,13 @@ export async function stopWorkflow(params: {
     
     // Add correlation metadata
     correlationTracker.addMetadata({
-      executionArn: params.executionArn,
+      executionArn: nullableToString(params.executionArn),
       workflowType: params.workflowType
     });
 
     try {
       console.log('🛑 Stopping workflow:', {
-        executionArn: params.executionArn,
+        executionArn: nullableToString(params.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId()
       });
       
@@ -694,7 +695,7 @@ export async function stopWorkflow(params: {
       performanceTracker.recordMetric('workflow-stop', duration, true, 'appsync');
       
       console.log('✅ Workflow stopped successfully:', {
-        executionArn: params.executionArn,
+        executionArn: nullableToString(params.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration
       });
@@ -707,7 +708,7 @@ export async function stopWorkflow(params: {
       performanceTracker.recordMetric('workflow-stop', duration, false, 'appsync', errorType);
       
       console.error('❌ Workflow stop failed:', {
-        executionArn: params.executionArn,
+        executionArn: nullableToString(params.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -727,13 +728,13 @@ export async function getWorkflowStatus(params: {
     
     // Add correlation metadata
     correlationTracker.addMetadata({
-      executionArn: params.executionArn,
+      executionArn: nullableToString(params.executionArn),
       workflowType: params.workflowType
     });
 
     try {
       console.log('📊 Getting workflow status:', {
-        executionArn: params.executionArn,
+        executionArn: nullableToString(params.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId()
       });
       
@@ -751,8 +752,8 @@ export async function getWorkflowStatus(params: {
       performanceTracker.recordMetric('workflow-status', duration, true, 'appsync');
       
       console.log('✅ Workflow status retrieved:', {
-        executionArn: params.executionArn,
-        status: result.data?.status,
+        executionArn: nullableToString(params.executionArn),
+        status: nullableToString(result.data?.status),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration
       });
@@ -765,7 +766,7 @@ export async function getWorkflowStatus(params: {
       performanceTracker.recordMetric('workflow-status', duration, false, 'appsync', errorType);
       
       console.error('❌ Workflow status retrieval failed:', {
-        executionArn: params.executionArn,
+        executionArn: nullableToString(params.executionArn),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -788,14 +789,14 @@ export async function publishEvent(params: {
     
     // Add correlation metadata
     correlationTracker.addMetadata({
-      source: params.source,
+      source: nullableToString(params.source),
       detailType: params.detailType
     });
 
     try {
       console.log('📡 Publishing event:', {
-        source: params.source,
-        detailType: params.detailType,
+        source: nullableToString(params.source),
+        detailType: nullableToString(params.detailType),
         correlationId: correlationTracker.getCurrentCorrelationId()
       });
       
@@ -813,9 +814,9 @@ export async function publishEvent(params: {
       performanceTracker.recordMetric('event-publish', duration, true, 'appsync');
       
       console.log('✅ Event published successfully:', {
-        source: params.source,
-        detailType: params.detailType,
-        eventId: result.data?.eventId,
+        source: nullableToString(params.source),
+        detailType: nullableToString(params.detailType),
+        eventId: nullableToString(result.data?.eventId),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration
       });
@@ -828,8 +829,8 @@ export async function publishEvent(params: {
       performanceTracker.recordMetric('event-publish', duration, false, 'appsync', errorType);
       
       console.error('❌ Event publish failed:', {
-        source: params.source,
-        detailType: params.detailType,
+        source: nullableToString(params.source),
+        detailType: nullableToString(params.detailType),
         correlationId: correlationTracker.getCurrentCorrelationId(),
         duration,
         error: error instanceof Error ? error.message : 'Unknown error'

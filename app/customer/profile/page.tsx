@@ -149,7 +149,7 @@ export default function CustomerProfilePage() {
       setSaving(true);
       
       const updatedProfile = await refactoredApi.userProfile.update({
-        id: user.id,
+        id: nullableToString(user.id),
         ...formData,
         notificationPreferences: notifications
       });

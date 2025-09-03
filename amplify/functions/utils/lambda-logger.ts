@@ -30,13 +30,13 @@ class LambdaLogger {
       timestamp: new Date().toISOString(),
       level,
       message,
-      requestId: this.context?.awsRequestId,
-      functionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-      functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION,
+      requestId: nullableToString(this.context?.awsRequestId),
+      functionName: nullableToString(process.env.AWS_LAMBDA_FUNCTION_NAME),
+      functionVersion: nullableToString(process.env.AWS_LAMBDA_FUNCTION_VERSION),
       context: extra,
       error: error ? {
-        message: error.message,
-        stack: error.stack,
+        message: nullableToString(error.message),
+        stack: nullableToString(error.stack),
         name: error.name
       } : undefined
     };
@@ -84,10 +84,10 @@ class LambdaLogger {
   // Log Lambda invocation start
   logInvocation(event: any): void {
     this.info('Lambda invocation started', {
-      eventSource: event.source,
+      eventSource: nullableToString(event.source),
       eventType: event.action || event.httpMethod || 'unknown',
       hasBody: !!event.body,
-      pathParameters: event.pathParameters,
+      pathParameters: nullableToString(event.pathParameters),
       queryStringParameters: event.queryStringParameters
     });
   }

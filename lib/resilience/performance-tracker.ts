@@ -10,6 +10,7 @@
 import { CloudWatchClient, PutMetricDataCommand, MetricDatum } from '@aws-sdk/client-cloudwatch';
 
 import { correlationTracker } from './correlation-tracker';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export interface PerformanceMetric {
   operation: string;
@@ -84,7 +85,7 @@ export class PerformanceTracker {
       operation,
       duration,
       success,
-      architecture: metric.architecture,
+      architecture: nullableToString(metric.architecture),
       correlationId: metric.correlationId
     });
 
@@ -134,9 +135,9 @@ export class PerformanceTracker {
 
     return {
       operation,
-      count: relevantMetrics.length,
-      successCount: successMetrics.length,
-      failureCount: failureMetrics.length,
+      count: nullableToString(relevantMetrics.length),
+      successCount: nullableToString(successMetrics.length),
+      failureCount: nullableToString(failureMetrics.length),
       averageDuration: durations.reduce((a, b) => a + b, 0) / durations.length,
       minDuration: durations[0],
       maxDuration: durations[durations.length - 1],
@@ -230,9 +231,9 @@ export class PerformanceTracker {
 
     return {
       operation,
-      count: metrics.length,
-      successCount: successMetrics.length,
-      failureCount: failureMetrics.length,
+      count: nullableToString(metrics.length),
+      successCount: nullableToString(successMetrics.length),
+      failureCount: nullableToString(failureMetrics.length),
       averageDuration: durations.reduce((a, b) => a + b, 0) / durations.length,
       minDuration: durations[0],
       maxDuration: durations[durations.length - 1],
@@ -282,7 +283,7 @@ export class PerformanceTracker {
         // Duration metrics
         metricData.push({
           MetricName: 'OperationDuration',
-          Value: stats.averageDuration,
+          Value: nullableToString(stats.averageDuration),
           Unit: 'Milliseconds',
           Timestamp: new Date(),
           Dimensions: [
@@ -294,7 +295,7 @@ export class PerformanceTracker {
         // Error rate metric
         metricData.push({
           MetricName: 'ErrorRate',
-          Value: stats.errorRate,
+          Value: nullableToString(stats.errorRate),
           Unit: 'Percent',
           Timestamp: new Date(),
           Dimensions: [
@@ -306,7 +307,7 @@ export class PerformanceTracker {
         // Request count metric
         metricData.push({
           MetricName: 'RequestCount',
-          Value: stats.count,
+          Value: nullableToString(stats.count),
           Unit: 'Count',
           Timestamp: new Date(),
           Dimensions: [
@@ -322,7 +323,7 @@ export class PerformanceTracker {
         const batch = metricData.slice(i, i + batchSize);
         
         await this.cloudWatchClient.send(new PutMetricDataCommand({
-          Namespace: this.namespace,
+          Namespace: nullableToString(this.namespace),
           MetricData: batch
         }));
       }

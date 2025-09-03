@@ -1,4 +1,5 @@
 import { http, HttpResponse } from 'msw';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export const stripeHandlers = [
   // Stripe Connect account creation
@@ -101,7 +102,7 @@ export const stripeHandlers = [
     return HttpResponse.json({
       clientSecret: 'pi_test_' + Date.now() + '_secret_' + Math.random().toString(36),
       paymentIntentId: 'pi_test_' + Date.now(),
-      amount: body.amount,
+      amount: nullableToString(body.amount),
       currency: body.currency || 'cad',
       status: 'requires_payment_method'
     });
@@ -112,9 +113,9 @@ export const stripeHandlers = [
     const body = await request.json() as any;
     
     return HttpResponse.json({
-      paymentIntentId: body.paymentIntentId,
+      paymentIntentId: nullableToString(body.paymentIntentId),
       status: 'succeeded',
-      amount: body.amount,
+      amount: nullableToString(body.amount),
       chargeId: 'ch_test_' + Date.now(),
       capturedAt: new Date().toISOString()
     });
@@ -126,9 +127,9 @@ export const stripeHandlers = [
     
     return HttpResponse.json({
       refundId: 're_test_' + Date.now(),
-      amount: body.amount,
+      amount: nullableToString(body.amount),
       status: 'succeeded',
-      paymentIntentId: body.paymentIntentId,
+      paymentIntentId: nullableToString(body.paymentIntentId),
       reason: body.reason || 'requested_by_customer',
       createdAt: new Date().toISOString()
     });
@@ -137,7 +138,7 @@ export const stripeHandlers = [
   // Account balance
   http.get('/api/stripe/balance/:accountId', ({ params }) => {
     return HttpResponse.json({
-      accountId: params.accountId,
+      accountId: nullableToString(params.accountId),
       available: [
         {
           amount: 125000,
@@ -165,9 +166,9 @@ export const stripeHandlers = [
     
     return HttpResponse.json({
       transferId: 'tr_test_' + Date.now(),
-      amount: body.amount,
+      amount: nullableToString(body.amount),
       currency: body.currency || 'cad',
-      destination: body.destination,
+      destination: nullableToString(body.destination),
       status: 'pending',
       createdAt: new Date().toISOString()
     });

@@ -57,15 +57,15 @@ export default function SignUpPage() {
     setIsLoading(true);
     try {
       const { nextStep } = await signUp({
-        username: data.email,
-        password: data.password,
+        username: nullableToString(data.email),
+        password: nullableToString(data.password),
         options: {
           userAttributes: {
-            email: data.email,
+            email: nullableToString(data.email),
           },
           // CRITICAL: Pass role as clientMetadata for Lambda trigger
           clientMetadata: {
-            role: data.role,
+            role: nullableToString(data.role),
           },
         },
       });

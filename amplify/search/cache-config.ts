@@ -1,4 +1,5 @@
 import { Construct } from 'constructs';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 import {
   CfnCacheCluster,
   CfnReplicationGroup,
@@ -81,7 +82,7 @@ export class EcosystemCacheConfig extends Construct {
     this.subnetGroup = new CfnSubnetGroup(this, 'CacheSubnetGroup', {
       description: 'Subnet group for ElastiCache Redis cluster',
       subnetIds: vpc.selectSubnets({
-        subnetType: SubnetType.PRIVATE_WITH_EGRESS,
+        subnetType: nullableToString(SubnetType.PRIVATE_WITH_EGRESS),
       }).subnetIds,
       cacheSubnetGroupName: `ecosystem-cache-subnet-group-${environment}`,
     });
@@ -127,11 +128,10 @@ export class EcosystemCacheConfig extends Construct {
       // Engine configuration
       engine: 'redis',
       engineVersion: '7.0',
-      port: this.cachePort,
-      parameterGroupName: this.parameterGroup.ref,
-      
+      port: nullableToString(this.cachePort),
+      parameterGroupName: nullableToString(this.parameterGroup.ref),
       // Network configuration
-      cacheSubnetGroupName: this.subnetGroup.ref,
+      cacheSubnetGroupName: nullableToString(this.subnetGroup.ref),
       securityGroupIds: [this.securityGroup.securityGroupId],
       
       // PERFORMANCE: Backup and maintenance configuration
@@ -184,11 +184,10 @@ export class EcosystemCacheConfig extends Construct {
       // Engine configuration
       engine: 'redis',
       engineVersion: '7.0',
-      port: this.cachePort,
-      cacheParameterGroupName: this.parameterGroup.ref,
-      
+      port: nullableToString(this.cachePort),
+      cacheParameterGroupName: nullableToString(this.parameterGroup.ref),
       // Network configuration
-      cacheSubnetGroupName: this.subnetGroup.ref,
+      cacheSubnetGroupName: nullableToString(this.subnetGroup.ref),
       vpcSecurityGroupIds: [this.securityGroup.securityGroupId],
       
       // Backup configuration
@@ -328,8 +327,8 @@ export class EcosystemCacheConfig extends Construct {
    */
   public getCacheConfig() {
     return {
-      endpoint: this.cacheEndpoint,
-      port: this.cachePort,
+      endpoint: nullableToString(this.cacheEndpoint),
+      port: nullableToString(this.cachePort),
       // PERFORMANCE: Connection pool settings for optimal Lambda performance
       connectionPool: {
         maxConnections: 10,

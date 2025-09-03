@@ -1,5 +1,6 @@
 import Stripe from 'stripe';
 import { env } from '$amplify/env/stripe-connect';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Initialize Stripe
 const stripe = new Stripe(env.STRIPE_SECRET_KEY, {
@@ -64,15 +65,15 @@ async function createConnectAccount(providerId: string) {
   });
   
   const accountLink = await stripe.accountLinks.create({
-    account: account.id,
+    account: nullableToString(account.id),
     refresh_url: `${env.APP_URL}/provider/onboarding?refresh=true`,
     return_url: `${env.APP_URL}/provider/onboarding?success=true`,
     type: 'account_onboarding',
   });
   
   return {
-    accountId: account.id,
-    onboardingUrl: accountLink.url,
+    accountId: nullableToString(account.id),
+    onboardingUrl: nullableToString(accountLink.url),
   };
 }
 
@@ -91,12 +92,12 @@ async function checkAccountStatus(accountId: string) {
   const account = await stripe.accounts.retrieve(accountId);
   
   return {
-    accountId: account.id,
-    chargesEnabled: account.charges_enabled,
-    payoutsEnabled: account.payouts_enabled,
-    detailsSubmitted: account.details_submitted,
-    requirements: account.requirements,
-    capabilities: account.capabilities,
+    accountId: nullableToString(account.id),
+    chargesEnabled: nullableToString(account.charges_enabled),
+    payoutsEnabled: nullableToString(account.payouts_enabled),
+    detailsSubmitted: nullableToString(account.details_submitted),
+    requirements: nullableToString(account.requirements),
+    capabilities: nullableToString(account.capabilities),
   };
 }
 
@@ -121,8 +122,8 @@ async function createPaymentIntent(params: any) {
   });
   
   return {
-    clientSecret: paymentIntent.client_secret,
-    paymentIntentId: paymentIntent.id,
+    clientSecret: nullableToString(paymentIntent.client_secret),
+    paymentIntentId: nullableToString(paymentIntent.id),
     platformFee,
   };
 }
@@ -148,8 +149,8 @@ async function createEscrowPayment(params: any) {
   });
   
   return {
-    clientSecret: paymentIntent.client_secret,
-    paymentIntentId: paymentIntent.id,
+    clientSecret: nullableToString(paymentIntent.client_secret),
+    paymentIntentId: nullableToString(paymentIntent.id),
     platformFee,
     escrowEnabled: true,
   };
@@ -165,19 +166,19 @@ async function releaseEscrowPayment(params: any) {
   
   const transfer = await stripe.transfers.create({
     amount: transferAmount,
-    currency: paymentIntent.currency,
+    currency: nullableToString(paymentIntent.currency),
     destination: connectedAccountId,
     transfer_group: paymentIntentId,
     metadata: {
-      bookingId: paymentIntent.metadata.bookingId,
-      serviceId: paymentIntent.metadata.serviceId,
+      bookingId: nullableToString(paymentIntent.metadata.bookingId),
+      serviceId: nullableToString(paymentIntent.metadata.serviceId),
       escrowRelease: 'true',
     },
   });
   
   return {
     success: true,
-    transferId: transfer.id,
+    transferId: nullableToString(transfer.id),
     amountTransferred: transferAmount,
     platformFee,
   };
@@ -193,8 +194,8 @@ async function processRefund(params: any) {
   });
   
   return {
-    refundId: refund.id,
-    amount: refund.amount,
-    status: refund.status,
+    refundId: nullableToString(refund.id),
+    amount: nullableToString(refund.amount),
+    status: nullableToString(refund.status),
   };
 }

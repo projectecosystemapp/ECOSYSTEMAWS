@@ -22,7 +22,7 @@ export class DatabaseHelper {
 
   constructor() {
     this.dynamodb = new DynamoDBClient({ 
-      region: testConfig.staging.awsRegion,
+      region: nullableToString(testConfig.staging.awsRegion),
       credentials: {
         accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
         secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
@@ -83,7 +83,7 @@ export class DatabaseHelper {
   private extractKey(tableName: string, item: Record<string, any>): Record<string, any> {
     switch (tableName) {
       case 'User':
-        return { ownerId: item.ownerId };
+        return { owner: item.ownerId };
       case 'ProviderProfile':
         return { id: item.id };
       case 'Service':
@@ -102,7 +102,7 @@ export class DatabaseHelper {
     try {
       const response = await this.dynamodb.send(new GetItemCommand({
         TableName: this.getTableName('User'),
-        Key: marshall({ ownerId: cognitoSub })
+        Key: marshall({ owner: cognitoSub })
       }));
       
       return response.Item ? unmarshall(response.Item) : null;
@@ -119,7 +119,7 @@ export class DatabaseHelper {
     console.log(`Cleaning up data for user: ${userId}`);
     
     // Delete User record
-    await this.deleteRecord('User', { ownerId: userId });
+    await this.deleteRecord('User', { owner: userId });
     
     // Delete ProviderProfile
     await this.deleteRelatedRecords('ProviderProfile', 'ownerId', userId);

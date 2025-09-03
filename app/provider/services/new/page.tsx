@@ -36,12 +36,12 @@ export default function NewService() {
         providerEmail: email,
         providerName: providerName,
         // Ensure location fields are included
-        serviceAddress: formData.serviceAddress,
-        serviceCity: formData.serviceCity,
-        serviceState: formData.serviceState,
-        serviceZipCode: formData.serviceZipCode,
-        serviceRadius: formData.serviceRadius,
-        locationType: formData.locationType,
+        serviceAddress: nullableToString(formData.serviceAddress),
+        serviceCity: nullableToString(formData.serviceCity),
+        serviceState: nullableToString(formData.serviceState),
+        serviceZipCode: nullableToString(formData.serviceZipCode),
+        serviceRadius: nullableToString(formData.serviceRadius),
+        locationType: nullableToString(formData.locationType),
       };
 
       await serviceApi.create(serviceData);

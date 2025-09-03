@@ -74,13 +74,13 @@ export class CorrelationTracker {
     
     const context: CorrelationContext = {
       correlationId: randomUUID(),
-      parentId: existingContext?.spanId,
+      parentId: nullableToString(existingContext?.spanId),
       spanId: randomUUID(),
       traceId: existingContext?.traceId || this.generateTraceId(),
       timestamp: Date.now(),
       service: process.env.AWS_LAMBDA_FUNCTION_NAME || 'ECOSYSTEMAWS',
       operation,
-      userId: existingContext?.userId,
+      userId: nullableToString(existingContext?.userId),
       metadata: {
         ...existingContext?.metadata,
         ...metadata
@@ -91,9 +91,9 @@ export class CorrelationTracker {
     
     // Log correlation start for CloudWatch
     console.log('[CorrelationTracker] Started correlation', {
-      correlationId: context.correlationId,
-      traceId: context.traceId,
-      parentId: context.parentId,
+      correlationId: nullableToString(context.correlationId),
+      traceId: nullableToString(context.traceId),
+      parentId: nullableToString(context.parentId),
       operation,
       service: context.service
     });
@@ -134,7 +134,7 @@ export class CorrelationTracker {
 
       // Log successful completion
       console.log('[CorrelationTracker] Operation completed', {
-        correlationId: context.correlationId,
+        correlationId: nullableToString(context.correlationId),
         operation,
         duration,
         success: true
@@ -144,7 +144,7 @@ export class CorrelationTracker {
     } catch (error) {
       // Log error with correlation
       console.error('[CorrelationTracker] Operation failed', {
-        correlationId: context.correlationId,
+        correlationId: nullableToString(context.correlationId),
         operation,
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
@@ -257,9 +257,9 @@ export class CorrelationTracker {
     if (context) {
       return {
         ...headers,
-        'x-correlation-id': context.correlationId,
-        'x-trace-id': context.traceId,
-        'x-span-id': context.spanId,
+        'x-correlation-id': nullableToString(context.correlationId),
+        'x-trace-id': nullableToString(context.traceId),
+        'x-span-id': nullableToString(context.spanId),
         'x-parent-id': context.parentId || '',
         'x-service': context.service
       };
@@ -278,12 +278,12 @@ export class CorrelationTracker {
       timestamp: new Date().toISOString(),
       level,
       message,
-      correlationId: context?.correlationId,
-      traceId: context?.traceId,
-      spanId: context?.spanId,
-      service: context?.service,
-      operation: context?.operation,
-      userId: context?.userId,
+      correlationId: nullableToString(context?.correlationId),
+      traceId: nullableToString(context?.traceId),
+      spanId: nullableToString(context?.spanId),
+      service: nullableToString(context?.service),
+      operation: nullableToString(context?.operation),
+      userId: nullableToString(context?.userId),
       ...data
     };
   }
@@ -296,13 +296,13 @@ export class CorrelationTracker {
     
     const childContext: CorrelationContext = {
       correlationId: parentContext?.correlationId || randomUUID(),
-      parentId: parentContext?.spanId,
+      parentId: nullableToString(parentContext?.spanId),
       spanId: randomUUID(),
       traceId: parentContext?.traceId || this.generateTraceId(),
       timestamp: Date.now(),
       service: parentContext?.service || process.env.AWS_LAMBDA_FUNCTION_NAME || 'ECOSYSTEMAWS',
       operation,
-      userId: parentContext?.userId,
+      userId: nullableToString(parentContext?.userId),
       metadata: parentContext?.metadata
     };
 
@@ -350,7 +350,7 @@ export function correlationMiddleware(req: any, res: any, next: any): void {
     }
   } else {
     const newContext = correlationTracker.startCorrelation('http-request', {
-      method: req.method,
+      method: nullableToString(req.method),
       path: req.path || req.url,
       ip: req.ip
     });

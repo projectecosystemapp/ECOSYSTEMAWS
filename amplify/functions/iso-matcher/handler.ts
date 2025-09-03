@@ -2,6 +2,7 @@ import type { Schema } from '../../data/resource';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 type CreateServiceRequestHandler = Schema['createServiceRequest']['functionHandler'];
 type FindMatchingRequestsHandler = Schema['findMatchingRequests']['functionHandler'];
@@ -67,7 +68,7 @@ export const handler: Handler = async (event: any) => {
       };
 
       await dynamodb.send(new PutCommand({
-        TableName: process.env.SERVICEREQUEST_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICEREQUEST_TABLE_NAME),
         Item: serviceRequest,
       }));
 
@@ -83,7 +84,7 @@ export const handler: Handler = async (event: any) => {
       
       // Get provider's services to understand their capabilities
       const providerServices = await dynamodb.send(new QueryCommand({
-        TableName: process.env.SERVICE_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICE_TABLE_NAME),
         IndexName: 'byProviderId',
         KeyConditionExpression: 'providerId = :providerId',
         ExpressionAttributeValues: {
@@ -103,7 +104,7 @@ export const handler: Handler = async (event: any) => {
 
       // Get active service requests
       const scanParams: any = {
-        TableName: process.env.SERVICEREQUEST_TABLE_NAME,
+        TableName: nullableToString(process.env.SERVICEREQUEST_TABLE_NAME),
         FilterExpression: '#status = :status',
         ExpressionAttributeNames: {
           '#status': 'status',
@@ -133,7 +134,7 @@ export const handler: Handler = async (event: any) => {
 
       return {
         matches,
-        total: matches.length,
+        total: nullableToString(matches.length),
         message: `Found ${matches.length} matching requests`,
       };
     }

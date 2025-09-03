@@ -1,6 +1,7 @@
 import type { AppSyncResolverEvent } from 'aws-lambda';
 import { SFNClient, StartExecutionCommand, DescribeExecutionCommand, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const sfnClient = new SFNClient({ region: process.env.AWS_REGION });
 const eventBridgeClient = new EventBridgeClient({ region: process.env.AWS_REGION });
@@ -120,14 +121,14 @@ export const handler = async (
       detail: {
         workflowType,
         action: action || fieldName,
-        error: error.message,
+        error: nullableToString(error.message),
         timestamp: new Date().toISOString(),
       },
     });
     
     return {
       success: false,
-      error: error.message,
+      error: nullableToString(error.message),
     };
   }
 };
@@ -149,8 +150,8 @@ async function startWorkflow(
   const response = await sfnClient.send(command);
   
   console.log('✅ Workflow started:', {
-    executionArn: response.executionArn,
-    startDate: response.startDate,
+    executionArn: nullableToString(response.executionArn),
+    startDate: nullableToString(response.startDate),
   });
   
   // Publish workflow started event
@@ -158,7 +159,7 @@ async function startWorkflow(
     source: 'marketplace.workflow',
     detailType: 'Workflow Started',
     detail: {
-      executionArn: response.executionArn,
+      executionArn: nullableToString(response.executionArn),
       stateMachineArn,
       input,
       timestamp: new Date().toISOString(),
@@ -167,7 +168,7 @@ async function startWorkflow(
   
   return {
     success: true,
-    executionArn: response.executionArn,
+    executionArn: nullableToString(response.executionArn),
     status: 'RUNNING',
   };
 }
@@ -186,7 +187,7 @@ async function stopWorkflow(executionArn: string): Promise<WorkflowResponse> {
   
   console.log('🛑 Workflow stopped:', {
     executionArn,
-    stopDate: response.stopDate,
+    stopDate: nullableToString(response.stopDate),
   });
   
   // Publish workflow stopped event
@@ -219,9 +220,9 @@ async function getWorkflowStatus(executionArn: string): Promise<WorkflowResponse
   
   console.log('📊 Workflow status:', {
     executionArn,
-    status: response.status,
-    startDate: response.startDate,
-    stopDate: response.stopDate,
+    status: nullableToString(response.status),
+    startDate: nullableToString(response.startDate),
+    stopDate: nullableToString(response.stopDate),
   });
   
   let output;
@@ -235,7 +236,7 @@ async function getWorkflowStatus(executionArn: string): Promise<WorkflowResponse
   return {
     success: true,
     executionArn,
-    status: response.status,
+    status: nullableToString(response.status),
     output,
   };
 }
@@ -245,10 +246,10 @@ async function getWorkflowStatus(executionArn: string): Promise<WorkflowResponse
  */
 function getStateMachineArn(workflowType: string): string | null {
   const arnMap = {
-    'BOOKING_LIFECYCLE': process.env.BOOKING_STATE_MACHINE_ARN,
-    'PAYMENT_PROCESSING': process.env.PAYMENT_STATE_MACHINE_ARN,
-    'DISPUTE_RESOLUTION': process.env.DISPUTE_STATE_MACHINE_ARN,
-    'PROVIDER_ONBOARDING': process.env.ONBOARDING_STATE_MACHINE_ARN,
+    'BOOKING_LIFECYCLE': nullableToString(process.env.BOOKING_STATE_MACHINE_ARN),
+    'PAYMENT_PROCESSING': nullableToString(process.env.PAYMENT_STATE_MACHINE_ARN),
+    'DISPUTE_RESOLUTION': nullableToString(process.env.DISPUTE_STATE_MACHINE_ARN),
+    'PROVIDER_ONBOARDING': nullableToString(process.env.ONBOARDING_STATE_MACHINE_ARN),
   };
   
   return arnMap[workflowType] || null;
@@ -264,7 +265,7 @@ async function publishEvent(source: string, detailType: string, detail: any): Pr
         Source: source,
         DetailType: detailType,
         Detail: JSON.stringify(detail),
-        EventBusName: process.env.MARKETPLACE_EVENT_BUS_ARN,
+        EventBusName: nullableToString(process.env.MARKETPLACE_EVENT_BUS_ARN),
         Time: new Date(),
       }],
     });
@@ -302,10 +303,10 @@ async function publishWorkflowEvent(eventData: {
   try {
     const command = new PutEventsCommand({
       Entries: [{
-        Source: eventData.source,
-        DetailType: eventData.detailType,
+        Source: nullableToString(eventData.source),
+        DetailType: nullableToString(eventData.detailType),
         Detail: JSON.stringify(eventData.detail),
-        EventBusName: process.env.MARKETPLACE_EVENT_BUS_ARN,
+        EventBusName: nullableToString(process.env.MARKETPLACE_EVENT_BUS_ARN),
       }],
     });
     
@@ -357,7 +358,7 @@ export const eventHandler = async (event: any): Promise<void> => {
         await startWorkflow(
           process.env.DISPUTE_STATE_MACHINE_ARN!,
           {
-            disputeType: detail.disputeType,
+            disputeType: nullableToString(detail.disputeType),
             ...detail,
           },
           `dispute-${detail.disputeId}-${Date.now()}`

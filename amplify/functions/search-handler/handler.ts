@@ -9,6 +9,7 @@ import { AppSyncResolverEvent } from 'aws-lambda';
 import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Types
 interface SearchServiceArgs {
@@ -96,7 +97,7 @@ const client = new Client({
  */
 export const handler = async (event: AppSyncResolverEvent<any>): Promise<any> => {
   console.log('Search handler invoked', {
-    operation: event.info.fieldName,
+    operation: nullableToString(event.info.fieldName),
     arguments: event.arguments
   });
 
@@ -139,7 +140,7 @@ async function searchServices(args: SearchServiceArgs): Promise<SearchResult> {
 
   // Build OpenSearch query
   const searchQuery: any = {
-    index: process.env.OPENSEARCH_INDEX_SERVICES,
+    index: nullableToString(process.env.OPENSEARCH_INDEX_SERVICES),
     body: {
       from: validatedOffset,
       size: validatedLimit,
@@ -196,7 +197,7 @@ async function searchServices(args: SearchServiceArgs): Promise<SearchResult> {
       geo_distance: {
         distance: validatedRadius,
         location: {
-          lat: location.lat,
+          lat: nullableToString(location.lat),
           lon: location.lon
         }
       }
@@ -206,7 +207,7 @@ async function searchServices(args: SearchServiceArgs): Promise<SearchResult> {
     searchQuery.body.sort.push({
       _geo_distance: {
         location: {
-          lat: location.lat,
+          lat: nullableToString(location.lat),
           lon: location.lon
         },
         order: 'asc',
@@ -279,14 +280,14 @@ async function searchServices(args: SearchServiceArgs): Promise<SearchResult> {
   const hits = response.body.hits;
   const items = hits.hits.map((hit: any) => ({
     ...hit._source,
-    _score: hit._score,
+    _score: nullableToString(hit._score),
     _distance: hit.sort && hit.sort.length > 1 ? hit.sort[0] : undefined
   }));
 
   return {
     items,
-    total: hits.total.value,
-    aggregations: response.body.aggregations,
+    total: nullableToString(hits.total.value),
+    aggregations: nullableToString(response.body.aggregations),
     took,
     pagination: {
       offset: validatedOffset,
@@ -307,7 +308,7 @@ async function searchUsers(args: SearchUserArgs): Promise<SearchResult> {
   const validatedOffset = Math.max(0, offset);
 
   const searchQuery: any = {
-    index: process.env.OPENSEARCH_INDEX_USERS,
+    index: nullableToString(process.env.OPENSEARCH_INDEX_USERS),
     body: {
       from: validatedOffset,
       size: validatedLimit,
@@ -363,7 +364,7 @@ async function searchUsers(args: SearchUserArgs): Promise<SearchResult> {
       geo_distance: {
         distance: validatedRadius,
         location: {
-          lat: location.lat,
+          lat: nullableToString(location.lat),
           lon: location.lon
         }
       }
@@ -382,8 +383,8 @@ async function searchUsers(args: SearchUserArgs): Promise<SearchResult> {
 
   return {
     items,
-    total: hits.total.value,
-    aggregations: response.body.aggregations,
+    total: nullableToString(hits.total.value),
+    aggregations: nullableToString(response.body.aggregations),
     took,
     pagination: {
       offset: validatedOffset,
@@ -438,7 +439,7 @@ async function getAnalytics(args: GetAnalyticsArgs): Promise<Record<string, any>
   const { dateRange, aggregations, filters } = args;
   
   const searchQuery: any = {
-    index: process.env.OPENSEARCH_INDEX_ANALYTICS,
+    index: nullableToString(process.env.OPENSEARCH_INDEX_ANALYTICS),
     body: {
       size: 0,
       query: {
@@ -447,7 +448,7 @@ async function getAnalytics(args: GetAnalyticsArgs): Promise<Record<string, any>
             {
               range: {
                 timestamp: {
-                  gte: dateRange.startDate,
+                  gte: nullableToString(dateRange.startDate),
                   lte: dateRange.endDate
                 }
               }
@@ -524,7 +525,7 @@ async function getAnalytics(args: GetAnalyticsArgs): Promise<Record<string, any>
 
   const response = await client.search(searchQuery);
   return {
-    aggregations: response.body.aggregations,
+    aggregations: nullableToString(response.body.aggregations),
     totalEvents: response.body.hits.total.value
   };
 }
@@ -538,7 +539,7 @@ async function getNearbyServices(args: {
   limit?: number;
 }): Promise<SearchResult> {
   return searchServices({
-    location: args.location,
+    location: nullableToString(args.location),
     pagination: {
       offset: 0,
       limit: args.limit || 20

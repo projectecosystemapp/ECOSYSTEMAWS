@@ -2,6 +2,7 @@ import type { Handler } from 'aws-lambda';
 import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../data/resource.js';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Configure Amplify for Lambda environment
 Amplify.configure(
@@ -226,7 +227,7 @@ async function markMessagesRead(data: MarkReadData) {
   // Update all unread messages to read
   const updatePromises = unreadMessages.data.map(message =>
     client.models.Message.update({
-      id: message.id,
+      id: nullableToString(message.id),
       read: true as any,
       readAt: [new Date().toISOString()]
     } as any)
@@ -237,7 +238,7 @@ async function markMessagesRead(data: MarkReadData) {
   return {
     statusCode: 200,
     body: JSON.stringify({
-      markedCount: results.length,
+      markedCount: nullableToString(results.length),
       messages: results.map(r => r.data)
     })
   };

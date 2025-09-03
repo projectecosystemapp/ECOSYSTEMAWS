@@ -7,6 +7,7 @@
  */
 
 import { getClient } from '@/lib/api';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 import type {
   Service,
   ServiceWithRating,
@@ -59,13 +60,13 @@ export const serviceApi = {
         minimumBookingTime: data.duration, // Map duration to minimumBookingTime per schema
         active: data.active ?? true,
         // Map location fields
-        address: data.serviceAddress,
-        city: data.serviceCity,
-        state: data.serviceState,
-        postalCode: data.serviceZipCode,
-        serviceRadius: data.serviceRadius,
-        latitude: data.latitude,
-        longitude: data.longitude,
+        address: nullableToString(data.serviceAddress),
+        city: nullableToString(data.serviceCity),
+        state: nullableToString(data.serviceState),
+        postalCode: nullableToString(data.serviceZipCode),
+        serviceRadius: nullableToString(data.serviceRadius),
+        latitude: nullableToString(data.latitude),
+        longitude: nullableToString(data.longitude),
         locationType: data.locationType
       };
 
@@ -272,11 +273,11 @@ export const bookingApi = {
         // Persist amounts in cents for precision
         amountCents: Math.round((data.totalAmount || 0) * 100),
         status: (data.status as any) || 'PENDING',
-        notes: data.notes,
-        customerPhone: data.customerPhone,
+        notes: nullableToString(data.notes),
+        customerPhone: nullableToString(data.customerPhone),
         // Only include fields that exist in the schema
         paymentStatus: 'PENDING' as const, // Valid schema value
-        paymentIntentId: data.paymentIntentId,
+        paymentIntentId: nullableToString(data.paymentIntentId),
         platformFeeCents: data.platformFee != null ? Math.round((data.platformFee || 0) * 100) : undefined,
         providerEarningsCents: data.providerEarnings != null ? Math.round((data.providerEarnings || 0) * 100) : undefined,
         // Ownership fields for auth if available
@@ -413,14 +414,14 @@ export const reviewApi = {
   }): Promise<Review | null> => {
     try {
       const apiData = {
-        bookingId: data.bookingId,
-        serviceId: data.serviceId,
+        bookingId: nullableToString(data.bookingId),
+        serviceId: nullableToString(data.serviceId),
         reviewerType: 'CUSTOMER' as const,
         reviewerId: data.customerEmail, // Using email as ID for now
-        reviewerEmail: data.customerEmail,
+        reviewerEmail: nullableToString(data.customerEmail),
         revieweeId: data.providerEmail, // Using email as ID for now
-        revieweeEmail: data.providerEmail,
-        rating: data.rating,
+        revieweeEmail: nullableToString(data.providerEmail),
+        rating: nullableToString(data.rating),
         comment: data.comment
       };
 
@@ -680,7 +681,7 @@ export const userProfileApi = {
         throw new Error('ID is required to update user profile');
       }
       const response = await getClient().models.UserProfile.update({
-        id: data.id,
+        id: nullableToString(data.id),
         ...data
       });
       
@@ -718,12 +719,12 @@ export const messageApi = {
       const apiData = {
         conversationId,
         senderId: data.senderEmail, // Using email as ID
-        senderEmail: data.senderEmail,
+        senderEmail: nullableToString(data.senderEmail),
         recipientId: data.recipientEmail, // Using email as ID
-        recipientEmail: data.recipientEmail,
-        content: data.content,
-        bookingId: data.bookingId,
-        serviceId: data.serviceId,
+        recipientEmail: nullableToString(data.recipientEmail),
+        content: nullableToString(data.content),
+        bookingId: nullableToString(data.bookingId),
+        serviceId: nullableToString(data.serviceId),
         messageType: 'TEXT' as const
       };
 

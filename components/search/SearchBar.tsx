@@ -96,10 +96,10 @@ export default function SearchBar({
         const searchSuggestions: SearchSuggestion[] = (results || [])
           .slice(0, 6)
           .map((service) => ({
-            id: service.id,
-            title: service.title,
-            category: service.category,
-            price: service.price,
+            id: nullableToString(service.id),
+            title: nullableToString(service.title),
+            category: nullableToString(service.category),
+            price: nullableToString(service.price),
             providerName: service.providerName
           }));
           

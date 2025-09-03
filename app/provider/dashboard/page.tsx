@@ -57,7 +57,7 @@ export default function ProviderDashboard() {
       // Check if provider has completed their profile
       try {
         const { data: users } = await client.models.User.list({
-          filter: { ownerId: { eq: user.userId } }
+          filter: { owner: { eq: user.userId } }
         });
         
         const userRecord = users?.[0];
@@ -65,7 +65,7 @@ export default function ProviderDashboard() {
         if (userRecord?.accountType === 'PROVIDER') {
           // Check if ProviderProfile exists
           const { data: providerProfiles } = await client.models.ProviderProfile.list({
-            filter: { ownerId: { eq: user.userId } }
+            filter: { owner: { eq: user.userId } }
           });
           
           if (!providerProfiles || providerProfiles.length === 0) {

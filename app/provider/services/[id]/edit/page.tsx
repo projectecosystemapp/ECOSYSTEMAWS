@@ -71,10 +71,10 @@ export default function EditService() {
 
       // Update service data
       const updateData = {
-        id: service.id,
+        id: nullableToString(service.id),
         ...formData,
-        providerEmail: service.providerEmail,
-        providerName: service.providerName,
+        providerEmail: nullableToString(service.providerEmail),
+        providerName: nullableToString(service.providerName),
       };
 
       await serviceApi.update(updateData);

@@ -1,4 +1,5 @@
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export async function getAuthenticatedUser() {
   try {
@@ -6,9 +7,9 @@ export async function getAuthenticatedUser() {
     const session = await fetchAuthSession();
     
     return {
-      userId: user.userId,
-      username: user.username,
-      signInDetails: user.signInDetails,
+      userId: nullableToString(user.userId),
+      username: nullableToString(user.username),
+      signInDetails: nullableToString(user.signInDetails),
       // Get the email from signInDetails or username
       email: user.signInDetails?.loginId || user.username || '',
     };

@@ -1,4 +1,5 @@
 import { Construct } from 'constructs';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 import {
   Alarm,
   Dashboard,
@@ -95,8 +96,8 @@ export class EcosystemSearchMonitoring extends Construct {
     
     // Subscribe email to alerts
     new Subscription(this, 'EmailAlertSubscription', {
-      topic: this.alertTopic,
-      protocol: SubscriptionProtocol.EMAIL,
+      topic: nullableToString(this.alertTopic),
+      protocol: nullableToString(SubscriptionProtocol.EMAIL),
       endpoint: alertEmail,
     });
     
@@ -134,16 +135,16 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'ClusterStatus.green',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'Maximum',
       }),
       threshold: 0.99,
-      comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.LESS_THAN_THRESHOLD),
       evaluationPeriods: 2,
       datapointsToAlarm: 2,
-      treatMissingData: TreatMissingData.BREACHING,
+      treatMissingData: nullableToString(TreatMissingData.BREACHING),
     });
     
     clusterHealthAlarm.addAlarmAction(new SnsAction(this.alertTopic));
@@ -157,14 +158,14 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'SearchLatency',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'p95',
         period: Duration.minutes(5),
       }),
       threshold: 200, // 200ms threshold
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 3,
       datapointsToAlarm: 2,
     });
@@ -180,14 +181,14 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'IndexingErrors',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'Sum',
         period: Duration.minutes(5),
       }),
       threshold: 10, // More than 10 errors in 5 minutes
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 2,
     });
     
@@ -202,7 +203,7 @@ export class EcosystemSearchMonitoring extends Construct {
         period: Duration.minutes(5),
       }),
       threshold: 5, // More than 5 errors in 5 minutes
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 2,
     });
     
@@ -224,7 +225,7 @@ export class EcosystemSearchMonitoring extends Construct {
           period: Duration.minutes(10),
         }),
         threshold: 80, // 80% hit rate threshold
-        comparisonOperator: ComparisonOperator.LESS_THAN_THRESHOLD,
+        comparisonOperator: nullableToString(ComparisonOperator.LESS_THAN_THRESHOLD),
         evaluationPeriods: 3,
         datapointsToAlarm: 2,
       });
@@ -254,14 +255,14 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'SearchLatency',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'p95',
         period: Duration.minutes(5),
       }),
       threshold: 100, // 100ms warning threshold
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 3,
       datapointsToAlarm: 2,
     });
@@ -276,14 +277,14 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'CPUUtilization',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'Average',
         period: Duration.minutes(5),
       }),
       threshold: 70, // 70% CPU utilization
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 3,
     });
     
@@ -297,14 +298,14 @@ export class EcosystemSearchMonitoring extends Construct {
         namespace: 'AWS/ES',
         metricName: 'JVMMemoryPressure',
         dimensionsMap: {
-          DomainName: domain.domainName,
-          ClientId: this.account,
+          DomainName: nullableToString(domain.domainName),
+          ClientId: nullableToString(this.account),
         },
         statistic: 'Average',
         period: Duration.minutes(5),
       }),
       threshold: 80, // 80% memory utilization
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 3,
     });
     
@@ -318,7 +319,7 @@ export class EcosystemSearchMonitoring extends Construct {
         period: Duration.minutes(5),
       }),
       threshold: 240000, // 240 seconds (80% of 5 minute timeout)
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 2,
     });
     
@@ -368,8 +369,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'SearchLatency',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'p95',
             }),
@@ -392,8 +393,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'SearchLatency',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'p95',
             }),
@@ -414,8 +415,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'SearchRate',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Sum',
             }),
@@ -430,8 +431,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'IndexingRate',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Sum',
             }),
@@ -441,8 +442,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'IndexingErrors',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Sum',
               color: '#FF0000',
@@ -464,8 +465,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'CPUUtilization',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Average',
               color: '#1f77b4',
@@ -476,8 +477,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'JVMMemoryPressure',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Average',
               color: '#ff7f0e',
@@ -499,8 +500,8 @@ export class EcosystemSearchMonitoring extends Construct {
               namespace: 'AWS/ES',
               metricName: 'StorageUtilization',
               dimensionsMap: {
-                DomainName: domain.domainName,
-                ClientId: this.account,
+                DomainName: nullableToString(domain.domainName),
+                ClientId: nullableToString(this.account),
               },
               statistic: 'Average',
             }),
@@ -636,13 +637,13 @@ export class EcosystemSearchMonitoring extends Construct {
       new Row(
         new AlarmWidget({
           title: 'Critical Alarms',
-          alarms: this.criticalAlarms,
+          alarms: nullableToString(this.criticalAlarms),
           width: 6,
           height: 6,
         }),
         new AlarmWidget({
           title: 'Warning Alarms', 
-          alarms: this.warningAlarms,
+          alarms: nullableToString(this.warningAlarms),
           width: 6,
           height: 6,
         })
@@ -669,9 +670,9 @@ export class EcosystemSearchMonitoring extends Construct {
         period: Duration.hours(6),
       }),
       threshold: 200, // $200 monthly threshold
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 1,
-      treatMissingData: TreatMissingData.IGNORE,
+      treatMissingData: nullableToString(TreatMissingData.IGNORE),
     });
     
     openSearchCostAlarm.addAlarmAction(new SnsAction(this.alertTopic));
@@ -691,9 +692,9 @@ export class EcosystemSearchMonitoring extends Construct {
         period: Duration.hours(6),
       }),
       threshold: 100, // $100 monthly threshold
-      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      comparisonOperator: nullableToString(ComparisonOperator.GREATER_THAN_THRESHOLD),
       evaluationPeriods: 1,
-      treatMissingData: TreatMissingData.IGNORE,
+      treatMissingData: nullableToString(TreatMissingData.IGNORE),
     });
     
     elastiCacheCostAlarm.addAlarmAction(new SnsAction(this.alertTopic));
@@ -705,9 +706,9 @@ export class EcosystemSearchMonitoring extends Construct {
   public getMonitoringConfig() {
     return {
       dashboardUrl: `https://console.aws.amazon.com/cloudwatch/home?region=${this.region}#dashboards:name=${this.dashboard.dashboardName}`,
-      alertTopicArn: this.alertTopic.topicArn,
-      criticalAlarmsCount: this.criticalAlarms.length,
-      warningAlarmsCount: this.warningAlarms.length,
+      alertTopicArn: nullableToString(this.alertTopic.topicArn),
+      criticalAlarmsCount: nullableToString(this.criticalAlarms.length),
+      warningAlarmsCount: nullableToString(this.warningAlarms.length),
     };
   }
 }

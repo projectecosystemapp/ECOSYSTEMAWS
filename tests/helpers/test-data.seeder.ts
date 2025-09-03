@@ -4,6 +4,7 @@ import { Schema } from '@/amplify/data/resource';
 import { v4 as uuidv4 } from 'uuid';
 import amplifyConfig from '@/amplify_outputs.json';
 import type { TestUser } from './auth.helper';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export class TestDataSeeder {
   private client: ReturnType<typeof generateClient<Schema>>;
@@ -63,10 +64,10 @@ export class TestDataSeeder {
       const service = await this.client.models.Service.create({
         id: uuidv4(),
         providerId,
-        title: serviceConfig.title,
+        title: nullableToString(serviceConfig.title),
         description: `Test service: ${serviceConfig.title}`,
         priceType: 'FIXED',
-        price: serviceConfig.price,
+        price: nullableToString(serviceConfig.price),
         currency: 'CAD',
         duration: 60,
         location: 'PROVIDER',
@@ -92,7 +93,7 @@ export class TestDataSeeder {
           
           const booking = await this.client.models.Booking.create({
             id: uuidv4(),
-            serviceId: service.data.id,
+            serviceId: nullableToString(service.data.id),
             providerId,
             customerId,
             customerEmail: `customer${i}@test.com`,
@@ -102,7 +103,7 @@ export class TestDataSeeder {
             status: isCompleted ? 'COMPLETED' : 'CONFIRMED',
             paymentStatus: isCompleted ? 'CAPTURED' : 'ESCROW_HELD',
             paymentIntentId: `pi_test_${uuidv4()}`,
-            amountCents: serviceConfig.price,
+            amountCents: nullableToString(serviceConfig.price),
             platformFeeCents: Math.floor(serviceConfig.price * 0.08),
             providerEarningsCents: Math.floor(serviceConfig.price * 0.92),
             notes: `Test booking ${i + 1}`,
@@ -132,11 +133,11 @@ export class TestDataSeeder {
     // Create service first
     const service = await this.client.models.Service.create({
       id: uuidv4(),
-      providerId: config.providerId,
-      title: config.serviceTitle,
+      providerId: nullableToString(config.providerId),
+      title: nullableToString(config.serviceTitle),
       description: `Test service: ${config.serviceTitle}`,
       priceType: 'FIXED',
-      price: config.amount,
+      price: nullableToString(config.amount),
       currency: 'CAD',
       duration: 60,
       location: 'PROVIDER',
@@ -154,9 +155,9 @@ export class TestDataSeeder {
     // Create completed booking
     const booking = await this.client.models.Booking.create({
       id: uuidv4(),
-      serviceId: service.data.id,
-      providerId: config.providerId,
-      customerId: config.customerId,
+      serviceId: nullableToString(service.data.id),
+      providerId: nullableToString(config.providerId),
+      customerId: nullableToString(config.customerId),
       customerEmail: 'customer@test.com',
       date: new Date().toISOString().split('T')[0],
       time: '10:00',
@@ -164,7 +165,7 @@ export class TestDataSeeder {
       status: 'COMPLETED',
       paymentStatus: 'CAPTURED',
       paymentIntentId: `pi_test_${uuidv4()}`,
-      amountCents: config.amount,
+      amountCents: nullableToString(config.amount),
       platformFeeCents: Math.floor(config.amount * 0.08),
       providerEarningsCents: Math.floor(config.amount * 0.92),
       notes: 'Test completed booking',
@@ -173,7 +174,7 @@ export class TestDataSeeder {
     });
     
     return {
-      serviceId: service.data.id,
+      serviceId: nullableToString(service.data.id),
       bookingId: booking.data?.id
     };
   }
@@ -212,7 +213,7 @@ export class TestDataSeeder {
       
       const booking = await this.client.models.Booking.create({
         id: uuidv4(),
-        serviceId: service.data.id,
+        serviceId: nullableToString(service.data.id),
         providerId,
         customerId,
         customerEmail: 'customer@test.com',
@@ -235,7 +236,7 @@ export class TestDataSeeder {
     }
     
     return {
-      serviceId: service.data.id,
+      serviceId: nullableToString(service.data.id),
       bookingIds: bookings
     };
   }
@@ -307,8 +308,8 @@ export class TestDataSeeder {
   }): Promise<any> {
     const profile = await this.client.models.ProviderProfile.create({
       id: providerId,
-      businessName: data.businessName,
-      businessType: data.businessType,
+      businessName: nullableToString(data.businessName),
+      businessType: nullableToString(data.businessType),
       description: data.description || 'Test provider profile',
       yearsExperience: data.yearsExperience || 5,
       insuranceVerified: true,

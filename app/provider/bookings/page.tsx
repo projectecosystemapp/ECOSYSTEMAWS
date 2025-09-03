@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { bookingApi, serviceApi, messageApi, generateConversationId } from '@/lib/api';
+import { nullableToString, nullableToNumber, nullableToBoolean } from '@/lib/type-utils';
 import { 
   Booking, 
   Service,

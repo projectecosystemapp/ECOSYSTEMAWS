@@ -11,6 +11,7 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Types
 interface SearchDocument {
@@ -202,7 +203,7 @@ const INDEX_MAPPINGS = {
  */
 export const handler = async (event: DynamoDBStreamEvent): Promise<void> => {
   console.log('Processing DynamoDB Stream event', {
-    recordCount: event.Records.length,
+    recordCount: nullableToString(event.Records.length),
     eventSourceARN: event.Records[0]?.eventSourceARN
   });
 
@@ -229,7 +230,7 @@ export const handler = async (event: DynamoDBStreamEvent): Promise<void> => {
   }
 
   console.log('Stream processing completed', {
-    totalBatches: batches.length,
+    totalBatches: nullableToString(batches.length),
     successfulBatches: results.filter(r => r.success).length,
     failedBatches: results.filter(r => !r.success).length
   });
@@ -279,7 +280,7 @@ async function processBatch(records: DynamoDBRecord[]): Promise<{ success: boole
       }
     } catch (error) {
       console.error('Failed to process record:', error, {
-        eventName: record.eventName,
+        eventName: nullableToString(record.eventName),
         dynamodb: record.dynamodb
       });
     }
@@ -314,7 +315,7 @@ async function processBatch(records: DynamoDBRecord[]): Promise<{ success: boole
       for (const event of analyticsEvents) {
         analyticsBody.push({
           index: {
-            _index: process.env.OPENSEARCH_INDEX_ANALYTICS,
+            _index: nullableToString(process.env.OPENSEARCH_INDEX_ANALYTICS),
             _id: `${event.eventType}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
           }
         });
@@ -402,7 +403,7 @@ async function transformToSearchDocument(
   tableName: string
 ): Promise<SearchDocument | null> {
   const baseDoc: SearchDocument = {
-    id: record.id,
+    id: nullableToString(record.id),
     type: getDocumentType(tableName),
     createdAt: record.createdAt || new Date().toISOString(),
     updatedAt: record.updatedAt || new Date().toISOString(),
@@ -413,15 +414,15 @@ async function transformToSearchDocument(
       return {
         ...baseDoc,
         type: 'service',
-        title: record.title,
-        description: record.description,
-        category: record.category,
-        price: record.price,
+        title: nullableToString(record.title),
+        description: nullableToString(record.description),
+        category: nullableToString(record.category),
+        price: nullableToString(record.price),
         currency: record.currency || 'USD',
-        providerId: record.providerId,
+        providerId: nullableToString(record.providerId),
         status: record.active ? 'active' : 'inactive',
         location: await extractLocationFromAddress(record.address),
-        address: record.address,
+        address: nullableToString(record.address),
         tags: extractTags(record),
         searchableText: [
           record.title,
@@ -438,7 +439,7 @@ async function transformToSearchDocument(
         type: 'user',
         title: fullName,
         description: `${record.userType || 'User'} - ${record.email}`,
-        userId: record.id,
+        userId: nullableToString(record.id),
         searchableText: [
           record.firstName,
           record.lastName,
@@ -451,11 +452,11 @@ async function transformToSearchDocument(
       return {
         ...baseDoc,
         type: 'booking',
-        serviceId: record.serviceId,
-        customerId: record.customerId,
-        providerId: record.providerId,
-        status: record.status,
-        price: record.amount,
+        serviceId: nullableToString(record.serviceId),
+        customerId: nullableToString(record.customerId),
+        providerId: nullableToString(record.providerId),
+        status: nullableToString(record.status),
+        price: nullableToString(record.amount),
         currency: record.currency || 'USD',
         searchableText: [
           record.status,
@@ -468,9 +469,9 @@ async function transformToSearchDocument(
       return {
         ...baseDoc,
         type: 'message',
-        content: record.content,
-        userId: record.senderId,
-        searchableText: record.content,
+        content: nullableToString(record.content),
+        userId: nullableToString(record.senderId),
+        searchableText: nullableToString(record.content),
       };
 
     default:
@@ -531,12 +532,12 @@ function createAnalyticsEvent(
     timestamp: new Date().toISOString(),
     eventType: mapEventType(tableName, eventName),
     userId: record.userId || record.customerId || record.senderId,
-    serviceId: record.serviceId,
+    serviceId: nullableToString(record.serviceId),
     bookingId: record.id && tableName === 'Booking' ? record.id : undefined,
     metadata: {
       tableName,
       eventName,
-      recordId: record.id,
+      recordId: nullableToString(record.id),
     }
   };
 }

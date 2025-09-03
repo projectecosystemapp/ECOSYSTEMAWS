@@ -9,6 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi, Mock } from 'vitest';
 import { CircuitBreaker, CircuitState } from '@/lib/resilience/circuit-breaker';
 import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Mock AWS SDK
 vi.mock('@aws-sdk/client-dynamodb', () => ({
@@ -82,7 +83,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({ 
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.CLOSED,
+          state: nullableToString(CircuitState.CLOSED),
           failureCount: 0,
           successCount: 0,
           lastFailureTime: null,
@@ -116,7 +117,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.OPEN,
+          state: nullableToString(CircuitState.OPEN),
           failureCount: 3,
           lastFailureTime: Date.now(),
         })
@@ -136,7 +137,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.OPEN,
+          state: nullableToString(CircuitState.OPEN),
           failureCount: 3,
           lastFailureTime: Date.now(),
         })
@@ -159,7 +160,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.OPEN,
+          state: nullableToString(CircuitState.OPEN),
           failureCount: 3,
           lastFailureTime: now - 6000, // 6 seconds ago (past reset timeout)
         })
@@ -188,7 +189,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.HALF_OPEN,
+          state: nullableToString(CircuitState.HALF_OPEN),
           successCount: 0,
           failureCount: 0,
         })
@@ -214,7 +215,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.HALF_OPEN,
+          state: nullableToString(CircuitState.HALF_OPEN),
           successCount: 0,
           failureCount: 0,
         })
@@ -259,7 +260,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.CLOSED,
+          state: nullableToString(CircuitState.CLOSED),
           failureCount: 2, // One more failure will open
         })
       });
@@ -294,7 +295,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.CLOSED,
+          state: nullableToString(CircuitState.CLOSED),
           totalRequests: 3, // Below volume threshold of 5
           errorCount: 3,
           errorPercentage: 100,
@@ -322,7 +323,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.CLOSED,
+          state: nullableToString(CircuitState.CLOSED),
           totalRequests: 10, // Above volume threshold
           errorCount: 6, // 60% error rate (above 50% threshold)
           errorPercentage: 60,
@@ -427,7 +428,7 @@ describe('CircuitBreaker', () => {
       mockDynamoClient.send.mockResolvedValue({
         Item: marshall({
           serviceName: 'test-service',
-          state: CircuitState.CLOSED,
+          state: nullableToString(CircuitState.CLOSED),
           totalRequests: 8,
           errorCount: 2,
           successCount: 6,

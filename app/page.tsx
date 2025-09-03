@@ -77,7 +77,7 @@ export default function ModernHomePage() {
       
       setPlatformStats({
         totalCustomers: Math.max(services.length * 5, 1000), // Estimate based on services
-        totalProviders: providers.length,
+        totalProviders: nullableToString(providers.length),
         averageRating: ratedServices.length > 0 ? totalRating / ratedServices.length : 4.9,
         totalServices: services.length
       });

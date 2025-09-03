@@ -112,7 +112,7 @@ export function ProviderMatches({ providerId }: ProviderMatchesProps) {
       isOpen: true,
       conversationId,
       recipientId: match.customerId || 'customer',
-      requestId: match.id,
+      requestId: nullableToString(match.id),
       title: `Offer for: ${match.title}`,
     });
   };

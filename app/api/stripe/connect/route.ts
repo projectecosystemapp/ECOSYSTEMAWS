@@ -8,6 +8,7 @@ import Stripe from 'stripe';
 import { z } from 'zod';
 
 import { getAuthenticatedUser } from '@/lib/amplify-server-utils';
+import { nullableToString, nullableToNumber, nullableToBoolean } from '@/lib/type-utils';
 import {
   StripeConnectRequestSchema,
   type StripeConnectRequest,
@@ -67,7 +68,7 @@ function validatePaymentIntentParams(params: Partial<StripeConnectRequest>): Pay
   }
 
   return {
-    amount: params.amount,
+    amount: nullableToString(params.amount),
     currency: params.currency && isValidCurrency(params.currency) ? params.currency : 'usd',
     connectedAccountId: sanitizeString(params.connectedAccountId),
     customerId: sanitizeString(params.customerId),
@@ -301,7 +302,7 @@ async function createConnectAccount(
     
     // Create account link for onboarding
     const accountLink = await stripe.accountLinks.create({
-      account: account.id,
+      account: nullableToString(account.id),
       refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?refresh=true`,
       return_url: `${process.env.NEXT_PUBLIC_APP_URL}/provider/onboarding?success=true`,
       type: 'account_onboarding',
@@ -312,8 +313,8 @@ async function createConnectAccount(
     return NextResponse.json({
       success: true,
       data: {
-        accountId: account.id,
-        onboardingUrl: accountLink.url,
+        accountId: nullableToString(account.id),
+        onboardingUrl: nullableToString(accountLink.url),
       },
     });
   } catch (error) {
@@ -381,10 +382,10 @@ async function checkAccountStatus(
     const account = await stripe.accounts.retrieve(accountId);
     
     const statusData = {
-      accountId: account.id,
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
+      accountId: nullableToString(account.id),
+      chargesEnabled: nullableToString(account.charges_enabled),
+      payoutsEnabled: nullableToString(account.payouts_enabled),
+      detailsSubmitted: nullableToString(account.details_submitted),
       requirements: {
         currentlyDue: account.requirements?.currently_due || [],
         eventuallyDue: account.requirements?.eventually_due || [],
@@ -392,15 +393,15 @@ async function checkAccountStatus(
         pendingVerification: account.requirements?.pending_verification || [],
       },
       capabilities: {
-        card_payments: account.capabilities?.card_payments,
-        transfers: account.capabilities?.transfers,
+        card_payments: nullableToString(account.capabilities?.card_payments),
+        transfers: nullableToString(account.capabilities?.transfers),
       },
     };
     
     console.info(`[${correlationId}] Account status retrieved for ${accountId}:`, {
-      chargesEnabled: statusData.chargesEnabled,
-      payoutsEnabled: statusData.payoutsEnabled,
-      detailsSubmitted: statusData.detailsSubmitted,
+      chargesEnabled: nullableToString(statusData.chargesEnabled),
+      payoutsEnabled: nullableToString(statusData.payoutsEnabled),
+      detailsSubmitted: nullableToString(statusData.detailsSubmitted),
     });
     
     return NextResponse.json({
@@ -463,11 +464,11 @@ async function createPaymentIntent(
     return NextResponse.json({
       success: true,
       data: {
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
+        clientSecret: nullableToString(paymentIntent.client_secret),
+        paymentIntentId: nullableToString(paymentIntent.id),
         platformFee,
         amount,
-        currency: paymentIntent.currency,
+        currency: nullableToString(paymentIntent.currency),
       },
     });
   } catch (error) {
@@ -528,12 +529,12 @@ async function createEscrowPayment(
     return NextResponse.json({
       success: true,
       data: {
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
+        clientSecret: nullableToString(paymentIntent.client_secret),
+        paymentIntentId: nullableToString(paymentIntent.id),
         platformFee,
         escrowEnabled: true,
         amount,
-        currency: paymentIntent.currency,
+        currency: nullableToString(paymentIntent.currency),
       },
     });
   } catch (error) {
@@ -578,7 +579,7 @@ async function releaseEscrowPayment(
     
     const transfer = await stripe.transfers.create({
       amount: transferAmount,
-      currency: paymentIntent.currency,
+      currency: nullableToString(paymentIntent.currency),
       destination: connectedAccountId,
       transfer_group: paymentIntentId,
       metadata: {
@@ -595,10 +596,10 @@ async function releaseEscrowPayment(
     return NextResponse.json({
       success: true,
       data: {
-        transferId: transfer.id,
+        transferId: nullableToString(transfer.id),
         amountTransferred: transferAmount,
         platformFee,
-        currency: paymentIntent.currency,
+        currency: nullableToString(paymentIntent.currency),
       },
     });
   } catch (error) {
@@ -652,10 +653,10 @@ async function processRefund(
     return NextResponse.json({
       success: true,
       data: {
-        refundId: refund.id,
-        amount: refund.amount,
-        status: refund.status,
-        currency: refund.currency,
+        refundId: nullableToString(refund.id),
+        amount: nullableToString(refund.amount),
+        status: nullableToString(refund.status),
+        currency: nullableToString(refund.currency),
       },
     });
   } catch (error) {

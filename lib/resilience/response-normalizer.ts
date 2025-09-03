@@ -8,6 +8,7 @@
  */
 
 import { correlationTracker } from './correlation-tracker';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export interface NormalizedResponse<T = any> {
   success: boolean;
@@ -132,11 +133,11 @@ export class ResponseNormalizer {
     // Handle direct response format
     if (response?.success !== undefined) {
       return {
-        success: response.success,
+        success: nullableToString(response.success),
         data: response.data || response,
         error: response.error ? {
           message: response.error.message || response.error,
-          code: response.error.code,
+          code: nullableToString(response.error.code),
           details: response.error.details
         } : undefined,
         metadata: {
@@ -275,8 +276,8 @@ export class ResponseNormalizer {
         message: error?.message || 'Unknown error occurred',
         code: error?.code || 'UNKNOWN_ERROR',
         details: {
-          stack: error?.stack,
-          name: error?.name,
+          stack: nullableToString(error?.stack),
+          name: nullableToString(error?.name),
           ...error
         }
       },

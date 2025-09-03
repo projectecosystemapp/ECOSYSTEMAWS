@@ -71,7 +71,7 @@ test.describe('Authentication - Sign Up Flow', () => {
     await test.step('Verify User record in database', async () => {
       if (createdUser && createdUser.userId) {
         // Check if User record exists in DynamoDB
-        const userExists = await database.recordExists('User', { ownerId: createdUser.userId });
+        const userExists = await database.recordExists('User', { owner: createdUser.userId });
         expect(userExists).toBeTruthy();
         
         // Optionally get user details for additional assertions

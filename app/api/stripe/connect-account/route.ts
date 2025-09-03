@@ -9,6 +9,7 @@ import { z } from 'zod';
 
 import { type Schema } from '@/amplify/data/resource';
 import { runWithAmplifyServerContext } from '@/lib/amplify-server-utils';
+import { nullableToString } from '@/lib/type-utils';
 import {
   type ApiResponse,
   sanitizeString,
@@ -136,8 +137,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
               return NextResponse.json({
                 success: true,
                 data: {
-                  accountLinkUrl: result.url,
-                  accountId: userProfile.stripeAccountId,
+                  accountLinkUrl: nullableToString(result.url),
+                  accountId: nullableToString(userProfile.stripeAccountId),
                   existing: true
                 }
               });
@@ -177,11 +178,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             try {
               if (userProfile) {
                 const { data: updatedProfile } = await client.models.UserProfile.update({
-                  id: userProfile.id,
+                  id: nullableToString(userProfile.id),
                   stripeAccountId: sanitizeString(result.accountId),
                   // Remove deprecated fields that don't exist in schema
                   // stripeAccountStatus: 'PENDING',
-                  // stripeOnboardingUrl: result.accountLinkUrl,
+                  // stripeOnboardingUrl: nullableToString(result.accountLinkUrl),
                 });
                 userProfile = updatedProfile || userProfile;
                 console.info(`[${correlationId}] Updated existing user profile`);
@@ -204,8 +205,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             return NextResponse.json({
               success: true,
               data: {
-                accountLinkUrl: result.accountLinkUrl,
-                accountId: result.accountId,
+                accountLinkUrl: nullableToString(result.accountLinkUrl),
+                accountId: nullableToString(result.accountId),
                 existing: false
               }
             });
@@ -260,7 +261,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
             success: true,
             data: {
               hasAccount: true,
-              accountId: userProfile.stripeAccountId,
+              accountId: nullableToString(userProfile.stripeAccountId),
               chargesEnabled: accountStatus.account?.charges_enabled || false,
               payoutsEnabled: accountStatus.account?.payouts_enabled || false,
               detailsSubmitted: accountStatus.account?.details_submitted || false,

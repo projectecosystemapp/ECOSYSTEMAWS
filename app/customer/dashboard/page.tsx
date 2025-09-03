@@ -73,8 +73,8 @@ export default function CustomerDashboard() {
 
         setStats({
           totalBookings: bookings?.length || 0,
-          upcomingBookings: upcoming.length,
-          completedBookings: completed.length,
+          upcomingBookings: nullableToString(upcoming.length),
+          completedBookings: nullableToString(completed.length),
           savedProviders: 0 // TODO: Implement saved providers
         });
 

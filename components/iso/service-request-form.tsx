@@ -53,9 +53,9 @@ export function ServiceRequestForm({ onRequestCreated }: ServiceRequestFormProps
 
     try {
       const { data, errors } = await client.mutations.createServiceRequest({
-        title: formData.title,
-        description: formData.description,
-        category: formData.category,
+        title: nullableToString(formData.title),
+        description: nullableToString(formData.description),
+        category: nullableToString(formData.category),
         budget: formData.budget ? parseFloat(formData.budget) : undefined,
         desiredDate: formData.desiredDate || undefined,
         location: formData.location || undefined,

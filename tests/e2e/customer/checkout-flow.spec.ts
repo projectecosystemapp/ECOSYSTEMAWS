@@ -45,7 +45,7 @@ test.describe('E2E-003: Complete Customer Checkout Flow @payments @critical', ()
     // Create provider profile in database
     await databaseHelper.createRecord('ProviderProfile', {
       id: `profile-${providerId}`,
-      ownerId: providerId,
+      owner: providerId,
       businessName: `Test Provider ${uniqueSuffix}`,
       publicEmail: providerEmail,
       phoneNumber: '555-0100',

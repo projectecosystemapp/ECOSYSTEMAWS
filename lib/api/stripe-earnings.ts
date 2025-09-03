@@ -6,6 +6,7 @@
 import { generateClient } from 'aws-amplify/data';
 
 import { Schema } from '@/amplify/data/resource';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 const client = generateClient<Schema>();
 
@@ -205,22 +206,22 @@ class StripeEarningsAPI {
         });
         
         const { data: customer } = await client.models.User.get({ 
-          ownerId: booking.customerId 
+          owner: booking.customerId 
         });
 
         const amount = booking.amountCents || 0;
         const platformFee = booking.platformFeeCents || Math.floor(amount * 0.08);
         
         transactions.push({
-          id: booking.id,
-          bookingId: booking.id,
+          id: nullableToString(booking.id),
+          bookingId: nullableToString(booking.id),
           customerName: customer?.name || booking.customerEmail || 'Customer',
           serviceName: service?.title || 'Service',
           amount,
           platformFee,
           netAmount: amount - platformFee,
           status: this.mapBookingStatusToTransactionStatus(booking.status),
-          date: booking.createdAt,
+          date: nullableToString(booking.createdAt),
           paymentMethod: 'card',
           paymentIntentId: booking.paymentIntentId || undefined
         });

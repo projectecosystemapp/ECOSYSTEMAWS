@@ -2,6 +2,7 @@ import { generateClient } from 'aws-amplify/data';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { type Schema } from '@/amplify/data/resource';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Get the Lambda function URL from environment
 const STRIPE_LAMBDA_URL = process.env.STRIPE_CONNECT_LAMBDA_URL || process.env.NEXT_PUBLIC_STRIPE_LAMBDA_URL;
@@ -85,10 +86,10 @@ export async function POST(request: NextRequest) {
       // Update booking with payment intent ID
       await client.models.Booking.update({
         id: bookingId,
-        paymentIntentId: result.paymentIntentId,
+        paymentIntentId: nullableToString(result.paymentIntentId),
         paymentStatus: 'PENDING',
         amountCents,
-        platformFeeCents: result.platformFeeCents,
+        platformFeeCents: nullableToNumber(result.platformFeeCents),
       });
     }
     

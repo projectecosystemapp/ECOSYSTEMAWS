@@ -1,6 +1,7 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { DynamoDBClient, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // Initialize AWS clients
 const bedrockClient = new BedrockRuntimeClient({ 
@@ -18,8 +19,8 @@ const CLAUDE_MODEL_ID = 'anthropic.claude-3-5-sonnet-20240620-v1:0';
 
 export const handler: APIGatewayProxyHandler = async (event) => {
   console.log('Bedrock AI request received:', {
-    httpMethod: event.httpMethod,
-    path: event.path,
+    httpMethod: nullableToString(event.httpMethod),
+    path: nullableToString(event.path),
     hasBody: !!event.body,
   });
 
@@ -125,8 +126,8 @@ Bio:`;
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        bio: response.text,
-        usage: response.usage,
+        bio: nullableToString(response.text),
+        usage: nullableToString(response.usage),
         modelId: CLAUDE_MODEL_ID,
       }),
     };
@@ -177,8 +178,8 @@ Description:`;
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        description: response.text,
-        usage: response.usage,
+        description: nullableToString(response.text),
+        usage: nullableToString(response.usage),
       }),
     };
   } catch (error) {
@@ -218,9 +219,9 @@ async function generateMarketingCopy(params: any, headers: any) {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        copy: response.text,
+        copy: nullableToString(response.text),
         type: copyType,
-        usage: response.usage,
+        usage: nullableToString(response.usage),
       }),
     };
   } catch (error) {
@@ -262,9 +263,9 @@ Improved text:`;
       headers,
       body: JSON.stringify({
         original: text,
-        improved: response.text,
+        improved: nullableToString(response.text),
         improvements: improvements,
-        usage: response.usage,
+        usage: nullableToString(response.usage),
       }),
     };
   } catch (error) {
@@ -307,9 +308,9 @@ async function invokeClaudeModel(prompt: string): Promise<{ text: string; usage:
   return {
     text: responseBody.content[0].text,
     usage: {
-      inputTokens: responseBody.usage?.input_tokens,
-      outputTokens: responseBody.usage?.output_tokens,
-      totalTokens: responseBody.usage?.total_tokens,
+      inputTokens: nullableToString(responseBody.usage?.input_tokens),
+      outputTokens: nullableToString(responseBody.usage?.output_tokens),
+      totalTokens: nullableToString(responseBody.usage?.total_tokens),
     },
   };
 }

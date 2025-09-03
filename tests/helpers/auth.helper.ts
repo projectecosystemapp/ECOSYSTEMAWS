@@ -59,7 +59,7 @@ export class TestAuthHelper {
       // Step 1: Create user with temporary password
       const createUserResponse = await this.cognitoClient.send(
         new AdminCreateUserCommand({
-          UserPoolId: this.userPoolId,
+          UserPoolId: nullableToString(this.userPoolId),
           Username: email,
           UserAttributes: [
             { Name: 'email', Value: email },
@@ -78,7 +78,7 @@ export class TestAuthHelper {
       // Step 2: Set permanent password
       await this.cognitoClient.send(
         new AdminSetUserPasswordCommand({
-          UserPoolId: this.userPoolId,
+          UserPoolId: nullableToString(this.userPoolId),
           Username: email,
           Password: password,
           Permanent: true,
@@ -89,7 +89,7 @@ export class TestAuthHelper {
       const groupName = role === 'PROVIDER' ? 'Providers' : 'Customers';
       await this.cognitoClient.send(
         new AdminAddUserToGroupCommand({
-          UserPoolId: this.userPoolId,
+          UserPoolId: nullableToString(this.userPoolId),
           Username: email,
           GroupName: groupName,
         })
@@ -104,9 +104,9 @@ export class TestAuthHelper {
         userId,
         role,
         cognitoUsername: email,
-        idToken: tokens.idToken,
-        accessToken: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        idToken: nullableToString(tokens.idToken),
+        accessToken: nullableToString(tokens.accessToken),
+        refreshToken: nullableToString(tokens.refreshToken),
       };
       
       // Track for cleanup
@@ -130,8 +130,8 @@ export class TestAuthHelper {
     try {
       const authResponse = await this.cognitoClient.send(
         new AdminInitiateAuthCommand({
-          UserPoolId: this.userPoolId,
-          ClientId: this.clientId,
+          UserPoolId: nullableToString(this.userPoolId),
+          ClientId: nullableToString(this.clientId),
           AuthFlow: 'ADMIN_NO_SRP_AUTH',
           AuthParameters: {
             USERNAME: email,
@@ -141,9 +141,9 @@ export class TestAuthHelper {
       );
       
       return {
-        idToken: authResponse.AuthenticationResult?.IdToken,
-        accessToken: authResponse.AuthenticationResult?.AccessToken,
-        refreshToken: authResponse.AuthenticationResult?.RefreshToken,
+        idToken: nullableToString(authResponse.AuthenticationResult?.IdToken),
+        accessToken: nullableToString(authResponse.AuthenticationResult?.AccessToken),
+        refreshToken: nullableToString(authResponse.AuthenticationResult?.RefreshToken),
       };
     } catch (error) {
       console.error(`Failed to get auth tokens:`, error);
@@ -163,7 +163,7 @@ export class TestAuthHelper {
       try {
         await this.cognitoClient.send(
           new AdminDeleteUserCommand({
-            UserPoolId: this.userPoolId,
+            UserPoolId: nullableToString(this.userPoolId),
             Username: user.cognitoUsername || user.email,
           })
         );

@@ -2,6 +2,7 @@ import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SFNClient, StartExecutionCommand, DescribeExecutionCommand } from '@aws-sdk/client-sfn';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 type InitiateDisputeHandler = Schema['initiateDispute']['functionHandler'];
 type SubmitEvidenceHandler = Schema['submitEvidence']['functionHandler'];
@@ -27,7 +28,7 @@ export const handler: Handler = async (event: any) => {
       
       // Get booking details
       const booking = await dynamodb.send(new GetCommand({
-        TableName: process.env.BOOKING_TABLE_NAME,
+        TableName: nullableToString(process.env.BOOKING_TABLE_NAME),
         Key: { id: bookingId },
       }));
 
@@ -47,8 +48,8 @@ export const handler: Handler = async (event: any) => {
       const dispute = {
         id: disputeId,
         bookingId,
-        customerId: booking.Item.customerId,
-        providerId: booking.Item.providerId,
+        customerId: nullableToString(booking.Item.customerId),
+        providerId: nullableToString(booking.Item.providerId),
         initiatedBy: userId,
         reason,
         description,
@@ -61,7 +62,7 @@ export const handler: Handler = async (event: any) => {
       };
 
       await dynamodb.send(new PutCommand({
-        TableName: process.env.DISPUTE_TABLE_NAME,
+        TableName: nullableToString(process.env.DISPUTE_TABLE_NAME),
         Item: dispute,
       }));
 
@@ -69,26 +70,26 @@ export const handler: Handler = async (event: any) => {
       const workflowInput = {
         disputeId,
         bookingId,
-        customerId: booking.Item.customerId,
-        providerId: booking.Item.providerId,
-        amount: dispute.amount,
+        customerId: nullableToString(booking.Item.customerId),
+        providerId: nullableToString(booking.Item.providerId),
+        amount: nullableToString(dispute.amount),
         reason,
       };
 
       const execution = await stepFunctions.send(new StartExecutionCommand({
-        stateMachineArn: process.env.STEP_FUNCTIONS_ARN,
+        stateMachineArn: nullableToString(process.env.STEP_FUNCTIONS_ARN),
         name: `dispute-${disputeId}`,
         input: JSON.stringify(workflowInput),
       }));
 
       // Update dispute with workflow ARN
       await dynamodb.send(new UpdateCommand({
-        TableName: process.env.DISPUTE_TABLE_NAME,
+        TableName: nullableToString(process.env.DISPUTE_TABLE_NAME),
         Key: { id: disputeId },
         UpdateExpression: 'SET workflowExecutionArn = :arn, #status = :status',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: {
-          ':arn': execution.executionArn,
+          ':arn': nullableToString(execution.executionArn),
           ':status': 'EVIDENCE_COLLECTION',
         },
       }));
@@ -106,7 +107,7 @@ export const handler: Handler = async (event: any) => {
       
       // Verify dispute exists and user can submit evidence
       const dispute = await dynamodb.send(new GetCommand({
-        TableName: process.env.DISPUTE_TABLE_NAME,
+        TableName: nullableToString(process.env.DISPUTE_TABLE_NAME),
         Key: { id: disputeId },
       }));
 
@@ -137,7 +138,7 @@ export const handler: Handler = async (event: any) => {
       };
 
       await dynamodb.send(new PutCommand({
-        TableName: process.env.DISPUTEEVIDENCE_TABLE_NAME,
+        TableName: nullableToString(process.env.DISPUTEEVIDENCE_TABLE_NAME),
         Item: evidence,
       }));
 
@@ -152,7 +153,7 @@ export const handler: Handler = async (event: any) => {
       const { disputeId } = args;
       
       const dispute = await dynamodb.send(new GetCommand({
-        TableName: process.env.DISPUTE_TABLE_NAME,
+        TableName: nullableToString(process.env.DISPUTE_TABLE_NAME),
         Key: { id: disputeId },
       }));
 
@@ -170,12 +171,12 @@ export const handler: Handler = async (event: any) => {
       if (dispute.Item.workflowExecutionArn) {
         try {
           const execution = await stepFunctions.send(new DescribeExecutionCommand({
-            executionArn: dispute.Item.workflowExecutionArn,
+            executionArn: nullableToString(dispute.Item.workflowExecutionArn),
           }));
           workflowStatus = {
-            status: execution.status,
-            startDate: execution.startDate,
-            stopDate: execution.stopDate,
+            status: nullableToString(execution.status),
+            startDate: nullableToString(execution.startDate),
+            stopDate: nullableToString(execution.stopDate),
           };
         } catch (error) {
           console.warn('Could not get workflow status:', error);
@@ -183,7 +184,7 @@ export const handler: Handler = async (event: any) => {
       }
 
       return {
-        dispute: dispute.Item,
+        dispute: nullableToString(dispute.Item),
         workflowStatus,
         timeRemaining: dispute.Item.expiresAt ? 
           Math.max(0, new Date(dispute.Item.expiresAt).getTime() - Date.now()) : null,

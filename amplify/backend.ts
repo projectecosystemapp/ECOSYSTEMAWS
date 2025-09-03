@@ -22,6 +22,7 @@ import { realtimeMessaging } from './functions/realtime-messaging/resource.js';
 import { disputeWorkflow } from './functions/dispute-workflow/resource.js';
 import { enhancedSearch } from './functions/enhanced-search/resource.js';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 // EventBridge and Step Functions imports
 import { EventBus, Rule } from 'aws-cdk-lib/aws-events';
@@ -126,7 +127,7 @@ const marketplaceEventBus = new EventBus(backend.storage.resources.bucket.stack,
 
 const stepFunctionLogGroup = new LogGroup(backend.storage.resources.bucket.stack, 'StepFunctionLogGroup', {
   logGroupName: '/aws/stepfunctions/marketplace-workflows',
-  retention: RetentionDays.ONE_MONTH,
+  retention: nullableToString(RetentionDays.ONE_MONTH),
 });
 
 // ========== IAM Role for Step Functions ==========
@@ -177,7 +178,7 @@ const bookingWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
     .when(
       Condition.stringEquals('$.action', 'CREATE'),
       new LambdaInvoke(backend.storage.resources.bucket.stack, 'ValidateBookingRequest', {
-        lambdaFunction: backend.bookingProcessor.resources.lambda,
+        lambdaFunction: nullableToString(backend.bookingProcessor.resources.lambda),
         payload: TaskInput.fromJsonPathAt('$'),
         resultPath: '$.validationResult',
       }).next(
@@ -185,7 +186,7 @@ const bookingWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
           .when(
             Condition.booleanEquals('$.validationResult.isValid', true),
             new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessPayment', {
-              lambdaFunction: backend.stripeConnect.resources.lambda,
+              lambdaFunction: nullableToString(backend.stripeConnect.resources.lambda),
               payload: TaskInput.fromObject({
                 'action': 'create_payment_intent',
                 'bookingId.$': '$.bookingId',
@@ -208,7 +209,7 @@ const bookingWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
                     resultPath: '$.eventResult',
                   }).next(
                     new LambdaInvoke(backend.storage.resources.bucket.stack, 'SendBookingNotifications', {
-                      lambdaFunction: backend.notificationHandler.resources.lambda,
+                      lambdaFunction: nullableToString(backend.notificationHandler.resources.lambda),
                       payload: TaskInput.fromObject({
                         'action': 'booking_confirmed',
                         'bookingId.$': '$.bookingId',
@@ -237,7 +238,7 @@ const bookingWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
     .when(
       Condition.stringEquals('$.action', 'CANCEL'),
       new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessCancellation', {
-        lambdaFunction: backend.refundProcessor.resources.lambda,
+        lambdaFunction: nullableToString(backend.refundProcessor.resources.lambda),
         payload: TaskInput.fromJsonPathAt('$'),
         resultPath: '$.cancellationResult',
       }).next(
@@ -265,12 +266,12 @@ const bookingWorkflow = new StateMachine(backend.storage.resources.bucket.stack,
   role: stepFunctionRole,
   logs: {
     destination: stepFunctionLogGroup,
-    level: LogLevel.ALL,
+    level: nullableToString(LogLevel.ALL),
     includeExecutionData: true,
   },
   tracingEnabled: true,
   timeout: Duration.minutes(15),
-  stateMachineType: StateMachineType.STANDARD,
+  stateMachineType: nullableToString(StateMachineType.STANDARD),
 });
 
 // 2. Payment Processing Workflow
@@ -286,7 +287,7 @@ const paymentWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
     .when(
       Condition.stringEquals('$.paymentType', 'DIRECT'),
       new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessDirectPayment', {
-        lambdaFunction: backend.stripeConnect.resources.lambda,
+        lambdaFunction: nullableToString(backend.stripeConnect.resources.lambda),
         payload: TaskInput.fromJsonPathAt('$'),
         resultPath: '$.paymentResult',
       })
@@ -294,7 +295,7 @@ const paymentWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
     .when(
       Condition.stringEquals('$.paymentType', 'PAYOUT'),
       new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessPayout', {
-        lambdaFunction: backend.payoutManager.resources.lambda,
+        lambdaFunction: nullableToString(backend.payoutManager.resources.lambda),
         payload: TaskInput.fromJsonPathAt('$'),
         resultPath: '$.paymentResult',
       })
@@ -302,7 +303,7 @@ const paymentWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
     .when(
       Condition.stringEquals('$.paymentType', 'REFUND'),
       new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessRefund', {
-        lambdaFunction: backend.refundProcessor.resources.lambda,
+        lambdaFunction: nullableToString(backend.refundProcessor.resources.lambda),
         payload: TaskInput.fromJsonPathAt('$'),
         resultPath: '$.paymentResult',
       })
@@ -345,7 +346,7 @@ const paymentWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
         time: WaitTime.duration(Duration.seconds(30)),
       }).next(
         new LambdaInvoke(backend.storage.resources.bucket.stack, 'CheckPaymentStatus', {
-          lambdaFunction: backend.stripeConnect.resources.lambda,
+          lambdaFunction: nullableToString(backend.stripeConnect.resources.lambda),
           payload: TaskInput.fromObject({
             'action': 'check_payment_status',
             'paymentIntentId.$': '$.paymentIntentId',
@@ -374,12 +375,12 @@ const paymentWorkflow = new StateMachine(backend.storage.resources.bucket.stack,
   role: stepFunctionRole,
   logs: {
     destination: stepFunctionLogGroup,
-    level: LogLevel.ALL,
+    level: nullableToString(LogLevel.ALL),
     includeExecutionData: true,
   },
   tracingEnabled: true,
   timeout: Duration.minutes(10),
-  stateMachineType: StateMachineType.STANDARD,
+  stateMachineType: nullableToString(StateMachineType.STANDARD),
 });
 
 // 3. Dispute Resolution Workflow
@@ -419,7 +420,7 @@ const disputeWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
           .when(
             Condition.stringEquals('$.disputeType', 'REFUND_REQUEST'),
             new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessDisputeRefund', {
-              lambdaFunction: backend.refundProcessor.resources.lambda,
+              lambdaFunction: nullableToString(backend.refundProcessor.resources.lambda),
               payload: TaskInput.fromObject({
                 'action': 'process_dispute_refund',
                 'disputeId.$': '$.disputeId',
@@ -433,7 +434,7 @@ const disputeWorkflowDefinition = new Pass(backend.storage.resources.bucket.stac
           .when(
             Condition.stringEquals('$.disputeType', 'SERVICE_COMPLAINT'),
             new LambdaInvoke(backend.storage.resources.bucket.stack, 'ProcessServiceComplaint', {
-              lambdaFunction: backend.messagingHandler.resources.lambda,
+              lambdaFunction: nullableToString(backend.messagingHandler.resources.lambda),
               payload: TaskInput.fromObject({
                 'action': 'escalate_complaint',
                 'disputeId.$': '$.disputeId',
@@ -491,12 +492,12 @@ const disputeWorkflow = new StateMachine(backend.storage.resources.bucket.stack,
   role: stepFunctionRole,
   logs: {
     destination: stepFunctionLogGroup,
-    level: LogLevel.ALL,
+    level: nullableToString(LogLevel.ALL),
     includeExecutionData: true,
   },
   tracingEnabled: true,
   timeout: Duration.days(7), // Long timeout for dispute resolution
-  stateMachineType: StateMachineType.STANDARD,
+  stateMachineType: nullableToString(StateMachineType.STANDARD),
 });
 
 // 4. Provider Onboarding Workflow
@@ -509,7 +510,7 @@ const onboardingWorkflowDefinition = new Pass(backend.storage.resources.bucket.s
   },
 }).next(
   new LambdaInvoke(backend.storage.resources.bucket.stack, 'CreateStripeAccount', {
-    lambdaFunction: backend.stripeConnect.resources.lambda,
+    lambdaFunction: nullableToString(backend.stripeConnect.resources.lambda),
     payload: TaskInput.fromObject({
       'action': 'create_connect_account',
       'providerId.$': '$.providerId',
@@ -546,7 +547,7 @@ const onboardingWorkflowDefinition = new Pass(backend.storage.resources.bucket.s
             }],
           }).next(
             new LambdaInvoke(backend.storage.resources.bucket.stack, 'SendWelcomeNotification', {
-              lambdaFunction: backend.notificationHandler.resources.lambda,
+              lambdaFunction: nullableToString(backend.notificationHandler.resources.lambda),
               payload: TaskInput.fromObject({
                 'action': 'provider_welcome',
                 'providerId.$': '$.providerId',
@@ -562,7 +563,7 @@ const onboardingWorkflowDefinition = new Pass(backend.storage.resources.bucket.s
           time: WaitTime.duration(Duration.minutes(5)),
         }).next(
           new LambdaInvoke(backend.storage.resources.bucket.stack, 'RetryStripeAccount', {
-            lambdaFunction: backend.stripeConnect.resources.lambda,
+            lambdaFunction: nullableToString(backend.stripeConnect.resources.lambda),
             payload: TaskInput.fromJsonPathAt('$'),
             resultPath: '$.retryResult',
           }).next(
@@ -589,12 +590,12 @@ const onboardingWorkflow = new StateMachine(backend.storage.resources.bucket.sta
   role: stepFunctionRole,
   logs: {
     destination: stepFunctionLogGroup,
-    level: LogLevel.ALL,
+    level: nullableToString(LogLevel.ALL),
     includeExecutionData: true,
   },
   tracingEnabled: true,
   timeout: Duration.minutes(30),
-  stateMachineType: StateMachineType.STANDARD,
+  stateMachineType: nullableToString(StateMachineType.STANDARD),
 });
 
 // ========== EventBridge Rules and Routing ==========
@@ -656,7 +657,7 @@ providerEventsRule.addTarget(new LambdaFunction(backend.notificationHandler.reso
 // Configure the post-confirmation trigger
 backend.auth.resources.userPool.addTrigger({
   operation: 'postConfirmation',
-  handler: backend.postConfirmationTrigger.resources.lambda,
+  handler: nullableToString(backend.postConfirmationTrigger.resources.lambda),
 });
 
 // Grant the function permissions to access the GraphQL API
@@ -833,8 +834,8 @@ const openSearchDomain = new EcosystemOpenSearchDomain(backend.searchIndexer.res
   environment: environment as 'dev' | 'staging' | 'production',
   enableCostOptimization: true,
   // Cognito integration for fine-grained access control
-  cognitoUserPoolId: backend.auth.resources.userPool.userPoolId,
-  cognitoIdentityPoolId: backend.auth.resources.identityPool?.identityPoolId,
+  cognitoUserPoolId: nullableToString(backend.auth.resources.userPool.userPoolId),
+  cognitoIdentityPoolId: nullableToString(backend.auth.resources.identityPool?.identityPoolId),
 });
 
 // PERFORMANCE: Deploy ElastiCache for sub-100ms search latency
@@ -881,8 +882,8 @@ tablesToStream.forEach(tableName => {
 // PERFORMANCE: Deploy comprehensive search monitoring
 const searchMonitoring = new EcosystemSearchMonitoring(backend.searchIndexer.resources.lambda.stack, 'SearchMonitoring', {
   environment: environment as 'dev' | 'staging' | 'production',
-  openSearchDomain: openSearchDomain.domain,
-  searchIndexerFunction: backend.searchIndexer.resources.lambda,
+  openSearchDomain: nullableToString(openSearchDomain.domain),
+  searchIndexerFunction: nullableToString(backend.searchIndexer.resources.lambda),
   cacheClusterId: cacheConfig.replicationGroup?.attrReplicationGroupId || cacheConfig.cacheCluster?.attrClusterId,
   alertEmail: process.env.ALERT_EMAIL || 'admin@ecosystem-marketplace.com',
   enableCostMonitoring: true,

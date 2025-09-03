@@ -1,5 +1,6 @@
 import { defineFunction } from '@aws-amplify/backend';
 import { stripeSecrets } from '../../security/stripe-secrets.js';
+import { secretToString } from "../../../lib/type-utils";
 
 /**
  * Stripe Connect Lambda Function
@@ -24,16 +25,14 @@ export const stripeConnect = defineFunction({
   // Security Configuration - All secrets from AWS Secrets Manager
   environment: {
     // Stripe Configuration
-    STRIPE_SECRET_KEY: stripeSecrets.secretKey,
-    STRIPE_WEBHOOK_SECRET: stripeSecrets.webhookSecret,
-    
+    STRIPE_SECRET_KEY: secretToString(stripeSecrets.secretKey),
+    STRIPE_WEBHOOK_SECRET: secretToString(stripeSecrets.webhookSecret),
     // Application Configuration
-    APP_URL: stripeSecrets.appUrl,
-    USER_PROFILE_TABLE_NAME: stripeSecrets.userProfileTableName,
-    SERVICE_TABLE_NAME: stripeSecrets.serviceTableName,
-    BOOKING_TABLE_NAME: stripeSecrets.bookingTableName,
-    TRANSACTION_TABLE_NAME: stripeSecrets.transactionTableName,
-    
+    APP_URL: secretToString(stripeSecrets.appUrl),
+    USER_PROFILE_TABLE_NAME: secretToString(stripeSecrets.userProfileTableName),
+    SERVICE_TABLE_NAME: secretToString(stripeSecrets.serviceTableName),
+    BOOKING_TABLE_NAME: secretToString(stripeSecrets.bookingTableName),
+    TRANSACTION_TABLE_NAME: secretToString(stripeSecrets.transactionTableName),
     // Environment Identification
     NODE_ENV: 'production',
   },

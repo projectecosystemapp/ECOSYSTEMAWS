@@ -3,6 +3,7 @@ import * as opensearch from 'aws-cdk-lib/aws-opensearchserverless';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { nullableToString, nullableToNumber } from '@/lib/type-utils';
 
 export function createOpenSearchDomain(backend: any) {
   const { stack } = backend;
@@ -113,7 +114,7 @@ export function createOpenSearchDomain(backend: any) {
       OpenSearchAccess: new iam.PolicyDocument({
         statements: [
           new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
+            effect: nullableToString(iam.Effect.ALLOW),
             actions: [
               'aoss:APIAccessAll',
               'aoss:DashboardsAccessAll',
@@ -125,7 +126,7 @@ export function createOpenSearchDomain(backend: any) {
             resources: [searchCollection.attrArn]
           }),
           new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
+            effect: nullableToString(iam.Effect.ALLOW),
             actions: [
               'logs:CreateLogGroup',
               'logs:CreateLogStream',
@@ -135,7 +136,7 @@ export function createOpenSearchDomain(backend: any) {
           }),
           // DynamoDB Streams permissions for real-time sync
           new iam.PolicyStatement({
-            effect: iam.Effect.ALLOW,
+            effect: nullableToString(iam.Effect.ALLOW),
             actions: [
               'dynamodb:DescribeStream',
               'dynamodb:GetRecords',
@@ -153,7 +154,7 @@ export function createOpenSearchDomain(backend: any) {
     searchCollection,
     openSearchAccessRole,
     searchLogGroup,
-    collectionEndpoint: searchCollection.attrCollectionEndpoint,
+    collectionEndpoint: nullableToString(searchCollection.attrCollectionEndpoint),
     dashboardsEndpoint: searchCollection.attrDashboardEndpoint
   };
 }

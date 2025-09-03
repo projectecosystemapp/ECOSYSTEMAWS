@@ -49,8 +49,8 @@ function withDefault<T>(value: T | null | undefined, defaultValue: T): T {
  */
 export function mapApiUserProfileToUserProfile(apiUser: ApiUserProfile): UserProfile {
   return {
-    id: apiUser.id,
-    email: apiUser.email,
+    id: nullableToString(apiUser.id),
+    email: nullableToString(apiUser.email),
     firstName: nullToUndefined(apiUser.firstName),
     lastName: nullToUndefined(apiUser.lastName),
     phone: nullToUndefined(apiUser.phone),
@@ -97,14 +97,14 @@ export function mapApiUserProfileToUserProfile(apiUser: ApiUserProfile): UserPro
  */
 export function mapApiServiceToService(apiService: ApiService): Service {
   return {
-    id: apiService.id,
-    title: apiService.title,
-    description: apiService.description,
+    id: nullableToString(apiService.id),
+    title: nullableToString(apiService.title),
+    description: nullableToString(apiService.description),
     // Convert cents (integer) to dollars for UI
     price: withDefault((apiService as any).priceCents, 0) / 100,
     category: withDefault(apiService.category, 'SERVICE'),
     providerName: apiService.providerEmail.split('@')[0], // Extract username from email
-    providerEmail: apiService.providerEmail,
+    providerEmail: nullableToString(apiService.providerEmail),
     duration: withDefault(apiService.minimumBookingTime, 60), // Use minimumBookingTime as duration
     active: withDefault(apiService.active, true),
     // Location fields
@@ -177,15 +177,15 @@ export function mapApiBookingToBooking(apiBooking: ApiBooking): Booking {
   }
 
   return {
-    id: apiBooking.id,
-    serviceId: apiBooking.serviceId,
+    id: nullableToString(apiBooking.id),
+    serviceId: nullableToString(apiBooking.serviceId),
     serviceTitle: '', // This should be populated from a joined query or separate fetch
-    providerId: apiBooking.providerId,
+    providerId: nullableToString(apiBooking.providerId),
     providerName: '', // This should be populated from a joined query
-    providerEmail: apiBooking.providerEmail,
-    customerId: apiBooking.customerId,
+    providerEmail: nullableToString(apiBooking.providerEmail),
+    customerId: nullableToString(apiBooking.customerId),
     customerName: '', // This should be populated from a joined query
-    customerEmail: apiBooking.customerEmail,
+    customerEmail: nullableToString(apiBooking.customerEmail),
     customerPhone: nullToUndefined(apiBooking.customerPhone),
     scheduledDate,
     scheduledTime,
@@ -223,12 +223,12 @@ export function mapApiReviewToReview(apiReview: ApiReview): Review {
   const isCustomerReview = apiReview.reviewerType === 'CUSTOMER';
   
   return {
-    id: apiReview.id,
-    bookingId: apiReview.bookingId,
-    serviceId: apiReview.serviceId,
+    id: nullableToString(apiReview.id),
+    bookingId: nullableToString(apiReview.bookingId),
+    serviceId: nullableToString(apiReview.serviceId),
     // Map reviewer/reviewee to customer/provider based on type
-    customerEmail: isCustomerReview ? apiReview.reviewerEmail : apiReview.revieweeEmail,
-    providerEmail: isCustomerReview ? apiReview.revieweeEmail : apiReview.reviewerEmail,
+    customerEmail: isCustomerReview ? apiReview.reviewerEmail : nullableToString(apiReview.revieweeEmail),
+    providerEmail: isCustomerReview ? apiReview.revieweeEmail : nullableToString(apiReview.reviewerEmail),
     rating: withDefault(apiReview.rating, 0),
     title: nullToUndefined(apiReview.title),
     comment: nullToUndefined(apiReview.comment),
@@ -250,13 +250,13 @@ export function mapApiReviewToReview(apiReview: ApiReview): Review {
  */
 export function mapApiMessageToMessage(apiMessage: ApiMessage): Message {
   return {
-    id: apiMessage.id,
-    conversationId: apiMessage.conversationId,
-    senderId: apiMessage.senderId,
-    senderEmail: apiMessage.senderEmail,
-    recipientId: apiMessage.recipientId,
-    recipientEmail: apiMessage.recipientEmail,
-    content: apiMessage.content,
+    id: nullableToString(apiMessage.id),
+    conversationId: nullableToString(apiMessage.conversationId),
+    senderId: nullableToString(apiMessage.senderId),
+    senderEmail: nullableToString(apiMessage.senderEmail),
+    recipientId: nullableToString(apiMessage.recipientId),
+    recipientEmail: nullableToString(apiMessage.recipientEmail),
+    content: nullableToString(apiMessage.content),
     messageType: withDefault(apiMessage.messageType, 'TEXT'),
     attachments: apiMessage.attachments?.filter((att): att is string => att !== null) ?? [],
     bookingId: nullToUndefined(apiMessage.bookingId),
@@ -278,12 +278,12 @@ export function mapApiMessageToMessage(apiMessage: ApiMessage): Message {
  */
 export function mapApiTransactionToTransaction(apiTransaction: ApiTransaction): Transaction {
   return {
-    id: apiTransaction.id,
-    bookingId: apiTransaction.bookingId,
+    id: nullableToString(apiTransaction.id),
+    bookingId: nullableToString(apiTransaction.bookingId),
     serviceId: undefined, // Not in schema
-    customerId: apiTransaction.customerId,
+    customerId: nullableToString(apiTransaction.customerId),
     customerEmail: '', // Not in schema
-    providerId: apiTransaction.providerId,
+    providerId: nullableToString(apiTransaction.providerId),
     providerEmail: '', // Not in schema
     type: withDefault(apiTransaction.type, 'PAYMENT'),
     status: withDefault(apiTransaction.status, 'PENDING'),
@@ -314,12 +314,12 @@ export function mapApiTransactionToTransaction(apiTransaction: ApiTransaction): 
  */
 export function mapApiNotificationToNotification(apiNotification: ApiNotification): Notification {
   return {
-    id: apiNotification.id,
-    userId: apiNotification.userId,
+    id: nullableToString(apiNotification.id),
+    userId: nullableToString(apiNotification.userId),
     userEmail: '', // Not in schema
     type: withDefault(apiNotification.type, 'INFO'),
-    title: apiNotification.title,
-    message: apiNotification.message,
+    title: nullableToString(apiNotification.title),
+    message: nullableToString(apiNotification.message),
     actionUrl: nullToUndefined(apiNotification.actionUrl),
     actionLabel: nullToUndefined(apiNotification.actionText),
     icon: undefined, // Not in schema
