@@ -1,0 +1,45 @@
+version: 1
+backend:
+  phases:
+    build:
+      commands:
+        # Clean install approach with better error handling
+        - echo "Starting backend build at $(date)"
+        - |
+          if [ -d "amplify" ]; then
+            echo "Amplify folder exists, installing dependencies..."
+            cd amplify
+            # Try npm install instead of npm ci
+            npm install --verbose || {
+              echo "npm install failed, trying to clear cache..."
+              npm cache clean --force
+              npm install --verbose
+            }
+            cd ..
+          else
+            echo "WARNING: amplify folder not found!"
+          fi
+        - echo "Generating Amplify outputs..."
+        - npx ampx generate outputs --app-id $AWS_APP_ID --branch $AWS_BRANCH --out-dir ./
+        - echo "Backend build completed at $(date)"
+frontend:
+  phases:
+    preBuild:
+      commands:
+        - echo "Starting frontend preBuild at $(date)"
+        - npm ci || npm install
+        - echo "Frontend preBuild completed at $(date)"
+    build:
+      commands:
+        - echo "Starting frontend build at $(date)"
+        - npm run build
+        - echo "Frontend build completed at $(date)"
+  artifacts:
+    baseDirectory: .next
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - node_modules/**/*
+      - .next/cache/**/*
+      - amplify/node_modules/**/*

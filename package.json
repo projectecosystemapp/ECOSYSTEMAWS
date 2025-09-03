@@ -27,7 +27,7 @@
     "lint-staged": "lint-staged",
     "prepare": "husky install",
     "build:verify": "npm run fix:types && npm run build && npm run test:smoke",
-    "test:smoke": "vitest run --grep smoke",
+    "test:smoke": "vitest run -t smoke",
     "fix:types": "tsc --noEmit --skipLibCheck",
     "sentry-setup": "echo 'Manual Sentry setup'"
   },
