@@ -110,10 +110,20 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should fail NACHA compliance for missing required fields', async () => {
-      mockEvent.arguments.input.fromAccountId = '';
-      mockEvent.arguments.input.description = '';
+      // Create a copy with missing required fields
+      const invalidEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            fromAccountId: '',
+            description: ''
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(invalidEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.status).toBe('FAILED');
@@ -122,27 +132,54 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should fail NACHA compliance for invalid SEC code', async () => {
-      mockEvent.arguments.input.secCode = 'INVALID' as any;
+      const invalidEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            secCode: 'INVALID' as any
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(invalidEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.declineReason).toContain('NACHA compliance failed');
     });
 
     it('should fail NACHA compliance for amount exceeding limits', async () => {
-      mockEvent.arguments.input.amount = 600000; // $6,000 (exceeds $5,000 limit)
+      const invalidEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 600000 // $6,000 (exceeds $5,000 limit)
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(invalidEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.declineReason).toContain('NACHA compliance failed');
     });
 
     it('should fail NACHA compliance for description too long', async () => {
-      mockEvent.arguments.input.description = 'A'.repeat(81); // Exceeds 80 character limit
+      const invalidEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            description: 'A'.repeat(81) // Exceeds 80 character limit
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(invalidEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.declineReason).toContain('NACHA compliance failed');
@@ -152,9 +189,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
       const futureDate = new Date();
       futureDate.setDate(futureDate.getDate() + 7);
       
-      mockEvent.arguments.input.effectiveDate = futureDate.toISOString().split('T')[0];
+      const validEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            effectiveDate: futureDate.toISOString().split('T')[0]
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(validEvent, mockContext);
 
       expect(result.success).toBe(true);
       expect(result.estimatedSettlement).toBeDefined();
@@ -164,9 +210,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
       const pastDate = new Date();
       pastDate.setDate(pastDate.getDate() - 1);
       
-      mockEvent.arguments.input.effectiveDate = pastDate.toISOString().split('T')[0];
+      const invalidEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            effectiveDate: pastDate.toISOString().split('T')[0]
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(invalidEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.declineReason).toContain('NACHA compliance failed');
@@ -190,10 +245,22 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should block transfer for sanctioned customer', async () => {
-      mockEvent.arguments.input.customerInfo.firstName = 'Blocked';
-      mockEvent.arguments.input.customerInfo.lastName = 'Person';
+      const sanctionedEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            customerInfo: {
+              ...mockEvent.arguments.input.customerInfo,
+              firstName: 'Blocked',
+              lastName: 'Person'
+            }
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(sanctionedEvent, mockContext);
 
       expect(result.success).toBe(false);
       expect(result.status).toBe('FAILED');
@@ -207,10 +274,22 @@ describe('ACH Transfer Manager Lambda Handler', () => {
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation();
       
       // This would trigger error handling in production OFAC service integration
-      mockEvent.arguments.input.customerInfo.firstName = 'Error';
-      mockEvent.arguments.input.customerInfo.lastName = 'Trigger';
+      const errorEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            customerInfo: {
+              ...mockEvent.arguments.input.customerInfo,
+              firstName: 'Error',
+              lastName: 'Trigger'
+            }
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(errorEvent, mockContext);
 
       // Should fail-safe to blocking when screening fails
       expect(result.success).toBe(false);
@@ -223,9 +302,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
   describe('Fraud Risk Assessment', () => {
     it('should approve low-risk transfers', async () => {
       // Low amount, normal time, normal location
-      mockEvent.arguments.input.amount = 25000; // $250
+      const lowRiskEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 25000 // $250
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(lowRiskEvent, mockContext);
 
       expect(result.success).toBe(true);
       expect(result.riskScore).toBeLessThan(0.3);
@@ -240,9 +328,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should flag high-value transfers for review', async () => {
-      mockEvent.arguments.input.amount = 150000; // $1,500 (above high-risk threshold)
+      const highValueEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 150000 // $1,500 (above high-risk threshold)
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(highValueEvent, mockContext);
 
       expect(result.riskScore).toBeGreaterThanOrEqual(0.3);
       expect(result.auditTrail).toEqual(
@@ -257,8 +354,20 @@ describe('ACH Transfer Manager Lambda Handler', () => {
 
     it('should block critical risk transfers', async () => {
       // Multiple risk factors: high amount, high velocity, high-risk location
-      mockEvent.arguments.input.amount = 200000; // $2,000
-      mockEvent.arguments.input.customerInfo.ipAddress = '1.2.3.4'; // Would be high-risk in real implementation
+      const highRiskEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 200000, // $2,000
+            customerInfo: {
+              ...mockEvent.arguments.input.customerInfo,
+              ipAddress: '1.2.3.4' // Would be high-risk in real implementation
+            }
+          }
+        }
+      };
 
       // Mock high velocity scenario
       const mockQueryResult = {
@@ -272,7 +381,7 @@ describe('ACH Transfer Manager Lambda Handler', () => {
       const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
       DynamoDBClient.prototype.send.mockImplementationOnce(() => Promise.resolve(mockQueryResult));
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(highRiskEvent, mockContext);
 
       // High risk should result in denial or review
       expect(result.riskScore).toBeGreaterThan(0.6);
@@ -440,9 +549,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should handle same-day ACH processing', async () => {
-      mockEvent.arguments.input.priority = 'SAME_DAY';
+      const sameDayEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            priority: 'SAME_DAY' as const
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(sameDayEvent, mockContext);
 
       expect(result.success).toBe(true);
       expect(result.auditTrail).toEqual(
@@ -462,9 +580,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
       const secCodes: Array<'WEB' | 'TEL' | 'PPD' | 'CCD'> = ['WEB', 'TEL', 'PPD', 'CCD'];
       
       for (const secCode of secCodes) {
-        mockEvent.arguments.input.secCode = secCode;
+        const secCodeEvent = {
+          ...mockEvent,
+          arguments: {
+            ...mockEvent.arguments,
+            input: {
+              ...mockEvent.arguments.input,
+              secCode
+            }
+          }
+        };
         
-        const result = await handler(mockEvent, mockContext);
+        const result = await handler(secCodeEvent, mockContext);
         
         expect(result.success).toBe(true);
         expect(result.auditTrail).toEqual(
@@ -483,11 +610,20 @@ describe('ACH Transfer Manager Lambda Handler', () => {
 
   describe('BSA/AML Reporting', () => {
     it('should trigger BSA report for high-value transactions', async () => {
-      mockEvent.arguments.input.amount = 350000; // $3,500 (above BSA threshold)
+      const highValueEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 350000 // $3,500 (above BSA threshold)
+          }
+        }
+      };
       
       const consoleSpy = jest.spyOn(console, 'log');
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(highValueEvent, mockContext);
 
       // Should process successfully but trigger BSA reporting
       expect(result.success).toBe(true);
@@ -501,9 +637,18 @@ describe('ACH Transfer Manager Lambda Handler', () => {
     });
 
     it('should not trigger BSA report for low-value transactions', async () => {
-      mockEvent.arguments.input.amount = 25000; // $250 (below BSA threshold)
+      const lowValueEvent = {
+        ...mockEvent,
+        arguments: {
+          ...mockEvent.arguments,
+          input: {
+            ...mockEvent.arguments.input,
+            amount: 25000 // $250 (below BSA threshold)
+          }
+        }
+      };
 
-      const result = await handler(mockEvent, mockContext);
+      const result = await handler(lowValueEvent, mockContext);
 
       expect(result.success).toBe(true);
       // BSA reporting should not be triggered for amounts below threshold

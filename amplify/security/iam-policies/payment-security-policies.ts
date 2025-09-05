@@ -186,7 +186,7 @@ export const paymentDynamoDbPolicy = new PolicyStatement({
         'AUDIT_*',
       ],
     },
-    ForAllValues:StringEquals: {
+    'ForAllValues:StringEquals': {
       // Restrict which attributes can be modified
       'dynamodb:Attributes': [
         'id',
@@ -470,7 +470,7 @@ export const paymentMetricsPolicy = new PolicyStatement({
         'Custom/Security/*',
       ],
     },
-    ForAllValues:StringLike: {
+    'ForAllValues:StringLike': {
       'cloudwatch:metric-name': [
         'PaymentProcessed*',
         'ACHTransfer*',

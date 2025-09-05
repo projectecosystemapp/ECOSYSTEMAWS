@@ -225,8 +225,8 @@ export const BankAccount = a.model({
   allow.custom(), // For bank account verification
 ])
 .secondaryIndexes((index) => [
-  index('providerId').sortKeys(['active']).queryField('bankAccountsByProvider'),
-  index('verificationStatus').queryField('bankAccountsByVerificationStatus'),
+  index('providerId').sortKeys(['createdAt']).queryField('bankAccountsByProvider'),
+  index('verificationStatus').sortKeys(['createdAt']).queryField('bankAccountsByVerificationStatus'),
 ]);
 
 // Cost Metrics Model for Real-time Monitoring

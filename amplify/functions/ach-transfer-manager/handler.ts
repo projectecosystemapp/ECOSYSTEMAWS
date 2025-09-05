@@ -474,7 +474,7 @@ async function performOfacScreening(
     const matchedNames: string[] = [];
     
     for (const sanctionedName of sanctionedNames) {
-      const similarity = calculateStringSimilarity(fullName, sanctionedName);
+      const similarity = await calculateStringSimilarity(fullName, sanctionedName);
       if (similarity > 0.8) { // High similarity threshold
         isMatch = true;
         matchScore = Math.max(matchScore, similarity);
