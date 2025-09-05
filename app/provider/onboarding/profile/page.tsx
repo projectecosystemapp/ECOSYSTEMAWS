@@ -1,5 +1,8 @@
 'use client';
 
+// Disable static generation for this dynamic page
+export const dynamic = 'force-dynamic';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getCurrentUser } from 'aws-amplify/auth';
 import { generateClient } from 'aws-amplify/data';
@@ -14,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
+import { nullableToString } from '@/lib/type-utils';
 
 
 // Import step components

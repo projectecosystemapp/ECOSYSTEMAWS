@@ -59,11 +59,6 @@ const backend = defineBackend({
   postConfirmationTrigger,
 });
 
-// Configure authentication post-confirmation trigger
-backend.addOutput({
-  auth: {
-    postConfirmationTrigger: backend.postConfirmationTrigger.resources.lambda.functionArn
-  }
-});
+// Note: Post-confirmation trigger is configured in auth/resource.ts
 
 export default backend;

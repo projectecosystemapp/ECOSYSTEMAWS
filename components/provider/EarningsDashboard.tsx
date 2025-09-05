@@ -50,7 +50,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { stripeEarningsApi, type EarningsOverview, type Transaction, type Payout, type MonthlyEarning, type ServicePerformance } from '@/lib/api/stripe-earnings';
+import { awsEarningsApi, type EarningsOverview, type Transaction, type Payout, type MonthlyEarning, type ServicePerformance } from '@/lib/api/aws-earnings';
 import { formatPrice, formatDate } from '@/utils/format';
 
 
@@ -104,14 +104,11 @@ export function EarningsDashboard() {
       
       // Fetch all data in parallel for better performance
       const [overviewData, transactionsData, payoutsData, monthlyData, performanceData] = await Promise.allSettled([
-        stripeEarningsApi.getEarningsOverview(providerId),
-        stripeEarningsApi.getTransactionHistory(providerId, {
-          limit: 100,
-          ...(searchQuery && { search: searchQuery })
-        }),
-        stripeEarningsApi.getPayoutHistory(providerId),
-        stripeEarningsApi.getMonthlyEarnings(providerId),
-        stripeEarningsApi.getServicePerformance(providerId)
+        awsEarningsApi.getEarningsOverview(providerId),
+        awsEarningsApi.getTransactions(providerId, 1, 100),
+        awsEarningsApi.getPayouts(providerId),
+        awsEarningsApi.getMonthlyEarnings(providerId),
+        awsEarningsApi.getServicePerformance(providerId)
       ]);
 
       // Handle overview data
@@ -166,7 +163,8 @@ export function EarningsDashboard() {
     if (!providerId) return;
     
     try {
-      const result = await stripeEarningsApi.exportTransactions(providerId, 'csv');
+      // TODO: Implement export functionality with AWS earnings API
+      console.log('Export functionality not yet implemented with AWS API');
       
       // Create download link
       const link = document.createElement('a');

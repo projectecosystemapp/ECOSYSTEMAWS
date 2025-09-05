@@ -79,7 +79,7 @@ export default function ProviderOnboarding() {
       // Use AWS Payment Processor to check account status
       const data = await awsPaymentProcessorOperation({
         action: 'CHECK_ACCOUNT_STATUS',
-        providerId: nullableToString(user.userId),
+        providerId: user.userId,
       });
       setPaymentStatus(data);
       setAccountId(data.accountId);
@@ -116,7 +116,7 @@ export default function ProviderOnboarding() {
       // Use AWS Payment Processor for creating payment account
       const data = await awsPaymentProcessorOperation({
         action: 'CREATE_ACCOUNT',
-        providerId: nullableToString(user.userId),
+        providerId: user.userId,
       });
 
       if (data.success) {

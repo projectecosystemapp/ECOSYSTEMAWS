@@ -1,0 +1,783 @@
+{
+  "AWSPaymentProcessorPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "KMSPaymentEncryptionAccess",
+        "Effect": "Allow",
+        "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:ReEncrypt*"
+        ],
+        "Resource": [
+          "arn:aws:kms:us-west-2:*:key/*",
+          "arn:aws:kms:us-west-2:*:alias/ecosystemaws-payment-key",
+          "arn:aws:kms:us-west-2:*:alias/payment-processing",
+          "arn:aws:kms:us-west-2:*:alias/database-encryption"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "kms:EncryptionContext:purpose": [
+              "payment-processing",
+              "database-encryption"
+            ],
+            "kms:EncryptionContext:service": "ECOSYSTEMAWS-PAYMENTS",
+            "kms:EncryptionContext:data-classification": [
+              "PCI-SENSITIVE",
+              "FINANCIAL-SENSITIVE"
+            ]
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          },
+          "StringLike": {
+            "kms:EncryptionContext:transaction-id": "TXN_*"
+          }
+        }
+      },
+      {
+        "Sid": "PaymentCryptographyAccess",
+        "Effect": "Allow",
+        "Action": [
+          "payment-cryptography:Encrypt",
+          "payment-cryptography:Decrypt",
+          "payment-cryptography:GenerateCardValidationData",
+          "payment-cryptography:VerifyCardValidationData",
+          "payment-cryptography:TranslatePinData",
+          "payment-cryptography:GeneratePinData"
+        ],
+        "Resource": [
+          "arn:aws:payment-cryptography:us-west-2:*:key/*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "payment-cryptography:KeyUsage": [
+              "TR31_P0_PIN_ENCRYPTION_KEY",
+              "TR31_D0_SYMMETRIC_DATA_ENCRYPTION_KEY"
+            ]
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "DynamoDBPaymentTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/Transaction*",
+          "arn:aws:dynamodb:us-west-2:*:table/PaymentMethod*",
+          "arn:aws:dynamodb:us-west-2:*:table/EscrowAccount*",
+          "arn:aws:dynamodb:us-west-2:*:table/AchTransaction*",
+          "arn:aws:dynamodb:us-west-2:*:table/ComplianceReport*"
+        ],
+        "Condition": {
+          "ForAllValues:StringEquals": {
+            "dynamodb:Attributes": [
+              "id",
+              "amount",
+              "currency",
+              "status",
+              "created_at",
+              "updated_at",
+              "customer_id",
+              "provider_id",
+              "payment_method_id",
+              "escrow_account_id",
+              "encrypted_card_data",
+              "fraud_score",
+              "compliance_status"
+            ]
+          },
+          "StringEquals": {
+            "dynamodb:LeadingKeys": ["${aws:userid}"]
+          }
+        }
+      },
+      {
+        "Sid": "FraudDetectorAccess",
+        "Effect": "Allow",
+        "Action": [
+          "frauddetector:GetEventPrediction"
+        ],
+        "Resource": [
+          "arn:aws:frauddetector:us-west-2:*:detector/ecosystemaws-fraud-detector",
+          "arn:aws:frauddetector:us-west-2:*:detector-version/ecosystemaws-fraud-detector/*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "frauddetector:eventTypeName": "payment_transaction"
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "SNSPaymentNotifications",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:us-west-2:*:payment-notifications",
+          "arn:aws:sns:us-west-2:*:payment-alerts",
+          "arn:aws:sns:us-west-2:*:fraud-alerts"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "sns:Protocol": ["email", "sms", "https"]
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "SecretsManagerPaymentSecrets",
+        "Effect": "Allow",
+        "Action": [
+          "secretsmanager:GetSecretValue"
+        ],
+        "Resource": [
+          "arn:aws:secretsmanager:us-west-2:*:secret:AMPLIFY_*_PAYMENT_PROCESSOR_CONFIG-*",
+          "arn:aws:secretsmanager:us-west-2:*:secret:AMPLIFY_*_FRAUD_DETECTOR_CONFIG-*",
+          "arn:aws:secretsmanager:us-west-2:*:secret:AMPLIFY_*_KMS_KEY_ALIAS-*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "aws:SecureTransport": "true"
+          },
+          "StringLike": {
+            "secretsmanager:ResourceTag/Environment": ["production", "staging"]
+          }
+        }
+      },
+      {
+        "Sid": "CloudWatchPaymentLogs",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:PutMetricFilter"
+        ],
+        "Resource": [
+          "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/aws-payment-processor*",
+          "arn:aws:logs:us-west-2:*:log-group:/aws/payment*"
+        ]
+      },
+      {
+        "Sid": "CloudWatchPaymentMetrics",
+        "Effect": "Allow",
+        "Action": [
+          "cloudwatch:PutMetricData"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "cloudwatch:namespace": [
+              "ECOSYSTEMAWS/Payments",
+              "ECOSYSTEMAWS/Fraud",
+              "ECOSYSTEMAWS/Security"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "XRayTracing",
+        "Effect": "Allow",
+        "Action": [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords"
+        ],
+        "Resource": "*"
+      }
+    ]
+  },
+  "ACHTransferManagerPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "KMSACHEncryptionAccess",
+        "Effect": "Allow",
+        "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:ReEncrypt*"
+        ],
+        "Resource": [
+          "arn:aws:kms:us-west-2:*:alias/ach-transfer",
+          "arn:aws:kms:us-west-2:*:alias/database-encryption"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "kms:EncryptionContext:purpose": [
+              "ach-transfer",
+              "database-encryption"
+            ],
+            "kms:EncryptionContext:service": "ECOSYSTEMAWS-PAYMENTS",
+            "kms:EncryptionContext:data-classification": [
+              "BANKING-SENSITIVE",
+              "NACHA-COMPLIANT"
+            ]
+          },
+          "StringLike": {
+            "kms:EncryptionContext:routing-number": "[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "DynamoDBAchTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/AchTransaction*",
+          "arn:aws:dynamodb:us-west-2:*:table/BankAccount*",
+          "arn:aws:dynamodb:us-west-2:*:table/PayoutSchedule*",
+          "arn:aws:dynamodb:us-west-2:*:table/NAchaCompliance*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "dynamodb:LeadingKeys": ["${aws:userid}"]
+          },
+          "ForAllValues:StringEquals": {
+            "dynamodb:Attributes": [
+              "id",
+              "routing_number",
+              "account_number_hash",
+              "amount",
+              "status",
+              "batch_id",
+              "settlement_date",
+              "trace_number",
+              "return_code"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "ACHBatchProcessing",
+        "Effect": "Allow",
+        "Action": [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ],
+        "Resource": [
+          "arn:aws:s3:::ecosystemaws-ach-batches/*",
+          "arn:aws:s3:::ecosystemaws-nacha-files/*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "s3:x-amz-server-side-encryption": "aws:kms",
+            "s3:x-amz-server-side-encryption-aws-kms-key-id": "arn:aws:kms:us-west-2:*:alias/ach-transfer"
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "SNSACHNotifications",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:us-west-2:*:ach-notifications",
+          "arn:aws:sns:us-west-2:*:payout-notifications",
+          "arn:aws:sns:us-west-2:*:ach-returns"
+        ]
+      },
+      {
+        "Sid": "CloudWatchACHLogs",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": [
+          "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/ach-transfer-manager*"
+        ]
+      },
+      {
+        "Sid": "XRayTracing",
+        "Effect": "Allow",
+        "Action": [
+          "xray:PutTraceSegments",
+          "xray:PutTelemetryRecords"
+        ],
+        "Resource": "*"
+      }
+    ]
+  },
+  "EscrowManagerPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "KMSEscrowEncryptionAccess",
+        "Effect": "Allow",
+        "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey",
+          "kms:Encrypt",
+          "kms:GenerateDataKey",
+          "kms:ReEncrypt*",
+          "kms:CreateGrant"
+        ],
+        "Resource": [
+          "arn:aws:kms:us-west-2:*:alias/escrow-management",
+          "arn:aws:kms:us-west-2:*:alias/database-encryption"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "kms:EncryptionContext:purpose": [
+              "escrow-management",
+              "database-encryption"
+            ],
+            "kms:EncryptionContext:service": "ECOSYSTEMAWS-PAYMENTS",
+            "kms:EncryptionContext:data-classification": "FIDUCIARY-SENSITIVE"
+          },
+          "StringLike": {
+            "kms:EncryptionContext:escrow-id": "ESC_*"
+          },
+          "NumericLessThan": {
+            "kms:GrantOperations": "3"
+          },
+          "Bool": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "DynamoDBEscrowTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/EscrowAccount*",
+          "arn:aws:dynamodb:us-west-2:*:table/EscrowRelease*",
+          "arn:aws:dynamodb:us-west-2:*:table/EscrowCondition*",
+          "arn:aws:dynamodb:us-west-2:*:table/FiduciaryCompliance*"
+        ]
+      },
+      {
+        "Sid": "StepFunctionsEscrowWorkflow",
+        "Effect": "Allow",
+        "Action": [
+          "states:StartExecution",
+          "states:DescribeExecution",
+          "states:StopExecution"
+        ],
+        "Resource": [
+          "arn:aws:states:us-west-2:*:stateMachine:escrow-release-workflow*",
+          "arn:aws:states:us-west-2:*:stateMachine:escrow-dispute-workflow*"
+        ]
+      },
+      {
+        "Sid": "EventBridgeEscrowEvents",
+        "Effect": "Allow",
+        "Action": [
+          "events:PutEvents"
+        ],
+        "Resource": [
+          "arn:aws:events:us-west-2:*:event-bus/escrow-events"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "events:source": ["ecosystemaws.escrow"]
+          }
+        }
+      },
+      {
+        "Sid": "SNSEscrowNotifications",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:us-west-2:*:escrow-notifications",
+          "arn:aws:sns:us-west-2:*:escrow-disputes",
+          "arn:aws:sns:us-west-2:*:escrow-releases"
+        ]
+      },
+      {
+        "Sid": "CloudWatchEscrowLogs",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": [
+          "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/escrow-manager*"
+        ]
+      }
+    ]
+  },
+  "FraudDetectorPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "FraudDetectorFullAccess",
+        "Effect": "Allow",
+        "Action": [
+          "frauddetector:GetEventPrediction",
+          "frauddetector:GetDetectors",
+          "frauddetector:GetDetectorVersion",
+          "frauddetector:GetRules",
+          "frauddetector:GetModels",
+          "frauddetector:GetModelVersion",
+          "frauddetector:GetOutcomes",
+          "frauddetector:GetVariables"
+        ],
+        "Resource": [
+          "arn:aws:frauddetector:us-west-2:*:detector/ecosystemaws-fraud-detector*",
+          "arn:aws:frauddetector:us-west-2:*:model/*",
+          "arn:aws:frauddetector:us-west-2:*:rule/*",
+          "arn:aws:frauddetector:us-west-2:*:outcome/*",
+          "arn:aws:frauddetector:us-west-2:*:variable/*"
+        ]
+      },
+      {
+        "Sid": "DynamoDBFraudTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/FraudEvent*",
+          "arn:aws:dynamodb:us-west-2:*:table/FraudScore*",
+          "arn:aws:dynamodb:us-west-2:*:table/RiskProfile*",
+          "arn:aws:dynamodb:us-west-2:*:table/Transaction*"
+        ]
+      },
+      {
+        "Sid": "MachineLearningInference",
+        "Effect": "Allow",
+        "Action": [
+          "sagemaker:InvokeEndpoint"
+        ],
+        "Resource": [
+          "arn:aws:sagemaker:us-west-2:*:endpoint/fraud-detection-*"
+        ],
+        "Condition": {
+          "StringEquals": {
+            "aws:SecureTransport": "true"
+          }
+        }
+      },
+      {
+        "Sid": "SNSFraudAlerts",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:us-west-2:*:fraud-alerts",
+          "arn:aws:sns:us-west-2:*:high-risk-transactions",
+          "arn:aws:sns:us-west-2:*:security-incidents"
+        ]
+      },
+      {
+        "Sid": "CloudWatchFraudMetrics",
+        "Effect": "Allow",
+        "Action": [
+          "cloudwatch:PutMetricData"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "cloudwatch:namespace": [
+              "ECOSYSTEMAWS/Fraud",
+              "ECOSYSTEMAWS/Security",
+              "ECOSYSTEMAWS/ML"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "CloudWatchFraudLogs",
+        "Effect": "Allow",
+        "Action": [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        "Resource": [
+          "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/fraud-detector*"
+        ]
+      }
+    ]
+  },
+  "CostMonitorPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "CostExplorerAccess",
+        "Effect": "Allow",
+        "Action": [
+          "ce:GetCostAndUsage",
+          "ce:GetUsageReport",
+          "ce:GetDimensionValues",
+          "ce:GetReservationCoverage",
+          "ce:GetReservationPurchaseRecommendation",
+          "ce:GetReservationUtilization"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "CloudWatchBillingMetrics",
+        "Effect": "Allow",
+        "Action": [
+          "cloudwatch:GetMetricStatistics",
+          "cloudwatch:ListMetrics"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "cloudwatch:namespace": [
+              "AWS/Billing",
+              "ECOSYSTEMAWS/Payments",
+              "ECOSYSTEMAWS/CostOptimization"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "DynamoDBCostTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/CostAnalysis*",
+          "arn:aws:dynamodb:us-west-2:*:table/SavingsReport*",
+          "arn:aws:dynamodb:us-west-2:*:table/ROIDashboard*"
+        ]
+      },
+      {
+        "Sid": "SNSCostAlerts",
+        "Effect": "Allow",
+        "Action": [
+          "sns:Publish"
+        ],
+        "Resource": [
+          "arn:aws:sns:us-west-2:*:cost-alerts",
+          "arn:aws:sns:us-west-2:*:savings-reports"
+        ]
+      }
+    ]
+  },
+  "SecurityAuditPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "CloudTrailAuditAccess",
+        "Effect": "Allow",
+        "Action": [
+          "cloudtrail:LookupEvents"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "cloudtrail:EventName": [
+              "GetSecretValue",
+              "Decrypt",
+              "Encrypt",
+              "GetEventPrediction",
+              "UpdateItem",
+              "PutItem",
+              "GetItem"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "ConfigComplianceAccess",
+        "Effect": "Allow",
+        "Action": [
+          "config:GetComplianceDetailsByConfigRule",
+          "config:GetComplianceDetailsByResource",
+          "config:GetConfigRuleEvaluationStatus",
+          "config:PutEvaluations"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Sid": "GuardDutySecurityFindings",
+        "Effect": "Allow",
+        "Action": [
+          "guardduty:GetFindings",
+          "guardduty:ListFindings"
+        ],
+        "Resource": [
+          "arn:aws:guardduty:us-west-2:*:detector/*"
+        ]
+      },
+      {
+        "Sid": "SecurityHubFindings",
+        "Effect": "Allow",
+        "Action": [
+          "securityhub:GetFindings",
+          "securityhub:BatchUpdateFindings"
+        ],
+        "Resource": [
+          "arn:aws:securityhub:us-west-2:*:hub/default",
+          "arn:aws:securityhub:us-west-2:*:finding/*"
+        ]
+      }
+    ]
+  },
+  "ComplianceMonitoringPolicy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "PCIDSSComplianceMonitoring",
+        "Effect": "Allow",
+        "Action": [
+          "logs:FilterLogEvents",
+          "logs:GetLogEvents"
+        ],
+        "Resource": [
+          "arn:aws:logs:us-west-2:*:log-group:/aws/payment*",
+          "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/aws-payment-*"
+        ],
+        "Condition": {
+          "StringLike": {
+            "logs:FilterPattern": [
+              "*PCI*",
+              "*CARD*",
+              "*PAYMENT*",
+              "*FRAUD*",
+              "*SECURITY*"
+            ]
+          }
+        }
+      },
+      {
+        "Sid": "SOC2ComplianceReporting",
+        "Effect": "Allow",
+        "Action": [
+          "organizations:ListAccountsForParent",
+          "organizations:DescribeAccount"
+        ],
+        "Resource": "*",
+        "Condition": {
+          "StringEquals": {
+            "aws:RequestedRegion": "us-west-2"
+          }
+        }
+      },
+      {
+        "Sid": "DynamoDBComplianceTablesAccess",
+        "Effect": "Allow",
+        "Action": [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query"
+        ],
+        "Resource": [
+          "arn:aws:dynamodb:us-west-2:*:table/ComplianceReport*",
+          "arn:aws:dynamodb:us-west-2:*:table/AuditLog*",
+          "arn:aws:dynamodb:us-west-2:*:table/SecurityIncident*"
+        ]
+      }
+    ]
+  },
+  "PolicyManagementGuidelines": {
+    "SecurityPrinciples": [
+      "LEAST PRIVILEGE: Each function receives only the minimum permissions required",
+      "DEFENSE IN DEPTH: Multiple layers of security controls",
+      "ENCRYPTION EVERYWHERE: All data encrypted at rest and in transit",
+      "ZERO TRUST: No implicit trust, verify everything",
+      "CONTINUOUS MONITORING: All actions logged and monitored",
+      "COMPLIANCE FIRST: Designed for PCI DSS, SOC2, and GDPR compliance"
+    ],
+    "PolicyReviewSchedule": {
+      "Weekly": "Review access logs and unusual activity patterns",
+      "Monthly": "Audit unused permissions and remove unnecessary access",
+      "Quarterly": "Comprehensive security assessment and policy updates",
+      "Annually": "Full compliance audit and external security review"
+    },
+    "IncidentResponse": {
+      "ImmediateActions": [
+        "1. Disable compromised IAM credentials",
+        "2. Rotate all affected KMS keys and secrets",
+        "3. Enable additional CloudTrail logging",
+        "4. Notify compliance team and legal counsel"
+      ],
+      "Investigation": [
+        "1. Analyze CloudTrail logs for unauthorized access",
+        "2. Review Fraud Detector alerts and false positives",
+        "3. Check all payment transactions for anomalies",
+        "4. Validate data integrity using KMS audit trails"
+      ],
+      "Recovery": [
+        "1. Implement additional security controls",
+        "2. Update IAM policies based on lessons learned",
+        "3. Conduct post-incident training",
+        "4. Update incident response procedures"
+      ]
+    },
+    "ComplianceValidation": {
+      "PCI_DSS_Requirements": [
+        "Requirement 3: Protect stored cardholder data using KMS encryption",
+        "Requirement 4: Encrypt transmission of cardholder data",
+        "Requirement 7: Restrict access to cardholder data by business need",
+        "Requirement 8: Identify and authenticate access to system components",
+        "Requirement 10: Track and monitor all access to network resources"
+      ],
+      "SOC2_Controls": [
+        "CC6.1: Logical and physical access controls restrict access",
+        "CC6.2: Prior to issuing system credentials, registration and authorization",
+        "CC6.3: System access is removed when no longer required",
+        "CC7.2: System monitors for security events and anomalies"
+      ],
+      "GDPR_Requirements": [
+        "Article 25: Data protection by design and by default",
+        "Article 32: Security of processing including encryption",
+        "Article 33: Notification of data breach to authorities",
+        "Article 35: Data protection impact assessment required"
+      ]
+    }
+  }
+}
