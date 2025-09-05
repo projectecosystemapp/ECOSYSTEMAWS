@@ -1,12 +1,9 @@
 import { type ScheduledEvent, type Context } from 'aws-lambda';
 import { getDynamoDBClient, trackConnectionMetrics } from '../utils/connection-optimizer';
-import { 
-  ACHClient, 
-  CreateBatchCommand, 
-  SubmitBatchCommand, 
-  GetBatchStatusCommand 
-} from '@aws-sdk/client-ach'; // Hypothetical ACH client
-import { ScanCommand, UpdateCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+// Note: AWS does not provide a direct ACH SDK client
+// ACH processing would typically be done through partner services
+// or AWS services like AWS Payment Cryptography for card processing
+import { ScanCommand, UpdateCommand, BatchWriteCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 
 /**
  * ACH Batch Optimizer Handler
@@ -113,7 +110,7 @@ export const handler = async (
 };
 
 async function getPendingTransfers(): Promise<PendingTransfer[]> {
-  const result = await dynamoDb.scan({
+  const command = new ScanCommand({
     TableName: process.env.ACH_TRANSFER_TABLE || 'AchTransfer',
     FilterExpression: '#status = :status',
     ExpressionAttributeNames: {
@@ -123,8 +120,9 @@ async function getPendingTransfers(): Promise<PendingTransfer[]> {
       ':status': 'initiated',
     },
   });
+  const result = await dynamoDb.send(command);
   
-  const transfers: PendingTransfer[] = (result.Items || []).map(item => ({
+  const transfers: PendingTransfer[] = (result.Items || []).map((item: any) => ({
     id: item.id,
     providerId: item.providerId,
     amountCents: item.amountCents,
@@ -210,8 +208,8 @@ async function optimizeTransferBatching(transfers: PendingTransfer[]): Promise<B
     const batches = createOptimalBatches(bankTransfers, maxBatchSize, minBatchSize);
     
     for (const batch of batches) {
-      const individualCost = batch.transferIds.length * batchCost; // Cost if processed individually
       const batchCost = 25; // Fixed batch cost
+      const individualCost = batch.transferIds.length * batchCost; // Cost if processed individually
       const savings = individualCost - batchCost;
       
       const optimization: BatchOptimization = {
@@ -256,7 +254,7 @@ function createOptimalBatches(
   minBatchSize: number
 ): Array<{ transferIds: string[]; totalAmountCents: number }> {
   const batches = [];
-  let currentBatch = [];
+  let currentBatch: PendingTransfer[] = [];
   let currentBatchAmount = 0;
   
   for (const transfer of transfers) {
@@ -362,8 +360,8 @@ async function updateTransferStatuses(
   status: string, 
   batchId?: string
 ): Promise<void> {
-  const updatePromises = transferIds.map(id => 
-    dynamoDb.update({
+  const updatePromises = transferIds.map(id => {
+    const command = new UpdateCommand({
       TableName: process.env.ACH_TRANSFER_TABLE || 'AchTransfer',
       Key: { id },
       UpdateExpression: 'SET #status = :status' + (batchId ? ', batchId = :batchId' : ''),
@@ -374,14 +372,15 @@ async function updateTransferStatuses(
         ':status': status,
         ...(batchId && { ':batchId': batchId }),
       },
-    })
-  );
+    });
+    return dynamoDb.send(command);
+  });
   
   await Promise.all(updatePromises);
 }
 
 async function storeBatchOptimization(optimization: BatchOptimization): Promise<void> {
-  await dynamoDb.put({
+  const command = new PutCommand({
     TableName: process.env.BATCH_OPTIMIZATION_TABLE || 'BatchOptimization',
     Item: {
       id: optimization.batchId,
@@ -389,6 +388,7 @@ async function storeBatchOptimization(optimization: BatchOptimization): Promise<
       createdAt: new Date().toISOString(),
     },
   });
+  await dynamoDb.send(command);
 }
 
 async function trackOptimizationMetrics(optimizations: BatchOptimization[]): Promise<void> {
@@ -408,7 +408,7 @@ async function trackOptimizationMetrics(optimizations: BatchOptimization[]): Pro
   console.log('Optimization metrics:', JSON.stringify(metrics));
   
   // Store metrics for reporting
-  await dynamoDb.put({
+  const command = new PutCommand({
     TableName: process.env.BATCH_OPTIMIZATION_TABLE || 'BatchOptimization',
     Item: {
       id: `metrics_${new Date().toISOString().split('T')[0]}`, // Daily metrics
@@ -418,6 +418,7 @@ async function trackOptimizationMetrics(optimizations: BatchOptimization[]): Pro
       createdAt: new Date().toISOString(),
     },
   });
+  await dynamoDb.send(command);
 }
 
 // Global variable to track warm starts

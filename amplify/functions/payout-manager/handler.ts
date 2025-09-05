@@ -1,8 +1,9 @@
 import { APIGatewayProxyHandler, ScheduledEvent } from 'aws-lambda';
-import { DynamoDBClient, ScanCommand, UpdateItemCommand, QueryCommand } from '@aws-sdk/client-dynamodb';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { DynamoDBClient, ScanCommand, UpdateItemCommand, QueryCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { v4 as uuidv4 } from 'uuid';
 
 const sns = new SNSClient({});
 const eventBridge = new EventBridgeClient({});
@@ -249,7 +250,7 @@ async function schedulePayout(providerId: string, amount: number, headers: any) 
  */
 async function processInstantPayout(providerId: string, amount: number, headers: any) {
   try {
-    // Get provider's Stripe account
+    // Get provider's ACH account details
     const providerResult = await dynamodb.send(
       new QueryCommand({
         TableName: USER_PROFILE_TABLE,
@@ -264,28 +265,21 @@ async function processInstantPayout(providerId: string, amount: number, headers:
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: 'Stripe account not found' }),
+        body: JSON.stringify({ error: 'ACH account not found or not verified' }),
       };
     }
 
     const achAccountId = providerResult.Items[0].achAccountId?.S || '';
 
-    // Create instant payout (higher fee)
-    const payout = await stripe.payouts.create(
-      {
-        amount: Math.round(amount * 100), // Convert to cents
-        currency: 'usd',
-        method: 'instant',
-        description: `Instant payout for provider ${providerId}`,
-        metadata: {
-          providerId,
-          type: 'instant',
-        },
-      },
-      {
-        achAccount: achAccountId,
-      }
-    );
+    // Create instant ACH transfer (AWS native)
+    const achTransfer = await createInstantACHTransfer({
+      providerId,
+      achAccountId,
+      amount,
+      currency: 'USD',
+      type: 'instant',
+      description: `Instant ACH transfer for provider ${providerId}`,
+    });
 
     // Update booking statuses to released
     await releaseEscrowFunds(providerId, amount);
@@ -294,11 +288,11 @@ async function processInstantPayout(providerId: string, amount: number, headers:
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        payoutId: nullableToString(payout.id),
+        transferId: nullableToString(achTransfer.transferId),
         amount: amount,
-        status: nullableToString(payout.status),
-        arrivalDate: nullableToString(payout.arrival_date),
-        fee: 'Instant payout fee applied',
+        status: nullableToString(achTransfer.status),
+        estimatedArrival: nullableToString(achTransfer.estimatedArrival),
+        fee: achTransfer.fee,
       }),
     };
   } catch (error) {
@@ -365,7 +359,7 @@ async function getProvidersWithPendingEarnings() {
       FilterExpression: 'achAccountVerified = :complete AND achAccountStatus = :status',
       ExpressionAttributeValues: {
         ':complete': { BOOL: true },
-        ':status': { S: 'ACTIVE' },
+        ':status': { S: 'VERIFIED' },
       },
     })
   );
@@ -396,22 +390,16 @@ async function processProviderPayout(provider: { id: string; achAccountId: strin
       };
     }
 
-    // Create standard payout (next business day)
-    const payout = await stripe.payouts.create(
-      {
-        amount: Math.round(earnings.totalEarnings * 100), // Convert to cents
-        currency: 'usd',
-        description: `Scheduled payout for provider ${provider.id}`,
-        metadata: {
-          providerId: nullableToString(provider.id),
-          type: 'scheduled',
-          bookingCount: earnings.bookingCount.toString(),
-        },
-      },
-      {
-        achAccount: nullableToString(provider.achAccountId),
-      }
-    );
+    // Create standard ACH transfer (next business day)
+    const achTransfer = await createStandardACHTransfer({
+      providerId: provider.id,
+      achAccountId: provider.achAccountId,
+      amount: earnings.totalEarnings,
+      currency: 'USD',
+      type: 'scheduled',
+      description: `Scheduled ACH transfer for provider ${provider.id}`,
+      bookingCount: earnings.bookingCount,
+    });
 
     // Release escrow funds
     await releaseEscrowFunds(provider.id, earnings.totalEarnings);
@@ -419,9 +407,10 @@ async function processProviderPayout(provider: { id: string; achAccountId: strin
     return {
       providerId: nullableToString(provider.id),
       success: true,
-      payoutId: nullableToString(payout.id),
+      transferId: nullableToString(achTransfer.transferId),
       amount: nullableToString(earnings.totalEarnings),
       bookingCount: nullableToString(earnings.bookingCount),
+      estimatedArrival: nullableToString(achTransfer.estimatedArrival),
     };
   } catch (error) {
     console.error(`Payout processing failed for provider ${provider.id}:`, error);
@@ -467,4 +456,128 @@ async function releaseEscrowFunds(providerId: string, totalAmount: number) {
   }
 
   console.log(`Released escrow for ${bookingsResult.Items?.length || 0} bookings, total: $${totalAmount}`);
+}
+
+/**
+ * Create instant ACH transfer (AWS native)
+ */
+async function createInstantACHTransfer(params: {
+  providerId: string;
+  achAccountId: string;
+  amount: number;
+  currency: string;
+  type: string;
+  description: string;
+}): Promise<{
+  transferId: string;
+  status: string;
+  estimatedArrival: string;
+  fee: string;
+}> {
+  const transferId = uuidv4();
+  const now = new Date();
+  const estimatedArrival = new Date(now.getTime() + 30 * 60 * 1000); // 30 minutes for instant
+
+  // Store transfer record in DynamoDB
+  await dynamodb.send(new PutItemCommand({
+    TableName: 'ACHTransfers',
+    Item: {
+      transferId: { S: transferId },
+      providerId: { S: params.providerId },
+      achAccountId: { S: params.achAccountId },
+      amount: { N: params.amount.toString() },
+      currency: { S: params.currency },
+      type: { S: params.type },
+      description: { S: params.description },
+      status: { S: 'PROCESSING' },
+      createdAt: { S: now.toISOString() },
+      estimatedArrival: { S: estimatedArrival.toISOString() },
+      fee: { N: '1.50' }, // Instant transfer fee
+    },
+  }));
+
+  // Trigger ACH transfer via EventBridge
+  await eventBridge.send(new PutEventsCommand({
+    Entries: [{
+      Source: 'ecosystemaws.payments',
+      DetailType: 'ACH Transfer Initiated',
+      Detail: JSON.stringify({
+        transferId,
+        providerId: params.providerId,
+        achAccountId: params.achAccountId,
+        amount: params.amount,
+        type: params.type,
+        instant: true,
+      }),
+    }],
+  }));
+
+  return {
+    transferId,
+    status: 'PROCESSING',
+    estimatedArrival: estimatedArrival.toISOString(),
+    fee: '$1.50 instant transfer fee',
+  };
+}
+
+/**
+ * Create standard ACH transfer (next business day)
+ */
+async function createStandardACHTransfer(params: {
+  providerId: string;
+  achAccountId: string;
+  amount: number;
+  currency: string;
+  type: string;
+  description: string;
+  bookingCount: number;
+}): Promise<{
+  transferId: string;
+  status: string;
+  estimatedArrival: string;
+}> {
+  const transferId = uuidv4();
+  const now = new Date();
+  const estimatedArrival = new Date(now.getTime() + 24 * 60 * 60 * 1000); // Next business day
+
+  // Store transfer record in DynamoDB
+  await dynamodb.send(new PutItemCommand({
+    TableName: 'ACHTransfers',
+    Item: {
+      transferId: { S: transferId },
+      providerId: { S: params.providerId },
+      achAccountId: { S: params.achAccountId },
+      amount: { N: params.amount.toString() },
+      currency: { S: params.currency },
+      type: { S: params.type },
+      description: { S: params.description },
+      status: { S: 'PENDING' },
+      createdAt: { S: now.toISOString() },
+      estimatedArrival: { S: estimatedArrival.toISOString() },
+      bookingCount: { N: params.bookingCount.toString() },
+      fee: { N: '0.25' }, // Standard ACH fee
+    },
+  }));
+
+  // Trigger ACH transfer via EventBridge
+  await eventBridge.send(new PutEventsCommand({
+    Entries: [{
+      Source: 'ecosystemaws.payments',
+      DetailType: 'ACH Transfer Scheduled',
+      Detail: JSON.stringify({
+        transferId,
+        providerId: params.providerId,
+        achAccountId: params.achAccountId,
+        amount: params.amount,
+        bookingCount: params.bookingCount,
+        instant: false,
+      }),
+    }],
+  }));
+
+  return {
+    transferId,
+    status: 'PENDING',
+    estimatedArrival: estimatedArrival.toISOString(),
+  };
 }

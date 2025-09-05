@@ -1,6 +1,5 @@
 import { defineFunction } from '@aws-amplify/backend';
-import { stripeSecrets } from '../../security/stripe-secrets.js';
-import { secretToString } from "../../../lib/type-utils";
+// AWS-native ACH refunds - no Stripe dependencies
 
 /**
  * Refund Processor Lambda Function
@@ -20,19 +19,19 @@ export const refundProcessor = defineFunction({
   
   // Performance Configuration
   timeoutSeconds: 60,      // Sufficient for refund processing
-  memoryMB: 512,          // Adequate for Stripe operations
+  memoryMB: 512,          // Adequate for ACH refund operations
   
   // Security Configuration
   environment: {
-    // Stripe Configuration
-    STRIPE_SECRET_KEY: secretToString(stripeSecrets.secretKey),
-    STRIPE_WEBHOOK_SECRET: secretToString(stripeSecrets.webhookSecret),
+    // AWS ACH Refund Configuration
+    ACH_REFUNDS_TABLE_NAME: 'ACHRefunds',
+    ESCROW_TABLE_NAME: 'EscrowTransactions',
+    REFUND_PROCESSING_ENABLED: 'true',
     // Application Configuration
-    APP_URL: secretToString(stripeSecrets.appUrl),
-    USER_PROFILE_TABLE_NAME: secretToString(stripeSecrets.userProfileTableName),
-    SERVICE_TABLE_NAME: secretToString(stripeSecrets.serviceTableName),
-    BOOKING_TABLE_NAME: secretToString(stripeSecrets.bookingTableName),
-    TRANSACTION_TABLE_NAME: secretToString(stripeSecrets.transactionTableName),
+    USER_PROFILE_TABLE_NAME: 'UserProfile',
+    SERVICE_TABLE_NAME: 'Service',
+    BOOKING_TABLE_NAME: 'Booking',
+    TRANSACTION_TABLE_NAME: 'Transaction',
     // Environment Identification
     NODE_ENV: 'production',
   },

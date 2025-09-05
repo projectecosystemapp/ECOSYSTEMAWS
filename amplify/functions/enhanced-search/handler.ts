@@ -1,7 +1,7 @@
 import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, ScanCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 type SearchAllHandler = Schema['searchAll']['functionHandler'];
 type GetSearchSuggestionsHandler = Schema['getSearchSuggestions']['functionHandler'];

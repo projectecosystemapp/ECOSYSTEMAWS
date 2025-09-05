@@ -3,7 +3,7 @@ import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import { type Schema } from '../../data/resource';
 import { env } from '$amplify/env/post-confirmation-trigger';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 Amplify.configure(
   {

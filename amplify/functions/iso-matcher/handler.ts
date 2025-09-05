@@ -2,7 +2,7 @@ import type { Schema } from '../../data/resource';
 import { BedrockRuntimeClient, InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, QueryCommand, ScanCommand } from '@aws-sdk/lib-dynamodb';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 type CreateServiceRequestHandler = Schema['createServiceRequest']['functionHandler'];
 type FindMatchingRequestsHandler = Schema['findMatchingRequests']['functionHandler'];

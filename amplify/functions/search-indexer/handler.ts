@@ -3,7 +3,7 @@ import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { CloudWatchClient, PutMetricDataCommand } from '@aws-sdk/client-cloudwatch';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 // PERFORMANCE: Circuit breaker pattern for resilient OpenSearch operations
 class CircuitBreaker {

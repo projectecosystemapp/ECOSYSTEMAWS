@@ -5,7 +5,7 @@
 
 import { Context } from 'aws-lambda';
 import { randomUUID } from 'crypto';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
