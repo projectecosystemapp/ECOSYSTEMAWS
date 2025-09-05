@@ -41,7 +41,7 @@ export default function Step6Review() {
     return {
       total: Math.round(requiredPercentage + optionalPercentage),
       requiredComplete,
-      requiredTotal: nullableToString(required.length),
+      requiredTotal: required.length,
       optionalComplete,
       optionalTotal: optional.length
     };
