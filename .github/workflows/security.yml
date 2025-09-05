@@ -1,0 +1,166 @@
+name: Security Scan
+
+on:
+  schedule:
+    # Run every Monday at 9 AM UTC
+    - cron: '0 9 * * 1'
+  pull_request:
+    paths:
+      - 'package*.json'
+      - '.github/workflows/security.yml'
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: read
+  security-events: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  dependency-audit:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          npm audit --json > audit-results.json || true
+          critical_count=$(jq '.metadata.vulnerabilities.critical // 0' audit-results.json)
+          high_count=$(jq '.metadata.vulnerabilities.high // 0' audit-results.json)
+          
+          echo "## Security Audit Results" >> $GITHUB_STEP_SUMMARY
+          echo "- Critical vulnerabilities: $critical_count" >> $GITHUB_STEP_SUMMARY
+          echo "- High vulnerabilities: $high_count" >> $GITHUB_STEP_SUMMARY
+          
+          # Only fail on critical vulnerabilities
+          if [ "$critical_count" -gt 0 ]; then
+            echo "❌ Critical vulnerabilities found!" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "✅ No critical vulnerabilities found" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Check for outdated packages
+        run: |
+          echo "## Outdated Packages" >> $GITHUB_STEP_SUMMARY
+          npx npm-check-updates --format json | jq -r 'to_entries[] | "- \(.key): \(.value)"' >> $GITHUB_STEP_SUMMARY || echo "All packages up to date" >> $GITHUB_STEP_SUMMARY
+        continue-on-error: true
+
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check licenses
+        run: |
+          npx license-checker --summary --excludePrivatePackages > license-summary.txt
+          echo "## License Summary" >> $GITHUB_STEP_SUMMARY
+          cat license-summary.txt >> $GITHUB_STEP_SUMMARY
+          
+          # Check for problematic licenses
+          npx license-checker --excludePrivatePackages --onlyAllow 'MIT;Apache-2.0;BSD-3-Clause;BSD-2-Clause;ISC;CC0-1.0;CC-BY-4.0;Unlicense;WTFPL;0BSD' > /dev/null 2>&1
+          if [ $? -ne 0 ]; then
+            echo "⚠️ Some packages have licenses that need review" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ All licenses are compatible" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+  secret-scanning:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for secret scanning
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Check for common secret patterns
+        run: |
+          echo "## Secret Scanning" >> $GITHUB_STEP_SUMMARY
+          
+          # Check for common patterns (this is a basic check)
+          patterns=(
+            "sk_live_"
+            "sk_test_"
+            "AKIA"
+            "BEGIN RSA PRIVATE KEY"
+            "BEGIN EC PRIVATE KEY"
+            "BEGIN OPENSSH PRIVATE KEY"
+          )
+          
+          found_secrets=false
+          for pattern in "${patterns[@]}"; do
+            if grep -r "$pattern" . --exclude-dir=.git --exclude-dir=node_modules --exclude="*.md" 2>/dev/null; then
+              echo "⚠️ Potential secret pattern found: $pattern" >> $GITHUB_STEP_SUMMARY
+              found_secrets=true
+            fi
+          done
+          
+          if [ "$found_secrets" = false ]; then
+            echo "✅ No obvious secrets detected" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true
+
+  create-issue:
+    name: Create Security Issue
+    runs-on: ubuntu-latest
+    needs: [dependency-audit, license-check, secret-scanning]
+    if: failure() && github.event_name == 'schedule'
+    
+    steps:
+      - name: Create issue for critical vulnerabilities
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = new Date().toISOString().split('T')[0];
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Security Alert: Critical vulnerabilities detected - ${date}`,
+              body: `## Security Scan Failed
+              
+              Critical security vulnerabilities were detected in the weekly security scan.
+              
+              Please review the [security scan results](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) and address the issues.
+              
+              ### Required Actions:
+              - [ ] Review critical vulnerabilities
+              - [ ] Update affected dependencies
+              - [ ] Re-run security scan
+              
+              cc @projectecosystemapp`,
+              labels: ['security', 'critical', 'automated']
+            });
+        continue-on-error: true
