@@ -59,3 +59,7 @@ AMPLIFY_ENV_VARIABLES.txt
 terraform/.terraform/
 terraform/tfplan
 terraform/*.tfplan
+
+# HCP Terraform + Service Catalog Engine artifacts
+terraform/hcp-service-catalog-engine/
+terraform/service-catalog.env
