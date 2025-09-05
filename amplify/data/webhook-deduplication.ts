@@ -9,9 +9,9 @@
 
 import { DynamoDBClient, PutItemCommand, GetItemCommand, QueryCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import { correlationTracker } from '@/lib/resilience/correlation-tracker';
+import { correlationTracker } from '../../lib/resilience/correlation-tracker.js';
 import crypto from 'crypto';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../lib/type-utils.js';
 
 export interface WebhookRecord {
   eventId: string;

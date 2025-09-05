@@ -1,7 +1,7 @@
 import type { AppSyncResolverEvent } from 'aws-lambda';
 import { SFNClient, StartExecutionCommand, DescribeExecutionCommand, StopExecutionCommand } from '@aws-sdk/client-sfn';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 const sfnClient = new SFNClient({ region: process.env.AWS_REGION });
 const eventBridgeClient = new EventBridgeClient({ region: process.env.AWS_REGION });
@@ -36,7 +36,7 @@ interface WorkflowResponse {
  * 1. BOOKING_LIFECYCLE - Complete booking process from creation to completion
  * 2. PAYMENT_PROCESSING - Payment intent, processing, and settlement
  * 3. DISPUTE_RESOLUTION - Automated dispute handling with escalation
- * 4. PROVIDER_ONBOARDING - New provider registration and Stripe Connect setup
+ * 4. PROVIDER_ONBOARDING - New provider registration and ACH account verification
  * 
  * ACTIONS:
  * - START: Begin a new workflow execution

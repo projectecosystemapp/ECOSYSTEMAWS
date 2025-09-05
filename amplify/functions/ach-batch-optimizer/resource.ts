@@ -1,4 +1,5 @@
 import { defineFunction } from '@aws-amplify/backend';
+import { Duration } from 'aws-cdk-lib';
 
 /**
  * ACH Batch Optimizer Lambda Function
@@ -25,7 +26,7 @@ export const achBatchOptimizer = defineFunction({
   architecture: 'arm64', // 20% cost reduction
   
   // Schedule Configuration (runs every hour to optimize batches)
-  schedule: 'rate(1 hour)',
+  // Note: Scheduling will be configured separately in infrastructure
   
   // Environment Configuration
   environment: {

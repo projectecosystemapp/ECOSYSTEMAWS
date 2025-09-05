@@ -1,8 +1,9 @@
 import { APIGatewayProxyHandler } from 'aws-lambda';
 import { DynamoDBClient, UpdateItemCommand, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { EventBridgeClient, PutEventsCommand } from '@aws-sdk/client-eventbridge';
+import { v4 as uuidv4 } from 'uuid';
 
 const sns = new SNSClient({});
 const eventBridge = new EventBridgeClient({});
@@ -125,11 +126,11 @@ async function processRefund(bookingId: string, params: any, headers: any) {
     // Calculate refund breakdown
     const refundBreakdown = calculateRefundBreakdown(booking, refundAmount, providerCompensation);
 
-    // Process the refund through Stripe
-    const stripeRefund = await stripe.refunds.create({
-      payment_intent: nullableToString(booking.paymentIntentId),
-      amount: Math.round(refundBreakdown.customerRefund * 100), // Convert to cents
-      reason: mapRefundReason(reason) as Stripe.RefundCreateParams.Reason,
+    // Process the refund through AWS native ACH reversal
+    const achRefund = await createACHRefund({
+      paymentSessionId: nullableToString(booking.paymentSessionId),
+      amount: refundBreakdown.customerRefund,
+      reason: mapRefundReason(reason),
       metadata: {
         bookingId,
         refundType,
@@ -139,14 +140,14 @@ async function processRefund(bookingId: string, params: any, headers: any) {
     });
 
     // Update booking status
-    await updateBookingForRefund(bookingId, stripeRefund.id, refundType);
+    await updateBookingForRefund(bookingId, achRefund.refundId, refundType);
 
     // Create refund transaction record
     await createRefundTransaction({
       bookingId,
       customerId: nullableToString(booking.customerId),
       providerId: nullableToString(booking.providerId),
-      refundId: nullableToString(stripeRefund.id),
+      refundId: nullableToString(achRefund.refundId),
       refundBreakdown,
       reason,
     });
@@ -163,8 +164,8 @@ async function processRefund(bookingId: string, params: any, headers: any) {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        refundId: nullableToString(stripeRefund.id),
-        status: nullableToString(stripeRefund.status),
+        refundId: nullableToString(achRefund.refundId),
+        status: nullableToString(achRefund.status),
         refundBreakdown,
         message: 'Refund processed successfully',
       }),
@@ -316,7 +317,7 @@ async function getBookingDetails(bookingId: string) {
     amount: parseFloat(result.Item.amount?.N || '0'),
     platformFee: parseFloat(result.Item.platformFee?.N || '0'),
     providerEarnings: parseFloat(result.Item.providerEarnings?.N || '0'),
-    paymentIntentId: result.Item.paymentIntentId?.S || '',
+    paymentSessionId: result.Item.paymentSessionId?.S || '',
     status: result.Item.status?.S || 'PENDING',
     paymentStatus: result.Item.paymentStatus?.S || 'PENDING',
     startDateTime: result.Item.startDateTime?.S || new Date().toISOString(),
@@ -366,16 +367,69 @@ function calculateRefundBreakdown(booking: any, refundAmount: number, providerCo
   };
 }
 
-function mapRefundReason(reason: string): Stripe.RefundCreateParams.Reason {
-  const reasonMap: { [key: string]: Stripe.RefundCreateParams.Reason } = {
-    'customer_request': 'requested_by_customer',
-    'service_not_provided': 'requested_by_customer',
-    'quality_issue': 'requested_by_customer',
-    'dispute_resolution': 'requested_by_customer',
-    'fraudulent': 'fraudulent',
+/**
+ * Create AWS native ACH refund
+ */
+async function createACHRefund(params: {
+  paymentSessionId: string;
+  amount: number;
+  reason: string;
+  metadata: Record<string, string>;
+}): Promise<{
+  refundId: string;
+  status: string;
+  estimatedCompletion: string;
+}> {
+  const refundId = uuidv4();
+  const now = new Date();
+  const estimatedCompletion = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 business days
+
+  // Store refund record in DynamoDB
+  await dynamodb.send(new PutItemCommand({
+    TableName: 'ACHRefunds',
+    Item: {
+      refundId: { S: refundId },
+      paymentSessionId: { S: params.paymentSessionId },
+      amount: { N: params.amount.toString() },
+      reason: { S: params.reason },
+      status: { S: 'PROCESSING' },
+      createdAt: { S: now.toISOString() },
+      estimatedCompletion: { S: estimatedCompletion.toISOString() },
+      metadata: { S: JSON.stringify(params.metadata) },
+    },
+  }));
+
+  // Trigger ACH refund via EventBridge
+  await eventBridge.send(new PutEventsCommand({
+    Entries: [{
+      Source: 'ecosystemaws.payments',
+      DetailType: 'ACH Refund Initiated',
+      Detail: JSON.stringify({
+        refundId,
+        paymentSessionId: params.paymentSessionId,
+        amount: params.amount,
+        reason: params.reason,
+      }),
+    }],
+  }));
+
+  return {
+    refundId,
+    status: 'PROCESSING',
+    estimatedCompletion: estimatedCompletion.toISOString(),
+  };
+}
+
+function mapRefundReason(reason: string): string {
+  const reasonMap: { [key: string]: string } = {
+    'customer_request': 'CUSTOMER_REQUEST',
+    'service_not_provided': 'SERVICE_NOT_PROVIDED',
+    'quality_issue': 'QUALITY_ISSUE',
+    'dispute_resolution': 'DISPUTE_RESOLUTION',
+    'fraudulent': 'FRAUDULENT',
   };
 
-  return reasonMap[reason] || 'requested_by_customer';
+  return reasonMap[reason] || 'CUSTOMER_REQUEST';
 }
 
 async function updateBookingForRefund(bookingId: string, refundId: string, refundType: string) {

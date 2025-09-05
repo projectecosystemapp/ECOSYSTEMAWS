@@ -1,5 +1,5 @@
 import { Construct } from 'constructs';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../lib/type-utils';
 import {
   CfnCacheCluster,
   CfnReplicationGroup,

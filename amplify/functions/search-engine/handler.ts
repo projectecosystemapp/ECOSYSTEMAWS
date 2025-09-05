@@ -4,7 +4,7 @@ import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { openSearchConfig } from '../../search/resource';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 // PERFORMANCE: High-performance search engine with geo-location and analytics
 // Baseline: Linear DynamoDB scans, no geo search, limited filtering

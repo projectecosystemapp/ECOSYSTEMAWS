@@ -1,6 +1,5 @@
 import { defineFunction } from '@aws-amplify/backend';
-import { stripeSecrets } from '../../security/stripe-secrets.js';
-import { secretToString } from '../../../lib/type-utils';
+// AWS-native ACH transfers - no Stripe dependencies
 
 /**
  * Payout Manager Lambda Function
@@ -23,19 +22,19 @@ export const payoutManager = defineFunction({
   
   // Performance Configuration
   timeoutSeconds: 300,     // 5 minutes for batch processing
-  memoryMB: 1024,         // Higher memory for multiple Stripe API calls
+  memoryMB: 1024,         // Higher memory for multiple ACH API calls
   
   // Security Configuration
   environment: {
-    // Stripe Configuration
-    STRIPE_SECRET_KEY: secretToString(stripeSecrets.secretKey),
-    STRIPE_WEBHOOK_SECRET: secretToString(stripeSecrets.webhookSecret),
+    // AWS ACH Transfer Configuration
+    ACH_TRANSFERS_TABLE_NAME: 'ACHTransfers',
+    ESCROW_TABLE_NAME: 'EscrowTransactions',
+    ACH_BATCH_SIZE: '100',
     // Application Configuration
-    APP_URL: secretToString(stripeSecrets.appUrl),
-    USER_PROFILE_TABLE_NAME: secretToString(stripeSecrets.userProfileTableName),
-    SERVICE_TABLE_NAME: secretToString(stripeSecrets.serviceTableName),
-    BOOKING_TABLE_NAME: secretToString(stripeSecrets.bookingTableName),
-    TRANSACTION_TABLE_NAME: secretToString(stripeSecrets.transactionTableName),
+    USER_PROFILE_TABLE_NAME: 'UserProfile',
+    SERVICE_TABLE_NAME: 'Service',
+    BOOKING_TABLE_NAME: 'Booking',
+    TRANSACTION_TABLE_NAME: 'Transaction',
     // Environment Identification
     NODE_ENV: 'production',
   },

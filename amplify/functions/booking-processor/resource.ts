@@ -1,6 +1,5 @@
 import { defineFunction } from '@aws-amplify/backend';
-import { stripeSecrets } from '../../security/stripe-secrets.js';
-import { secretToString } from '../../../lib/type-utils';
+// AWS-native payment processing - no Stripe dependencies
 
 /**
  * Booking Processor Lambda Function
@@ -21,19 +20,19 @@ export const bookingProcessor = defineFunction({
   
   // Performance Configuration
   timeoutSeconds: 60,      // Sufficient for booking and payment processing
-  memoryMB: 512,          // Adequate for Stripe operations
+  memoryMB: 512,          // Adequate for AWS payment operations
   
   // Security Configuration
   environment: {
-    // Stripe Configuration
-    STRIPE_SECRET_KEY: secretToString(stripeSecrets.secretKey),
-    STRIPE_WEBHOOK_SECRET: secretToString(stripeSecrets.webhookSecret),
+    // AWS Payment Configuration
+    AWS_PAYMENT_CRYPTOGRAPHY_ENABLED: 'true',
+    ESCROW_TABLE_NAME: 'EscrowTransactions',
+    ACH_TRANSFERS_TABLE_NAME: 'ACHTransfers',
     // Application Configuration
-    APP_URL: secretToString(stripeSecrets.appUrl),
-    USER_PROFILE_TABLE_NAME: secretToString(stripeSecrets.userProfileTableName),
-    SERVICE_TABLE_NAME: secretToString(stripeSecrets.serviceTableName),
-    BOOKING_TABLE_NAME: secretToString(stripeSecrets.bookingTableName),
-    TRANSACTION_TABLE_NAME: secretToString(stripeSecrets.transactionTableName),
+    USER_PROFILE_TABLE_NAME: 'UserProfile',
+    SERVICE_TABLE_NAME: 'Service',
+    BOOKING_TABLE_NAME: 'Booking',
+    TRANSACTION_TABLE_NAME: 'Transaction',
     // Environment Identification
     NODE_ENV: 'production',
   },

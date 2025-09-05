@@ -1,17 +1,16 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
-// AWS-Native Payment System Imports
+// AWS-Native Payment System Functions
 import { awsPaymentProcessor } from '../functions/aws-payment-processor/resource';
 import { achTransferManager } from '../functions/ach-transfer-manager/resource';
 import { escrowManager } from '../functions/escrow-manager/resource';
 import { fraudDetector } from '../functions/fraud-detector/resource';
-import { paymentCryptography } from '../functions/payment-cryptography/resource';
-// Legacy Stripe Functions (deprecated)
+import { costMonitor } from '../functions/cost-monitor/resource';
+// Core Business Functions (AWS-converted)
 import { payoutManager } from '../functions/payout-manager/resource';
 import { refundProcessor } from '../functions/refund-processor/resource';
 import { bookingProcessor } from '../functions/booking-processor/resource';
 import { messagingHandler } from '../functions/messaging-handler/resource';
 import { notificationHandler } from '../functions/notification-handler/resource';
-import { webhookAuthorizer } from '../functions/webhook-authorizer/resource';
 import { workflowOrchestrator } from '../functions/workflow-orchestrator/resource';
 import { bioGenerator } from '../functions/bio-generator/resource';
 import { isoMatcher } from '../functions/iso-matcher/resource';
@@ -652,7 +651,7 @@ const schema = a.schema({
       allow.authenticated(),
       allow.groups(['Admin']), // Restrict access to encryption operations
     ])
-    .handler(a.handler.function(paymentCryptography)),
+    .handler(a.handler.function(awsPaymentProcessor)),
 
   // ========== Legacy Operations ==========
 
@@ -967,9 +966,9 @@ export const data = defineData({
     apiKeyAuthorizationMode: {
       expiresInDays: 30,
     },
-    lambdaAuthorizationMode: {
-      function: webhookAuthorizer,
-      // ttl: 300, // Cache authorization results for 5 minutes - removed due to type error
-    },
+    // lambdaAuthorizationMode: {
+    //   function: webhookAuthorizer, // TODO: Implement webhook authorizer
+    //   // ttl: 300, // Cache authorization results for 5 minutes
+    // },
   },
 });

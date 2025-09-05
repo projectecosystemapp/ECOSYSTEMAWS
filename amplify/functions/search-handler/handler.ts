@@ -9,7 +9,7 @@ import { AppSyncResolverEvent } from 'aws-lambda';
 import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 // Types
 interface SearchServiceArgs {

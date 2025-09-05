@@ -8,20 +8,16 @@
  * while maintaining the benefits of AppSync's GraphQL interface.
  */
 
-import { webhookAuthorizer } from '../functions/webhook-authorizer/resource';
-import type { DefineDataProps } from '@aws-amplify/backend';
-
-export const customAuthorizationConfig: Partial<DefineDataProps> = {
-  authorizationModes: {
-    defaultAuthorizationMode: 'userPool',
-    apiKeyAuthorizationMode: {
-      expiresInDays: 30,
-    },
-    lambdaAuthorizationMode: {
-      function: webhookAuthorizer,
-      ttl: 300, // Cache authorization results for 5 minutes
-    },
+// import { webhookAuthorizer } from '../functions/webhook-authorizer/resource';
+// Authorization modes configuration for defineData
+export const customAuthorizationConfig = {
+  defaultAuthorizationMode: 'userPool' as const,
+  apiKeyAuthorizationMode: {
+    expiresInDays: 30,
   },
+  // lambdaAuthorizationMode: {
+  //   function: webhookAuthorizer,
+  // },
 };
 
 /**

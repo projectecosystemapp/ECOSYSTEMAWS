@@ -23,8 +23,8 @@ export const PaymentTransaction = a.model({
   
   // Payment Information
   amountCents: a.integer().required(),
-  currency: a.string().default('USD'),
-  paymentMethod: a.enum(['card', 'ach']).required(),
+  currency: a.string(),
+  paymentMethod: a.enum(['card', 'ach']),
   
   // AWS Payment Cryptography Details
   paymentCryptoKeyId: a.string(),
@@ -32,7 +32,7 @@ export const PaymentTransaction = a.model({
   transactionHash: a.string(), // For verification
   
   // Status and Processing
-  status: a.enum(['pending', 'processing', 'completed', 'failed', 'refunded']).default('pending'),
+  status: a.enum(['pending', 'processing', 'completed', 'failed', 'refunded']),
   processingStartedAt: a.datetime(),
   completedAt: a.datetime(),
   failureReason: a.string(),
@@ -81,23 +81,23 @@ export const EscrowAccount = a.model({
   
   // Escrow Information
   heldAmountCents: a.integer().required(),
-  currency: a.string().default('USD'),
+  currency: a.string(),
   holdStartDate: a.datetime().required(),
   holdEndDate: a.datetime().required(),
   
   // Release Conditions
-  status: a.enum(['holding', 'released', 'disputed', 'frozen']).default('holding'),
+  status: a.enum(['holding', 'released', 'disputed', 'frozen']),
   releaseConditions: a.json(),
-  autoReleaseEnabled: a.boolean().default(true),
+  autoReleaseEnabled: a.boolean(),
   
   // Interest Calculation (for compliance)
   interestRateAnnual: a.float(),
-  accruedInterestCents: a.integer().default(0),
+  accruedInterestCents: a.integer(),
   lastInterestCalculation: a.datetime(),
   
   // Dispute Handling
   disputeId: a.string(),
-  disputeStatus: a.enum(['none', 'pending', 'resolved']).default('none'),
+  disputeStatus: a.enum(['none', 'pending', 'resolved']),
   
   // Cost Optimization
   holdingCostCents: a.integer(), // Cost to hold funds
@@ -132,11 +132,11 @@ export const AchTransfer = a.model({
   
   // Transfer Information
   amountCents: a.integer().required(),
-  currency: a.string().default('USD'),
-  transferType: a.enum(['standard', 'same-day']).default('standard'),
+  currency: a.string(),
+  transferType: a.enum(['standard', 'same-day']),
   
   // Status and Processing
-  status: a.enum(['initiated', 'processing', 'completed', 'failed', 'returned']).default('initiated'),
+  status: a.enum(['initiated', 'processing', 'completed', 'failed', 'returned']),
   initiatedAt: a.datetime(),
   completedAt: a.datetime(),
   expectedCompletionDate: a.datetime(),
@@ -186,7 +186,7 @@ export const BankAccount = a.model({
   
   // Account Details
   providerId: a.string().required(),
-  accountType: a.enum(['checking', 'savings']).required(),
+  accountType: a.enum(['checking', 'savings']),
   
   // Bank Information (encrypted)
   routingNumber: a.string().required(),
@@ -195,22 +195,22 @@ export const BankAccount = a.model({
   bankName: a.string(),
   
   // Verification Status
-  verificationStatus: a.enum(['pending', 'verified', 'failed']).default('pending'),
+  verificationStatus: a.enum(['pending', 'verified', 'failed']),
   verificationMethod: a.enum(['micro-deposits', 'instant']),
   microDepositAmount1: a.integer(),
   microDepositAmount2: a.integer(),
-  verificationAttempts: a.integer().default(0),
+  verificationAttempts: a.integer(),
   
   // Account Status
-  active: a.boolean().default(true),
+  active: a.boolean(),
   suspendedReason: a.string(),
   lastUsedAt: a.datetime(),
   
   // ACH Limits
   dailyLimitCents: a.integer(),
   monthlyLimitCents: a.integer(),
-  currentDailyUsageCents: a.integer().default(0),
-  currentMonthlyUsageCents: a.integer().default(0),
+  currentDailyUsageCents: a.integer(),
+  currentMonthlyUsageCents: a.integer(),
   
   // TTL for inactive accounts (2 years)
   inactiveTtl: a.integer(),
@@ -236,7 +236,7 @@ export const CostMetric = a.model({
   
   // Metric Details
   transactionId: a.string().required(),
-  metricType: a.enum(['transaction_cost', 'transfer_cost', 'storage_cost', 'compute_cost']).required(),
+  metricType: a.enum(['transaction_cost', 'transfer_cost', 'storage_cost', 'compute_cost']),
   
   // Cost Information
   awsCostCents: a.integer().required(),
@@ -278,7 +278,7 @@ export const SavingsReport = a.model({
   reportDate: a.string().required(), // YYYY-MM-DD format
   
   // Report Type
-  reportType: a.enum(['daily', 'weekly', 'monthly', 'yearly']).required(),
+  reportType: a.enum(['daily', 'weekly', 'monthly', 'yearly']),
   
   // Transaction Summary
   totalTransactions: a.integer().required(),
@@ -336,11 +336,11 @@ export const TempProcessingData = a.model({
   
   // Temporary Data
   tempData: a.json().required(),
-  dataType: a.enum(['card_token', 'processing_state', 'fraud_check', 'verification']).required(),
+  dataType: a.enum(['card_token', 'processing_state', 'fraud_check', 'verification']),
   
   // Encryption Details
   encryptionKeyId: a.string(),
-  encrypted: a.boolean().default(true),
+  encrypted: a.boolean(),
   
   // Aggressive TTL (1 hour for processing data)
   processingTtl: a.integer().required(),

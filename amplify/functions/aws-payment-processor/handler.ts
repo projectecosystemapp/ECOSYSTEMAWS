@@ -1,6 +1,6 @@
 import { type AppSyncResolverEvent, type Context } from 'aws-lambda';
-import { PaymentCryptographyControlPlaneClient, CreateKeyCommand } from '@aws-sdk/client-payment-cryptography-control-plane';
-import { PaymentCryptographyDataPlaneClient, EncryptDataCommand, DecryptDataCommand } from '@aws-sdk/client-payment-cryptography-data-plane';
+// Note: AWS Payment Cryptography is still in preview - using KMS for now
+import { KMSClient, EncryptCommand, DecryptCommand, GenerateDataKeyCommand } from '@aws-sdk/client-kms';
 import { DynamoDBClient, PutItemCommand, GetItemCommand, UpdateItemCommand } from '@aws-sdk/client-dynamodb';
 import { SNSClient, PublishCommand } from '@aws-sdk/client-sns';
 import { FraudDetectorClient, GetEventPredictionCommand } from '@aws-sdk/client-frauddetector';
@@ -60,8 +60,7 @@ interface PaymentProcessorResponse {
   timestamp?: string;
 }
 
-const paymentCryptoControlClient = new PaymentCryptographyControlPlaneClient({ region: process.env.AWS_REGION });
-const paymentCryptoDataClient = new PaymentCryptographyDataPlaneClient({ region: process.env.AWS_REGION });
+const kmsClient = new KMSClient({ region: process.env.AWS_REGION });
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const snsClient = new SNSClient({ region: process.env.AWS_REGION });
 const fraudDetectorClient = new FraudDetectorClient({ region: process.env.AWS_REGION });
@@ -74,7 +73,7 @@ export const handler = async (
     level: 'INFO',
     resolver: 'aws-payment-processor',
     action: event.arguments.action,
-    userId: event.identity?.sub,
+    userId: (event.identity as any)?.sub,
     requestId: context.awsRequestId,
     timestamp: new Date().toISOString(),
     message: 'AWS Payment Processor invoked'
@@ -85,7 +84,7 @@ export const handler = async (
 
     switch (action) {
       case 'process_payment':
-        return await processPayment(event.arguments, event.identity?.sub);
+        return await processPayment(event.arguments, (event.identity as any)?.sub);
       case 'encrypt_card_data':
         return await encryptCardData(event.arguments);
       case 'decrypt_card_data':
@@ -104,7 +103,7 @@ export const handler = async (
       level: 'ERROR',
       resolver: 'aws-payment-processor',
       action: event.arguments.action,
-      userId: event.identity?.sub,
+      userId: (event.identity as any)?.sub,
       requestId: context.awsRequestId,
       error: error instanceof Error ? error.message : 'Unknown error',
       timestamp: new Date().toISOString()
@@ -128,6 +127,7 @@ async function processPayment(args: PaymentProcessorInput, userId?: string): Pro
 
   // Step 1: Encrypt card data using AWS Payment Cryptography
   const encryptedCardData = await encryptCardData({
+    action: 'encrypt_card_data',
     cardNumber: args.cardNumber,
     expiryMonth: args.expiryMonth,
     expiryYear: args.expiryYear,
@@ -242,19 +242,43 @@ async function encryptCardData(args: PaymentProcessorInput): Promise<PaymentProc
   });
 
   try {
-    const encryptCommand = new EncryptDataCommand({
-      KeyIdentifier: process.env.PAYMENT_CRYPTOGRAPHY_KEY_ARN,
-      PlainText: Buffer.from(cardData, 'utf-8'),
-      EncryptionAttributes: {
-        Algorithm: 'RSA_OAEP_SHA_256'
-      }
+    // AWS KMS Envelope Encryption Pattern
+    // Step 1: Generate a data encryption key
+    const dataKeyCommand = new GenerateDataKeyCommand({
+      KeyId: process.env.KMS_KEY_ID || 'alias/payment-encryption-key',
+      KeySpec: 'AES_256', // AES-256 for symmetric encryption
     });
 
-    const result = await paymentCryptoDataClient.send(encryptCommand);
+    const dataKeyResult = await kmsClient.send(dataKeyCommand);
+    
+    if (!dataKeyResult.Plaintext || !dataKeyResult.CiphertextBlob) {
+      throw new Error('Failed to generate data encryption key');
+    }
+
+    // Step 2: Encrypt card data with the data key using AES-GCM
+    const crypto = require('crypto');
+    const algorithm = 'aes-256-gcm';
+    const iv = crypto.randomBytes(12); // 96-bit IV for GCM
+    
+    const cipher = crypto.createCipher(algorithm, dataKeyResult.Plaintext);
+    cipher.setAAD(Buffer.from('payment-card-data')); // Additional authenticated data
+    
+    let encrypted = cipher.update(cardData, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
+    const authTag = cipher.getAuthTag();
+
+    // Step 3: Create the encrypted envelope
+    const envelope = {
+      encryptedData: encrypted,
+      encryptedDataKey: Buffer.from(dataKeyResult.CiphertextBlob).toString('base64'),
+      iv: iv.toString('base64'),
+      authTag: authTag.toString('base64'),
+      algorithm: 'AES-256-GCM'
+    };
 
     return {
       success: true,
-      encryptedData: Buffer.from(result.CipherText || new Uint8Array()).toString('base64'),
+      encryptedData: JSON.stringify(envelope),
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -273,20 +297,34 @@ async function decryptCardData(args: PaymentProcessorInput): Promise<PaymentProc
   }
 
   try {
-    const decryptCommand = new DecryptDataCommand({
-      KeyIdentifier: process.env.PAYMENT_CRYPTOGRAPHY_KEY_ARN,
-      CipherText: Buffer.from(args.encryptedCardData, 'base64'),
-      EncryptionAttributes: {
-        Algorithm: 'RSA_OAEP_SHA_256'
-      }
+    // Parse the encrypted envelope
+    const envelope = JSON.parse(args.encryptedCardData);
+    
+    // Step 1: Decrypt the data encryption key using KMS
+    const decryptKeyCommand = new DecryptCommand({
+      CiphertextBlob: Buffer.from(envelope.encryptedDataKey, 'base64'),
     });
 
-    const result = await paymentCryptoDataClient.send(decryptCommand);
-    const decryptedData = Buffer.from(result.PlainText || new Uint8Array()).toString('utf-8');
+    const keyResult = await kmsClient.send(decryptKeyCommand);
+    
+    if (!keyResult.Plaintext) {
+      throw new Error('Failed to decrypt data encryption key');
+    }
+
+    // Step 2: Decrypt the card data using the data key and AES-GCM
+    const crypto = require('crypto');
+    const algorithm = 'aes-256-gcm';
+    
+    const decipher = crypto.createDecipher(algorithm, keyResult.Plaintext);
+    decipher.setAAD(Buffer.from('payment-card-data'));
+    decipher.setAuthTag(Buffer.from(envelope.authTag, 'base64'));
+    
+    let decrypted = decipher.update(envelope.encryptedData, 'base64', 'utf8');
+    decrypted += decipher.final('utf8');
 
     return {
       success: true,
-      decryptedData,
+      decryptedData: decrypted,
       timestamp: new Date().toISOString()
     };
   } catch (error) {
@@ -397,6 +435,7 @@ async function runFraudDetection(data: {
       detectorVersionId: '1.0',
       eventId: generateEventId(),
       eventTypeName: 'payment_attempt',
+      eventTimestamp: new Date().toISOString(),
       entities: [
         {
           entityType: 'customer',

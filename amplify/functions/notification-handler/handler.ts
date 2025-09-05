@@ -3,7 +3,7 @@ import { Amplify } from 'aws-amplify';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../data/resource.js';
 import { createLogger } from '../utils/lambda-logger.js';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 // Configure Amplify for Lambda environment
 Amplify.configure(

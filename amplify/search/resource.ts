@@ -3,7 +3,7 @@ import * as opensearch from 'aws-cdk-lib/aws-opensearchserverless';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Duration, RemovalPolicy } from 'aws-cdk-lib';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../lib/type-utils';
 
 export function createOpenSearchDomain(backend: any) {
   const { stack } = backend;

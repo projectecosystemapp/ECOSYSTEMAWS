@@ -2,7 +2,7 @@ import type { Schema } from '../../data/resource';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { SFNClient, StartExecutionCommand, DescribeExecutionCommand } from '@aws-sdk/client-sfn';
-import { nullableToString, nullableToNumber } from '@/lib/type-utils';
+import { nullableToString, nullableToNumber } from '../../../lib/type-utils';
 
 type InitiateDisputeHandler = Schema['initiateDispute']['functionHandler'];
 type SubmitEvidenceHandler = Schema['submitEvidence']['functionHandler'];

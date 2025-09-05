@@ -12,6 +12,7 @@ import { costMonitor } from './functions/cost-monitor/resource.js';
 
 // Core Business Functions (AWS-only)
 import { bookingProcessor } from './functions/booking-processor/resource.js';
+import { payoutManager } from './functions/payout-manager/resource.js';
 import { refundProcessor } from './functions/refund-processor/resource.js';
 
 // Support Functions
@@ -49,6 +50,7 @@ const backend = defineBackend({
 
   // Core Business Functions
   bookingProcessor,
+  payoutManager,
   refundProcessor,
 
   // Support Functions
@@ -58,6 +60,10 @@ const backend = defineBackend({
 });
 
 // Configure authentication post-confirmation trigger
-backend.auth.resources.userPool.addTrigger('postConfirmation', backend.postConfirmationTrigger);
+backend.addOutput({
+  auth: {
+    postConfirmationTrigger: backend.postConfirmationTrigger.resources.lambda.functionArn
+  }
+});
 
 export default backend;
