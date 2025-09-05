@@ -216,3 +216,12 @@ This infrastructure supports your Amplify application by providing:
 - **Networking** optimization (when enabled)
 
 For issues with this Terraform configuration, check the troubleshooting section above. For issues with your Amplify application itself, use the standard Amplify debugging tools.
+
+---
+
+## Optional: HCP Terraform + AWS Service Catalog Integration
+
+If you want one‑click, self‑service provisioning of pre-approved Terraform stacks via the AWS Console, you can install the AWS Service Catalog Engine for HCP Terraform. This keeps HCP Terraform policies and guardrails in place while enabling teams to launch products easily.
+
+Quick start:
+1) Copy and edit env example:
