@@ -558,6 +558,30 @@ const schema = a.schema({
       serviceId: a.string(),
       encryptedCardData: a.string(),
       paymentMethod: a.enum(['card', 'ach', 'wire']),
+      billingAddress: a.json(),
+      customerInfo: a.json(),
+      metadata: a.json(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(awsPaymentProcessor)),
+
+  // Payment Methods Management  
+  managePaymentMethod: a
+    .mutation()
+    .arguments({
+      action: a.enum(['create', 'update', 'delete', 'set_default', 'list']),
+      paymentMethodId: a.string(),
+      customerId: a.string(),
+      type: a.enum(['card', 'bank_account']),
+      cardNumber: a.string(),
+      expiryMonth: a.string(),
+      expiryYear: a.string(),
+      cvc: a.string(),
+      bankAccountNumber: a.string(),
+      routingNumber: a.string(),
+      accountType: a.enum(['checking', 'savings']),
+      billingAddress: a.json(),
       metadata: a.json(),
     })
     .returns(a.json())
@@ -568,17 +592,38 @@ const schema = a.schema({
   manageACHTransfer: a
     .mutation()
     .arguments({
-      action: a.enum(['initiate_transfer', 'check_status', 'cancel_transfer', 'get_transfer_history', 'validate_bank_account', 'add_bank_account']),
+      action: a.enum(['initiate_transfer', 'check_status', 'cancel_transfer', 'get_transfer_history', 'validate_bank_account', 'add_bank_account', 'verify_micro_deposits', 'request_payout']),
       transferId: a.string(),
       providerId: a.string(),
       accountId: a.string(),
       amount: a.float(),
       bankAccountNumber: a.string(),
       routingNumber: a.string(),
-      accountType: a.enum(['checking', 'savings']),
+      accountType: a.enum(['checking', 'savings', 'business_checking']),
       accountHolderName: a.string(),
       transferType: a.enum(['standard', 'same_day', 'wire']),
       memo: a.string(),
+      microDepositAmounts: a.json(),
+      metadata: a.json(),
+    })
+    .returns(a.json())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(achTransferManager)),
+
+  // Provider Bank Account Management
+  manageBankAccount: a
+    .mutation()
+    .arguments({
+      action: a.enum(['add', 'verify', 'update', 'delete', 'set_default', 'list', 'get_verification_status']),
+      providerId: a.string(),
+      accountId: a.string(),
+      routingNumber: a.string(),
+      accountNumber: a.string(),
+      accountType: a.enum(['checking', 'savings', 'business_checking']),
+      accountHolderName: a.string(),
+      bankName: a.string(),
+      microDepositAmounts: a.json(),
+      verificationDocuments: a.json(),
       metadata: a.json(),
     })
     .returns(a.json())

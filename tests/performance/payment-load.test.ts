@@ -1,678 +1,687 @@
-/**
- * Performance Tests for AWS Payment Processing Load
- * 
- * Comprehensive performance testing suite for AWS native payment system:
- * - High-volume payment processing capability
- * - Concurrent transaction handling
- * - Response time optimization validation
- * - Throughput benchmarking under load
- * - Resource utilization efficiency
- * - Cost-per-transaction optimization
- * - Scalability testing with auto-scaling
- * - Performance regression detection
- * 
- * These tests validate the performance benefits and scalability
- * of AWS native payment processing vs traditional solutions.
- */
-
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
 import { performance } from 'perf_hooks';
-import { awsPaymentClient } from '../../lib/aws-payment-client';
-import {
-  generateTestCardData,
-  generateTestBankAccount,
-  generateTestPaymentIntent,
-  mockPerformanceMetrics,
-  cleanupTestData
-} from '../test/aws-setup';
 
-// Performance test configuration
-jest.setTimeout(60000); // 1 minute timeout for performance tests
+// Performance testing for AWS native payment system
+describe('Payment System Load Tests', () => {
+  let client: any;
+  const TEST_TIMEOUT = 300000; // 5 minutes for load tests
 
-interface PerformanceMetrics {
-  operation: string;
-  duration: number;
-  startTime: number;
-  endTime: number;
-  success: boolean;
-  memoryUsage?: NodeJS.MemoryUsage;
-  cpuUsage?: NodeJS.CpuUsage;
-}
+  beforeAll(async () => {
+    client = generateClient<Schema>();
+  }, TEST_TIMEOUT);
 
-interface LoadTestResults {
-  totalOperations: number;
-  successfulOperations: number;
-  failedOperations: number;
-  averageResponseTime: number;
-  p50ResponseTime: number;
-  p95ResponseTime: number;
-  p99ResponseTime: number;
-  throughput: number; // operations per second
-  errorRate: number; // percentage
-  costEfficiency: number; // cost per successful operation
-}
-
-describe('Payment Processing Performance Tests', () => {
-  let performanceData: PerformanceMetrics[] = [];
-  let testStartTime: number;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    performanceData = [];
-    testStartTime = performance.now();
-  });
-
-  afterEach(async () => {
-    await cleanupTestData();
-    
-    if (performanceData.length > 0) {
-      const testDuration = performance.now() - testStartTime;
-      console.log(`\n📊 Performance Summary (${testDuration.toFixed(2)}ms total):`);
-      console.log(`   Operations: ${performanceData.length}`);
-      console.log(`   Average: ${(performanceData.reduce((sum, m) => sum + m.duration, 0) / performanceData.length).toFixed(2)}ms`);
-      console.log(`   Success Rate: ${(performanceData.filter(m => m.success).length / performanceData.length * 100).toFixed(1)}%`);
-    }
-  });
-
-  const measurePerformance = async <T>(
-    operation: string,
-    fn: () => Promise<T>
-  ): Promise<{ result: T; metrics: PerformanceMetrics }> => {
-    const startTime = performance.now();
-    const startCpu = process.cpuUsage();
-    const startMemory = process.memoryUsage();
-    
-    let success = false;
-    let result: T;
-    
-    try {
-      result = await fn();
-      success = true;
-    } catch (error) {
-      result = error as T;
-      success = false;
-    }
-    
-    const endTime = performance.now();
-    const endCpu = process.cpuUsage(startCpu);
-    const endMemory = process.memoryUsage();
-    
-    const metrics: PerformanceMetrics = {
-      operation,
-      duration: endTime - startTime,
-      startTime,
-      endTime,
-      success,
-      memoryUsage: {
-        rss: endMemory.rss - startMemory.rss,
-        heapTotal: endMemory.heapTotal - startMemory.heapTotal,
-        heapUsed: endMemory.heapUsed - startMemory.heapUsed,
-        external: endMemory.external - startMemory.external,
-        arrayBuffers: endMemory.arrayBuffers - startMemory.arrayBuffers
-      },
-      cpuUsage: endCpu
-    };
-    
-    performanceData.push(metrics);
-    return { result, metrics };
-  };
-
-  const calculateLoadTestResults = (metrics: PerformanceMetrics[]): LoadTestResults => {
-    const durations = metrics.map(m => m.duration).sort((a, b) => a - b);
-    const successful = metrics.filter(m => m.success);
-    const failed = metrics.filter(m => !m.success);
-    
-    const totalDuration = Math.max(...metrics.map(m => m.endTime)) - Math.min(...metrics.map(m => m.startTime));
-    
-    return {
-      totalOperations: metrics.length,
-      successfulOperations: successful.length,
-      failedOperations: failed.length,
-      averageResponseTime: durations.reduce((sum, d) => sum + d, 0) / durations.length,
-      p50ResponseTime: durations[Math.floor(durations.length * 0.5)],
-      p95ResponseTime: durations[Math.floor(durations.length * 0.95)],
-      p99ResponseTime: durations[Math.floor(durations.length * 0.99)],
-      throughput: (metrics.length / totalDuration) * 1000, // ops per second
-      errorRate: (failed.length / metrics.length) * 100,
-      costEfficiency: 0.05 // $0.05 per successful operation (AWS native)
-    };
-  };
-
-  describe('Single Operation Performance Benchmarks', () => {
-    it('should meet payment intent creation performance targets', async () => {
-      console.log('🚀 Testing payment intent creation performance...');
+  describe('Throughput Testing', () => {
+    it('should handle 10,000 TPS payment processing', async () => {
+      const targetTPS = 10000; // 10K transactions per second
+      const testDuration = 10; // 10 seconds
+      const totalTransactions = targetTPS * testDuration;
       
-      const testIntent = generateTestPaymentIntent();
-      const { result, metrics } = await measurePerformance(
-        'createPaymentIntent',
-        () => awsPaymentClient.createPaymentIntent(testIntent)
-      );
-
-      expect(metrics.success).toBe(true);
-      expect(metrics.duration).toBeLessThan(500); // Sub-500ms target
-      expect(result.id).toBeDefined();
+      console.log(`Starting load test: ${totalTransactions} transactions over ${testDuration} seconds`);
       
-      console.log(`✅ Payment intent created in ${metrics.duration.toFixed(2)}ms`);
-    });
+      // Generate test payments
+      const payments = Array.from({ length: totalTransactions }, (_, i) => ({
+        customerId: `load-customer-${i}`,
+        providerId: `load-provider-${Math.floor(i / 100)}`, // 100 payments per provider
+        amount: 5000 + (i % 20000), // $50-$250 range
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123',
+        metadata: {
+          testRun: 'load-test-10k-tps',
+          batchId: Math.floor(i / 1000)
+        }
+      }));
 
-    it('should meet card tokenization performance targets', async () => {
-      console.log('🚀 Testing card tokenization performance...');
+      const startTime = performance.now();
       
-      const testCard = generateTestCardData();
-      const { result, metrics } = await measurePerformance(
-        'tokenizeCard',
-        () => awsPaymentClient.tokenizeCard(testCard)
-      );
-
-      expect(metrics.success).toBe(true);
-      expect(metrics.duration).toBeLessThan(300); // Sub-300ms target for tokenization
-      expect(result.token).toBeDefined();
-      expect(result.last4).toBe('4242');
+      // Process payments in batches to manage memory and connections
+      const batchSize = 1000;
+      const batches = [];
       
-      console.log(`✅ Card tokenized in ${metrics.duration.toFixed(2)}ms`);
-    });
-
-    it('should meet fraud assessment performance targets', async () => {
-      console.log('🚀 Testing fraud assessment performance...');
-      
-      const { result, metrics } = await measurePerformance(
-        'assessFraudRisk',
-        () => awsPaymentClient.assessFraudRisk({
-          customerId: 'customer_test_123',
-          amount: 10000,
-          paymentMethodToken: 'tok_test_123',
-          metadata: { deviceFingerprint: 'device_123' }
-        })
-      );
-
-      expect(metrics.success).toBe(true);
-      expect(metrics.duration).toBeLessThan(200); // Sub-200ms target for fraud assessment
-      expect(result.score).toBeGreaterThanOrEqual(0);
-      expect(result.score).toBeLessThanOrEqual(1);
-      
-      console.log(`✅ Fraud assessment completed in ${metrics.duration.toFixed(2)}ms`);
-    });
-
-    it('should meet payment processing performance targets', async () => {
-      console.log('🚀 Testing payment processing performance...');
-      
-      const { result, metrics } = await measurePerformance(
-        'processPayment',
-        () => awsPaymentClient.processPayment({
-          paymentIntentId: 'pi_test_123',
-          paymentMethodToken: 'tok_test_123',
-          customerId: 'customer_test_123',
-          amount: 10000
-        })
-      );
-
-      expect(metrics.success).toBe(true);
-      expect(metrics.duration).toBeLessThan(1000); // Sub-1000ms target for full processing
-      
-      if (result.success) {
-        expect(result.paymentIntentId).toBeDefined();
+      for (let i = 0; i < payments.length; i += batchSize) {
+        batches.push(payments.slice(i, i + batchSize));
       }
+
+      const results = [];
+      let processedCount = 0;
+
+      // Process batches concurrently but with controlled concurrency
+      const processBatch = async (batch: any[]) => {
+        const batchPromises = batch.map(async (payment) => {
+          try {
+            const result = await client.mutations.processPayment({
+              action: 'process_payment',
+              ...payment
+            });
+            processedCount++;
+            
+            if (processedCount % 1000 === 0) {
+              console.log(`Processed ${processedCount}/${totalTransactions} payments`);
+            }
+            
+            return result;
+          } catch (error) {
+            return { error: error instanceof Error ? error.message : 'Unknown error' };
+          }
+        });
+
+        return Promise.allSettled(batchPromises);
+      };
+
+      // Process up to 10 batches concurrently
+      const maxConcurrentBatches = 10;
+      for (let i = 0; i < batches.length; i += maxConcurrentBatches) {
+        const concurrentBatches = batches.slice(i, i + maxConcurrentBatches);
+        const batchResults = await Promise.all(concurrentBatches.map(processBatch));
+        results.push(...batchResults.flat());
+      }
+
+      const endTime = performance.now();
+      const actualDuration = (endTime - startTime) / 1000; // Convert to seconds
+
+      // Analyze results
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && 
+        (r as any).value.data?.success === true
+      ).length;
+
+      const failed = results.length - successful;
+      const actualTPS = successful / actualDuration;
+      const successRate = (successful / results.length) * 100;
+
+      console.log(`\nLoad Test Results:`);
+      console.log(`Total transactions: ${results.length}`);
+      console.log(`Successful: ${successful}`);
+      console.log(`Failed: ${failed}`);
+      console.log(`Duration: ${actualDuration.toFixed(2)} seconds`);
+      console.log(`Actual TPS: ${actualTPS.toFixed(2)}`);
+      console.log(`Success rate: ${successRate.toFixed(2)}%`);
+
+      // Performance assertions
+      expect(successful).toBeGreaterThan(totalTransactions * 0.95); // 95% success rate
+      expect(actualTPS).toBeGreaterThan(targetTPS * 0.8); // 80% of target TPS
+      expect(successRate).toBeGreaterThan(95);
+    }, TEST_TIMEOUT);
+
+    it('should maintain sub-200ms latency under normal load', async () => {
+      const normalLoad = 1000; // 1K concurrent transactions
+      const latencyTarget = 200; // 200ms
       
-      console.log(`✅ Payment processed in ${metrics.duration.toFixed(2)}ms`);
-    });
+      const payments = Array.from({ length: normalLoad }, (_, i) => ({
+        customerId: `latency-customer-${i}`,
+        providerId: `latency-provider-${i}`,
+        amount: 10000, // $100.00
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
+
+      const latencies: number[] = [];
+      
+      const promises = payments.map(async (payment) => {
+        const startTime = performance.now();
+        
+        try {
+          const result = await client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          });
+          
+          const endTime = performance.now();
+          const latency = endTime - startTime;
+          latencies.push(latency);
+          
+          return result;
+        } catch (error) {
+          const endTime = performance.now();
+          latencies.push(endTime - startTime);
+          return { error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+      });
+
+      const results = await Promise.allSettled(promises);
+      
+      // Calculate latency statistics
+      latencies.sort((a, b) => a - b);
+      const avgLatency = latencies.reduce((sum, l) => sum + l, 0) / latencies.length;
+      const p50 = latencies[Math.floor(latencies.length * 0.5)];
+      const p95 = latencies[Math.floor(latencies.length * 0.95)];
+      const p99 = latencies[Math.floor(latencies.length * 0.99)];
+      const maxLatency = Math.max(...latencies);
+
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && 
+        !(r as any).value.error
+      ).length;
+
+      console.log(`\nLatency Test Results (${normalLoad} concurrent requests):`);
+      console.log(`Successful: ${successful}/${normalLoad}`);
+      console.log(`Average latency: ${avgLatency.toFixed(2)}ms`);
+      console.log(`P50 latency: ${p50.toFixed(2)}ms`);
+      console.log(`P95 latency: ${p95.toFixed(2)}ms`);
+      console.log(`P99 latency: ${p99.toFixed(2)}ms`);
+      console.log(`Max latency: ${maxLatency.toFixed(2)}ms`);
+
+      // Latency assertions
+      expect(avgLatency).toBeLessThan(latencyTarget);
+      expect(p95).toBeLessThan(latencyTarget * 2); // P95 should be under 400ms
+      expect(successful).toBeGreaterThan(normalLoad * 0.95); // 95% success rate
+    }, TEST_TIMEOUT);
   });
 
-  describe('Concurrent Processing Load Tests', () => {
-    it('should handle moderate concurrent payment load', async () => {
-      console.log('🚀 Testing moderate concurrent payment load (10 concurrent)...');
+  describe('Stress Testing', () => {
+    it('should handle system overload gracefully', async () => {
+      const overload = 5000; // High concurrent load
+      const stressPayments = Array.from({ length: overload }, (_, i) => ({
+        customerId: `stress-customer-${i}`,
+        providerId: `stress-provider-${Math.floor(i / 50)}`,
+        amount: Math.floor(Math.random() * 50000) + 5000, // $50-$500 range
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
+
+      const startTime = performance.now();
       
-      const concurrentOperations = 10;
-      const testCard = generateTestCardData();
-      
-      const concurrentPromises = Array(concurrentOperations).fill(null).map(async (_, index) => {
-        const testIntent = {
-          ...generateTestPaymentIntent(),
-          customerId: `load_test_customer_${index}`,
-          bookingId: `load_test_booking_${index}`
-        };
+      const promises = stressPayments.map(async (payment, index) => {
+        // Add some jitter to simulate real-world conditions
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
         
-        // Create payment intent
-        const intentResult = await measurePerformance(
-          `createPaymentIntent_${index}`,
-          () => awsPaymentClient.createPaymentIntent(testIntent)
-        );
-        
-        // Tokenize card
-        const tokenResult = await measurePerformance(
-          `tokenizeCard_${index}`,
-          () => awsPaymentClient.tokenizeCard({
-            ...testCard,
-            cvc: `12${index % 10}` // Vary CVC
-          })
-        );
-        
-        // Process payment
-        if (intentResult.result.id && tokenResult.result.token) {
-          const paymentResult = await measurePerformance(
-            `processPayment_${index}`,
-            () => awsPaymentClient.processPayment({
-              paymentIntentId: intentResult.result.id,
-              paymentMethodToken: tokenResult.result.token,
-              customerId: testIntent.customerId,
-              amount: testIntent.amount
-            })
-          );
-          
-          return {
-            index,
-            intent: intentResult,
-            token: tokenResult,
-            payment: paymentResult
+        try {
+          const result = await client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          });
+          return { success: result.data?.success, index };
+        } catch (error) {
+          return { 
+            success: false, 
+            error: error instanceof Error ? error.message : 'Unknown error',
+            index 
           };
         }
-        
-        return { index, intent: intentResult, token: tokenResult };
       });
 
-      const results = await Promise.all(concurrentPromises);
-      const loadResults = calculateLoadTestResults(performanceData.slice(-concurrentOperations * 3));
-      
-      expect(loadResults.errorRate).toBeLessThan(5); // Less than 5% error rate
-      expect(loadResults.p95ResponseTime).toBeLessThan(2000); // 95th percentile under 2 seconds
-      expect(loadResults.throughput).toBeGreaterThan(5); // At least 5 operations per second
-      
-      console.log(`✅ Moderate load test completed:`);
-      console.log(`   Success Rate: ${(100 - loadResults.errorRate).toFixed(1)}%`);
-      console.log(`   Average Response: ${loadResults.averageResponseTime.toFixed(2)}ms`);
-      console.log(`   P95 Response: ${loadResults.p95ResponseTime.toFixed(2)}ms`);
-      console.log(`   Throughput: ${loadResults.throughput.toFixed(2)} ops/sec`);
-    });
-
-    it('should handle high concurrent payment load', async () => {
-      console.log('🚀 Testing high concurrent payment load (25 concurrent)...');
-      
-      const concurrentOperations = 25;
-      const testCard = generateTestCardData();
-      
-      const startTime = performance.now();
-      
-      const concurrentPromises = Array(concurrentOperations).fill(null).map(async (_, index) => {
-        return measurePerformance(
-          `high_load_payment_${index}`,
-          async () => {
-            const testIntent = {
-              ...generateTestPaymentIntent(),
-              amount: 5000 + (index * 100), // Vary amounts
-              customerId: `high_load_customer_${index}`
-            };
-            
-            const paymentIntent = await awsPaymentClient.createPaymentIntent(testIntent);
-            const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-            
-            return await awsPaymentClient.processPayment({
-              paymentIntentId: paymentIntent.id,
-              paymentMethodToken: cardToken.token,
-              customerId: testIntent.customerId,
-              amount: testIntent.amount
-            });
-          }
-        );
-      });
-
-      const results = await Promise.all(concurrentPromises);
+      const results = await Promise.allSettled(promises);
       const endTime = performance.now();
-      
-      const successfulResults = results.filter(r => r.metrics.success);
-      const totalDuration = endTime - startTime;
-      
-      expect(successfulResults.length).toBeGreaterThanOrEqual(concurrentOperations * 0.9); // 90% success rate
-      expect(totalDuration).toBeLessThan(15000); // Complete within 15 seconds
-      
-      const avgResponseTime = results.reduce((sum, r) => sum + r.metrics.duration, 0) / results.length;
-      const throughput = (results.length / totalDuration) * 1000;
-      
-      console.log(`✅ High load test completed:`);
-      console.log(`   Operations: ${results.length}`);
-      console.log(`   Success Rate: ${(successfulResults.length / results.length * 100).toFixed(1)}%`);
-      console.log(`   Total Duration: ${(totalDuration / 1000).toFixed(2)}s`);
-      console.log(`   Average Response: ${avgResponseTime.toFixed(2)}ms`);
-      console.log(`   Throughput: ${throughput.toFixed(2)} ops/sec`);
-    });
+      const duration = (endTime - startTime) / 1000;
 
-    it('should maintain performance under sustained load', async () => {
-      console.log('🚀 Testing sustained load performance (5 minutes simulation)...');
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && (r as any).value.success === true
+      ).length;
+
+      const failed = results.length - successful;
+      const throughput = successful / duration;
+
+      console.log(`\nStress Test Results:`);
+      console.log(`Total requests: ${overload}`);
+      console.log(`Successful: ${successful}`);
+      console.log(`Failed: ${failed}`);
+      console.log(`Duration: ${duration.toFixed(2)} seconds`);
+      console.log(`Throughput: ${throughput.toFixed(2)} TPS`);
+
+      // System should degrade gracefully, not crash
+      expect(successful).toBeGreaterThan(overload * 0.7); // At least 70% success under stress
+      expect(throughput).toBeGreaterThan(100); // Maintain minimum throughput
+    }, TEST_TIMEOUT);
+
+    it('should recover after stress conditions', async () => {
+      // First, apply stress
+      const stressLoad = 1000;
+      const stressPromises = Array.from({ length: stressLoad }, (_, i) => 
+        client.mutations.processPayment({
+          action: 'process_payment',
+          customerId: `recovery-stress-${i}`,
+          providerId: 'recovery-provider',
+          amount: 10000,
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        }).catch(() => ({ success: false }))
+      );
+
+      await Promise.allSettled(stressPromises);
       
-      const testDuration = 10000; // 10 seconds for testing (would be 5 minutes in production)
-      const operationsPerSecond = 2;
-      const interval = 1000 / operationsPerSecond;
-      
-      const results: Array<{ result: any; metrics: PerformanceMetrics }> = [];
-      const testCard = generateTestCardData();
-      
-      const startTime = performance.now();
-      let operationCount = 0;
-      
-      const runOperation = async () => {
-        if (performance.now() - startTime >= testDuration) {
-          return;
-        }
-        
-        const result = await measurePerformance(
-          `sustained_load_${operationCount++}`,
-          async () => {
-            const testIntent = {
-              ...generateTestPaymentIntent(),
-              customerId: `sustained_customer_${operationCount}`,
-              amount: 10000 + (operationCount * 100)
-            };
-            
-            const paymentIntent = await awsPaymentClient.createPaymentIntent(testIntent);
-            return paymentIntent;
-          }
-        );
-        
-        results.push(result);
-        
-        // Schedule next operation
-        setTimeout(runOperation, interval);
-      };
-      
-      // Start the sustained load
-      runOperation();
-      
-      // Wait for test duration
-      await new Promise(resolve => setTimeout(resolve, testDuration + 1000));
-      
-      expect(results.length).toBeGreaterThan(10); // Should have completed multiple operations
-      
-      // Analyze performance degradation over time
-      const firstHalf = results.slice(0, Math.floor(results.length / 2));
-      const secondHalf = results.slice(Math.floor(results.length / 2));
-      
-      const firstHalfAvg = firstHalf.reduce((sum, r) => sum + r.metrics.duration, 0) / firstHalf.length;
-      const secondHalfAvg = secondHalf.reduce((sum, r) => sum + r.metrics.duration, 0) / secondHalf.length;
-      
-      // Performance should not degrade by more than 50%
-      const performanceDegradation = (secondHalfAvg - firstHalfAvg) / firstHalfAvg;
-      expect(performanceDegradation).toBeLessThan(0.5);
-      
-      console.log(`✅ Sustained load test completed:`);
-      console.log(`   Operations: ${results.length}`);
-      console.log(`   First half avg: ${firstHalfAvg.toFixed(2)}ms`);
-      console.log(`   Second half avg: ${secondHalfAvg.toFixed(2)}ms`);
-      console.log(`   Performance change: ${(performanceDegradation * 100).toFixed(1)}%`);
-    });
+      // Wait for system to recover
+      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 second cooldown
+
+      // Test normal operations after stress
+      const normalLoad = 100;
+      const recoveryPromises = Array.from({ length: normalLoad }, (_, i) =>
+        client.mutations.processPayment({
+          action: 'process_payment',
+          customerId: `recovery-normal-${i}`,
+          providerId: 'recovery-provider',
+          amount: 10000,
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        })
+      );
+
+      const recoveryResults = await Promise.allSettled(recoveryPromises);
+      const recoverySuccessful = recoveryResults.filter(r => 
+        r.status === 'fulfilled' && (r as any).value.data?.success === true
+      ).length;
+
+      const recoveryRate = (recoverySuccessful / normalLoad) * 100;
+
+      console.log(`\nRecovery Test Results:`);
+      console.log(`Post-stress successful transactions: ${recoverySuccessful}/${normalLoad}`);
+      console.log(`Recovery success rate: ${recoveryRate.toFixed(2)}%`);
+
+      // System should recover to normal performance levels
+      expect(recoveryRate).toBeGreaterThan(90); // 90%+ recovery rate
+    }, TEST_TIMEOUT);
   });
 
-  describe('Resource Utilization Efficiency', () => {
-    it('should demonstrate efficient memory usage', async () => {
-      console.log('🚀 Testing memory usage efficiency...');
-      
-      const baseMemory = process.memoryUsage();
-      const operations = 20;
-      const memorySnapshots: NodeJS.MemoryUsage[] = [baseMemory];
-      
-      for (let i = 0; i < operations; i++) {
-        const testIntent = {
-          ...generateTestPaymentIntent(),
-          customerId: `memory_test_${i}`
-        };
-        
-        await awsPaymentClient.createPaymentIntent(testIntent);
-        
-        if (i % 5 === 0) {
-          memorySnapshots.push(process.memoryUsage());
-        }
-      }
-      
-      const finalMemory = process.memoryUsage();
-      memorySnapshots.push(finalMemory);
-      
-      // Memory growth should be reasonable
-      const memoryGrowth = finalMemory.heapUsed - baseMemory.heapUsed;
-      const memoryPerOperation = memoryGrowth / operations;
-      
-      expect(memoryPerOperation).toBeLessThan(1024 * 1024); // Less than 1MB per operation
-      expect(memoryGrowth).toBeLessThan(50 * 1024 * 1024); // Less than 50MB total growth
-      
-      console.log(`✅ Memory usage analysis:`);
-      console.log(`   Base memory: ${(baseMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`   Final memory: ${(finalMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`   Growth: ${(memoryGrowth / 1024 / 1024).toFixed(2)}MB`);
-      console.log(`   Per operation: ${(memoryPerOperation / 1024).toFixed(2)}KB`);
-    });
+  describe('Scalability Testing', () => {
+    it('should scale linearly with increased load', async () => {
+      const loadLevels = [100, 500, 1000, 2000];
+      const results = [];
 
-    it('should demonstrate efficient CPU usage', async () => {
-      console.log('🚀 Testing CPU usage efficiency...');
-      
-      const operations = 15;
-      const cpuMetrics: NodeJS.CpuUsage[] = [];
-      
-      for (let i = 0; i < operations; i++) {
-        const { metrics } = await measurePerformance(
-          `cpu_test_${i}`,
-          async () => {
-            const testCard = generateTestCardData();
-            const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-            return cardToken;
-          }
-        );
-        
-        if (metrics.cpuUsage) {
-          cpuMetrics.push(metrics.cpuUsage);
-        }
-      }
-      
-      const avgUserCpu = cpuMetrics.reduce((sum, cpu) => sum + cpu.user, 0) / cpuMetrics.length;
-      const avgSystemCpu = cpuMetrics.reduce((sum, cpu) => sum + cpu.system, 0) / cpuMetrics.length;
-      
-      // CPU usage should be reasonable (values are in microseconds)
-      expect(avgUserCpu).toBeLessThan(50000); // Less than 50ms user time per operation
-      expect(avgSystemCpu).toBeLessThan(20000); // Less than 20ms system time per operation
-      
-      console.log(`✅ CPU usage analysis:`);
-      console.log(`   Average user CPU: ${(avgUserCpu / 1000).toFixed(2)}ms`);
-      console.log(`   Average system CPU: ${(avgSystemCpu / 1000).toFixed(2)}ms`);
-      console.log(`   Total CPU per op: ${((avgUserCpu + avgSystemCpu) / 1000).toFixed(2)}ms`);
-    });
-  });
-
-  describe('Cost-Performance Optimization', () => {
-    it('should demonstrate cost efficiency under load', async () => {
-      console.log('🚀 Testing cost efficiency under load...');
-      
-      const testScenarios = [
-        { operations: 10, amount: 5000, description: 'Small transactions ($50)' },
-        { operations: 10, amount: 25000, description: 'Medium transactions ($250)' },
-        { operations: 5, amount: 100000, description: 'Large transactions ($1,000)' }
-      ];
-      
-      for (const scenario of testScenarios) {
-        console.log(`\n📊 Testing ${scenario.description}...`);
-        
-        const startTime = performance.now();
-        const promises = Array(scenario.operations).fill(null).map(async (_, index) => {
-          return measurePerformance(
-            `cost_test_${scenario.amount}_${index}`,
-            async () => {
-              const testIntent = {
-                ...generateTestPaymentIntent(),
-                amount: scenario.amount,
-                customerId: `cost_customer_${index}`
-              };
-              return awsPaymentClient.createPaymentIntent(testIntent);
-            }
-          );
-        });
-        
-        const results = await Promise.all(promises);
-        const endTime = performance.now();
-        
-        const successful = results.filter(r => r.metrics.success).length;
-        const totalDuration = endTime - startTime;
-        
-        // Cost analysis
-        const stripeCostPerTransaction = Math.round(scenario.amount * 0.029) + 30;
-        const awsCostPerTransaction = 5; // $0.05
-        const totalStripeCost = stripeCostPerTransaction * successful;
-        const totalAwsCost = awsCostPerTransaction * successful;
-        const costSavings = totalStripeCost - totalAwsCost;
-        const savingsPercentage = (costSavings / totalStripeCost) * 100;
-        
-        // Performance analysis
-        const avgResponseTime = results.reduce((sum, r) => sum + r.metrics.duration, 0) / results.length;
-        const throughput = (results.length / totalDuration) * 1000;
-        
-        expect(savingsPercentage).toBeGreaterThan(98); // 98%+ cost savings
-        expect(successful).toBe(scenario.operations); // All should succeed
-        expect(avgResponseTime).toBeLessThan(1000); // Sub-second response
-        
-        console.log(`   Success Rate: ${(successful / scenario.operations * 100).toFixed(1)}%`);
-        console.log(`   Avg Response: ${avgResponseTime.toFixed(2)}ms`);
-        console.log(`   Throughput: ${throughput.toFixed(2)} ops/sec`);
-        console.log(`   Stripe Cost: $${(totalStripeCost / 100).toFixed(2)}`);
-        console.log(`   AWS Cost: $${(totalAwsCost / 100).toFixed(2)}`);
-        console.log(`   Savings: $${(costSavings / 100).toFixed(2)} (${savingsPercentage.toFixed(1)}%)`);
-      }
-      
-      console.log('\n✅ Cost efficiency validated across all transaction sizes');
-    });
-
-    it('should scale efficiently with increased load', async () => {
-      console.log('🚀 Testing scalability and performance scaling...');
-      
-      const loadLevels = [5, 10, 15];
-      const scalingResults: Array<{
-        load: number;
-        throughput: number;
-        avgResponseTime: number;
-        successRate: number;
-        costPerOperation: number;
-      }> = [];
-      
       for (const load of loadLevels) {
-        console.log(`\n📈 Testing load level: ${load} concurrent operations...`);
+        console.log(`\nTesting with ${load} concurrent payments...`);
         
+        const payments = Array.from({ length: load }, (_, i) => ({
+          customerId: `scale-customer-${load}-${i}`,
+          providerId: `scale-provider-${Math.floor(i / 10)}`,
+          amount: 10000,
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        }));
+
         const startTime = performance.now();
-        const promises = Array(load).fill(null).map(async (_, index) => {
-          return measurePerformance(
-            `scale_test_${load}_${index}`,
-            async () => {
-              const testIntent = {
-                ...generateTestPaymentIntent(),
-                amount: 15000, // $150 standard amount
-                customerId: `scale_customer_${load}_${index}`
-              };
-              return awsPaymentClient.createPaymentIntent(testIntent);
-            }
-          );
-        });
         
-        const results = await Promise.all(promises);
+        const promises = payments.map(payment =>
+          client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          }).catch(() => ({ success: false }))
+        );
+
+        const loadResults = await Promise.allSettled(promises);
         const endTime = performance.now();
-        
-        const successful = results.filter(r => r.metrics.success).length;
-        const totalDuration = endTime - startTime;
-        const avgResponseTime = results.reduce((sum, r) => sum + r.metrics.duration, 0) / results.length;
-        const throughput = (results.length / totalDuration) * 1000;
-        const successRate = (successful / results.length) * 100;
-        
-        scalingResults.push({
+        const duration = (endTime - startTime) / 1000;
+
+        const successful = loadResults.filter(r => 
+          r.status === 'fulfilled' && (r as any).value.data?.success === true
+        ).length;
+
+        const throughput = successful / duration;
+        const successRate = (successful / load) * 100;
+
+        results.push({
           load,
+          successful,
+          duration,
           throughput,
-          avgResponseTime,
-          successRate,
-          costPerOperation: 0.05 // $0.05 constant AWS cost
+          successRate
         });
-        
-        console.log(`   Success Rate: ${successRate.toFixed(1)}%`);
-        console.log(`   Avg Response: ${avgResponseTime.toFixed(2)}ms`);
-        console.log(`   Throughput: ${throughput.toFixed(2)} ops/sec`);
+
+        console.log(`Load: ${load}, Success: ${successful}, Rate: ${successRate.toFixed(2)}%, TPS: ${throughput.toFixed(2)}`);
+
+        // Brief pause between load levels
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
-      
-      // Analyze scaling characteristics
-      const firstResult = scalingResults[0];
-      const lastResult = scalingResults[scalingResults.length - 1];
-      
-      const throughputScaling = lastResult.throughput / firstResult.throughput;
-      const responseTimeIncrease = lastResult.avgResponseTime / firstResult.avgResponseTime;
-      
-      // Throughput should scale reasonably with load
-      expect(throughputScaling).toBeGreaterThan(1.5); // At least 1.5x throughput increase
-      expect(responseTimeIncrease).toBeLessThan(3); // Response time shouldn't increase more than 3x
-      
-      // All load levels should maintain high success rates
-      scalingResults.forEach(result => {
-        expect(result.successRate).toBeGreaterThan(95); // 95%+ success rate
+
+      // Analyze scaling behavior
+      console.log(`\nScalability Analysis:`);
+      results.forEach(result => {
+        console.log(`Load: ${result.load}, TPS: ${result.throughput.toFixed(2)}, Success Rate: ${result.successRate.toFixed(2)}%`);
       });
+
+      // Verify reasonable scaling
+      const throughputRatios = [];
+      for (let i = 1; i < results.length; i++) {
+        const ratio = results[i].throughput / results[0].throughput;
+        const loadRatio = results[i].load / results[0].load;
+        throughputRatios.push(ratio / loadRatio);
+      }
+
+      const avgScalingEfficiency = throughputRatios.reduce((sum, r) => sum + r, 0) / throughputRatios.length;
       
-      console.log(`\n✅ Scalability analysis:`);
-      console.log(`   Throughput scaling: ${throughputScaling.toFixed(2)}x`);
-      console.log(`   Response time increase: ${responseTimeIncrease.toFixed(2)}x`);
-      console.log(`   Cost per operation: $${firstResult.costPerOperation.toFixed(3)} (constant)`);
-    });
+      console.log(`Average scaling efficiency: ${(avgScalingEfficiency * 100).toFixed(2)}%`);
+
+      // System should scale reasonably well
+      expect(avgScalingEfficiency).toBeGreaterThan(0.5); // At least 50% scaling efficiency
+      
+      // Success rates should remain high across all load levels
+      results.forEach(result => {
+        expect(result.successRate).toBeGreaterThan(85);
+      });
+    }, TEST_TIMEOUT);
   });
 
-  describe('Performance Regression Detection', () => {
-    it('should detect performance regressions compared to baseline', async () => {
-      console.log('🚀 Testing performance regression detection...');
-      
-      // Baseline performance expectations (from previous test runs)
-      const baselineMetrics = {
-        createPaymentIntent: 400, // ms
-        tokenizeCard: 250, // ms
-        processPayment: 800, // ms
-        fraudAssessment: 150 // ms
-      };
-      
-      const testCard = generateTestCardData();
-      const testIntent = generateTestPaymentIntent();
-      
-      // Test each operation
-      const operations = [
-        {
-          name: 'createPaymentIntent',
-          baseline: baselineMetrics.createPaymentIntent,
-          fn: () => awsPaymentClient.createPaymentIntent(testIntent)
-        },
-        {
-          name: 'tokenizeCard',
-          baseline: baselineMetrics.tokenizeCard,
-          fn: () => awsPaymentClient.tokenizeCard(testCard)
-        },
-        {
-          name: 'fraudAssessment',
-          baseline: baselineMetrics.fraudAssessment,
-          fn: () => awsPaymentClient.assessFraudRisk({
-            customerId: 'customer_regression_test',
-            amount: 10000,
-            paymentMethodToken: 'tok_test_regression',
-            metadata: {}
-          })
-        }
-      ];
-      
-      const regressionThreshold = 1.5; // 50% performance degradation threshold
-      
-      for (const operation of operations) {
-        const { metrics } = await measurePerformance(
-          `regression_${operation.name}`,
-          operation.fn
+  describe('Memory and Resource Testing', () => {
+    it('should maintain stable memory usage under sustained load', async () => {
+      const sustainedLoad = 500;
+      const testRounds = 10;
+      const roundDuration = 30000; // 30 seconds per round
+
+      console.log(`Starting sustained load test: ${sustainedLoad} TPS for ${testRounds} rounds`);
+
+      const memoryUsage = [];
+
+      for (let round = 0; round < testRounds; round++) {
+        console.log(`Round ${round + 1}/${testRounds}`);
+
+        // Record initial memory usage
+        const initialMemory = process.memoryUsage();
+        
+        const payments = Array.from({ length: sustainedLoad }, (_, i) => ({
+          customerId: `sustained-customer-${round}-${i}`,
+          providerId: `sustained-provider-${Math.floor(i / 20)}`,
+          amount: 10000,
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        }));
+
+        const roundStartTime = performance.now();
+        
+        const promises = payments.map(payment =>
+          client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          }).catch(() => ({ success: false }))
         );
-        
-        expect(metrics.success).toBe(true);
-        
-        const performanceRatio = metrics.duration / operation.baseline;
-        const isRegression = performanceRatio > regressionThreshold;
-        
-        if (isRegression) {
-          console.warn(`⚠️ Performance regression detected in ${operation.name}:`);
-          console.warn(`   Current: ${metrics.duration.toFixed(2)}ms`);
-          console.warn(`   Baseline: ${operation.baseline}ms`);
-          console.warn(`   Ratio: ${performanceRatio.toFixed(2)}x`);
-        } else {
-          console.log(`✅ ${operation.name}: ${metrics.duration.toFixed(2)}ms (${performanceRatio.toFixed(2)}x baseline)`);
+
+        const results = await Promise.allSettled(promises);
+        const roundEndTime = performance.now();
+
+        const successful = results.filter(r => 
+          r.status === 'fulfilled' && (r as any).value.data?.success === true
+        ).length;
+
+        const finalMemory = process.memoryUsage();
+        const memoryDelta = finalMemory.heapUsed - initialMemory.heapUsed;
+
+        memoryUsage.push({
+          round: round + 1,
+          successful,
+          duration: (roundEndTime - roundStartTime) / 1000,
+          memoryDelta: memoryDelta / 1024 / 1024, // Convert to MB
+          totalMemory: finalMemory.heapUsed / 1024 / 1024
+        });
+
+        console.log(`Round ${round + 1}: ${successful} successful, Memory: ${(finalMemory.heapUsed / 1024 / 1024).toFixed(2)}MB`);
+
+        // Brief pause between rounds
+        if (round < testRounds - 1) {
+          await new Promise(resolve => setTimeout(resolve, 5000));
         }
-        
-        expect(isRegression).toBe(false); // Fail test if significant regression detected
       }
+
+      // Analyze memory stability
+      const avgMemoryDelta = memoryUsage.reduce((sum, m) => sum + m.memoryDelta, 0) / memoryUsage.length;
+      const maxMemory = Math.max(...memoryUsage.map(m => m.totalMemory));
+      const minMemory = Math.min(...memoryUsage.map(m => m.totalMemory));
+      const memoryRange = maxMemory - minMemory;
+
+      console.log(`\nMemory Analysis:`);
+      console.log(`Average memory delta per round: ${avgMemoryDelta.toFixed(2)}MB`);
+      console.log(`Memory range: ${memoryRange.toFixed(2)}MB (${minMemory.toFixed(2)}MB - ${maxMemory.toFixed(2)}MB)`);
+
+      // Memory usage should remain stable
+      expect(avgMemoryDelta).toBeLessThan(50); // Less than 50MB average increase per round
+      expect(memoryRange).toBeLessThan(200); // Total memory range under 200MB
+
+      // Performance should remain consistent
+      const avgSuccessRate = memoryUsage.reduce((sum, m) => sum + (m.successful / sustainedLoad), 0) / testRounds * 100;
+      expect(avgSuccessRate).toBeGreaterThan(90);
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Fraud Detection Performance', () => {
+    it('should maintain fraud detection speed under high load', async () => {
+      const fraudTestLoad = 1000;
+      const mixedRiskPayments = Array.from({ length: fraudTestLoad }, (_, i) => {
+        const riskLevel = i % 4; // Mix of risk levels
+        const baseAmount = 10000;
+        
+        return {
+          customerId: `fraud-perf-customer-${i}`,
+          providerId: `fraud-perf-provider-${i}`,
+          amount: baseAmount * (riskLevel + 1), // $100, $200, $300, $400
+          currency: 'USD',
+          cardNumber: riskLevel === 3 ? '4000000000000002' : '4242424242424242', // High risk card for level 3
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123',
+          metadata: {
+            riskLevel,
+            testType: 'fraud-performance'
+          }
+        };
+      });
+
+      const startTime = performance.now();
+      const fraudLatencies: number[] = [];
+
+      const promises = mixedRiskPayments.map(async (payment) => {
+        const paymentStartTime = performance.now();
+        
+        try {
+          const result = await client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          });
+          
+          const paymentEndTime = performance.now();
+          fraudLatencies.push(paymentEndTime - paymentStartTime);
+          
+          return result;
+        } catch (error) {
+          const paymentEndTime = performance.now();
+          fraudLatencies.push(paymentEndTime - paymentStartTime);
+          return { error: error instanceof Error ? error.message : 'Unknown error' };
+        }
+      });
+
+      const results = await Promise.allSettled(promises);
+      const endTime = performance.now();
+
+      // Analyze fraud detection performance
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && !(r as any).value.error
+      ).length;
+
+      const totalDuration = (endTime - startTime) / 1000;
+      fraudLatencies.sort((a, b) => a - b);
       
-      console.log('✅ No performance regressions detected');
-    });
+      const avgFraudLatency = fraudLatencies.reduce((sum, l) => sum + l, 0) / fraudLatencies.length;
+      const p95FraudLatency = fraudLatencies[Math.floor(fraudLatencies.length * 0.95)];
+
+      console.log(`\nFraud Detection Performance:`);
+      console.log(`Total payments processed: ${fraudTestLoad}`);
+      console.log(`Successful: ${successful}`);
+      console.log(`Total duration: ${totalDuration.toFixed(2)} seconds`);
+      console.log(`Average fraud detection latency: ${avgFraudLatency.toFixed(2)}ms`);
+      console.log(`P95 fraud detection latency: ${p95FraudLatency.toFixed(2)}ms`);
+
+      // Fraud detection should not significantly impact performance
+      expect(avgFraudLatency).toBeLessThan(500); // Under 500ms average
+      expect(p95FraudLatency).toBeLessThan(1000); // Under 1s for P95
+      expect(successful).toBeGreaterThan(fraudTestLoad * 0.6); // At least 60% success (some will be blocked by fraud detection)
+    }, TEST_TIMEOUT);
+  });
+
+  describe('Database Performance', () => {
+    it('should handle high write throughput to DynamoDB', async () => {
+      const writeLoad = 2000;
+      const concurrentWrites = Array.from({ length: writeLoad }, (_, i) => ({
+        customerId: `db-write-customer-${i}`,
+        providerId: `db-write-provider-${Math.floor(i / 100)}`,
+        amount: 5000 + (i * 10), // Varying amounts
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123',
+        metadata: {
+          testType: 'database-write-performance',
+          batchId: Math.floor(i / 50)
+        }
+      }));
+
+      const startTime = performance.now();
+      
+      const promises = concurrentWrites.map(payment =>
+        client.mutations.processPayment({
+          action: 'process_payment',
+          ...payment
+        }).catch(error => ({ 
+          error: error instanceof Error ? error.message : 'Write failed',
+          isError: true
+        }))
+      );
+
+      const results = await Promise.allSettled(promises);
+      const endTime = performance.now();
+
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && !(r as any).value.isError
+      ).length;
+
+      const writeLatency = (endTime - startTime) / 1000;
+      const writesTPS = successful / writeLatency;
+
+      console.log(`\nDynamoDB Write Performance:`);
+      console.log(`Total write operations: ${writeLoad}`);
+      console.log(`Successful writes: ${successful}`);
+      console.log(`Write latency: ${writeLatency.toFixed(2)} seconds`);
+      console.log(`Writes per second: ${writesTPS.toFixed(2)}`);
+
+      // Database should handle high write throughput
+      expect(successful).toBeGreaterThan(writeLoad * 0.95); // 95% success rate
+      expect(writesTPS).toBeGreaterThan(500); // At least 500 writes per second
+    }, TEST_TIMEOUT);
+
+    it('should handle concurrent read operations efficiently', async () => {
+      // First, create some test payments to read
+      const setupPayments = Array.from({ length: 100 }, (_, i) => ({
+        customerId: `read-setup-customer-${i}`,
+        providerId: `read-setup-provider-${i}`,
+        amount: 10000,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
+
+      const setupResults = await Promise.allSettled(
+        setupPayments.map(payment =>
+          client.mutations.processPayment({
+            action: 'process_payment',
+            ...payment
+          })
+        )
+      );
+
+      const setupPaymentIds = setupResults
+        .filter(r => r.status === 'fulfilled' && (r as any).value.data?.success)
+        .map(r => (r as any).value.data?.paymentId)
+        .filter(id => id);
+
+      expect(setupPaymentIds.length).toBeGreaterThan(50); // At least half should succeed
+
+      // Now test concurrent reads
+      const readLoad = 1000;
+      const readPromises = Array.from({ length: readLoad }, (_, i) => {
+        const paymentId = setupPaymentIds[i % setupPaymentIds.length];
+        return client.queries.validatePayment({ paymentId });
+      });
+
+      const readStartTime = performance.now();
+      const readResults = await Promise.allSettled(readPromises);
+      const readEndTime = performance.now();
+
+      const successfulReads = readResults.filter(r => 
+        r.status === 'fulfilled' && (r as any).value.data?.success === true
+      ).length;
+
+      const readLatency = (readEndTime - readStartTime) / 1000;
+      const readsTPS = successfulReads / readLatency;
+
+      console.log(`\nDynamoDB Read Performance:`);
+      console.log(`Total read operations: ${readLoad}`);
+      console.log(`Successful reads: ${successfulReads}`);
+      console.log(`Read latency: ${readLatency.toFixed(2)} seconds`);
+      console.log(`Reads per second: ${readsTPS.toFixed(2)}`);
+
+      // Read operations should be very fast
+      expect(successfulReads).toBeGreaterThan(readLoad * 0.95); // 95% success rate
+      expect(readsTPS).toBeGreaterThan(1000); // At least 1000 reads per second
+      expect(readLatency).toBeLessThan(10); // Complete within 10 seconds
+    }, TEST_TIMEOUT);
   });
 });
+
+// Performance test utilities
+export const measureLatency = async (operation: () => Promise<any>): Promise<{ result: any, latency: number }> => {
+  const startTime = performance.now();
+  const result = await operation();
+  const endTime = performance.now();
+  return { result, latency: endTime - startTime };
+};
+
+export const generateLoadTestData = (count: number, options = {}) => {
+  const defaults = {
+    amountRange: [5000, 50000], // $50-$500
+    customerPrefix: 'load-customer',
+    providerPrefix: 'load-provider',
+    cardNumber: '4242424242424242'
+  };
+  
+  const config = { ...defaults, ...options };
+  
+  return Array.from({ length: count }, (_, i) => ({
+    customerId: `${config.customerPrefix}-${i}`,
+    providerId: `${config.providerPrefix}-${Math.floor(i / 10)}`,
+    amount: Math.floor(Math.random() * (config.amountRange[1] - config.amountRange[0])) + config.amountRange[0],
+    currency: 'USD',
+    cardNumber: config.cardNumber,
+    expiryMonth: '12',
+    expiryYear: '2025',
+    cvc: '123',
+    metadata: {
+      testRun: 'load-test',
+      index: i
+    }
+  }));
+};
+
+export const analyzeResults = (results: any[]) => {
+  const successful = results.filter(r => r.status === 'fulfilled' && r.value?.data?.success === true);
+  const failed = results.filter(r => r.status === 'rejected' || r.value?.data?.success === false);
+  
+  return {
+    total: results.length,
+    successful: successful.length,
+    failed: failed.length,
+    successRate: (successful.length / results.length) * 100,
+    errorTypes: failed.reduce((acc, f) => {
+      const error = f.status === 'rejected' ? f.reason?.message : f.value?.data?.error;
+      acc[error] = (acc[error] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>)
+  };
+};

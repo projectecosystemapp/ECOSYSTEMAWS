@@ -47,7 +47,9 @@
     "fix:types": "tsc --noEmit --skipLibCheck",
     "migrate:stripe-to-aws": "tsx scripts/migrate-stripe-to-aws.ts",
     "setup:payment-crypto": "tsx scripts/setup-payment-cryptography.ts",
-    "verify:payment-security": "tsx scripts/verify-payment-security.ts"
+    "verify:payment-security": "tsx scripts/verify-payment-security.ts",
+    "optimize:costs": "tsx scripts/optimize-costs.ts",
+    "deploy:production": "tsx scripts/deploy-production.ts"
   },
   "lint-staged": {
     "*.{js,jsx,ts,tsx}": [

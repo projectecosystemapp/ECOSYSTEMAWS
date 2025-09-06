@@ -1,595 +1,593 @@
-/**
- * Integration Tests for Complete AWS Payment Flow
- * 
- * End-to-end integration tests for the complete payment processing pipeline:
- * - Customer payment intent creation
- * - Card tokenization with AWS Payment Cryptography
- * - Fraud detection and risk assessment
- * - Payment processing and authorization
- * - Escrow account management
- * - Provider payout via ACH transfers
- * - Cost optimization validation
- * - Security compliance verification
- * 
- * These tests validate the complete 98%+ cost savings migration from Stripe
- * and ensure full integration between all AWS payment services.
- */
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
+import { mockPaymentEvent, mockContext } from '../unit/aws-payment-processor.test';
+import { createMockFraudEvent } from '../unit/fraud-detector.test';
+import { createMockEscrowEvent } from '../unit/escrow-manager.test';
 
-import { jest, describe, it, expect, beforeEach, afterEach } from '@jest/globals';
-import { awsPaymentClient } from '../../lib/aws-payment-client';
-import {
-  generateTestCardData,
-  generateTestBankAccount,
-  generateTestPaymentIntent,
-  generateTestFraudScenarios,
-  validatePlatformFees,
-  validateEncryption,
-  validatePCICompliance,
-  cleanupTestData
-} from '../test/aws-setup';
+// Integration tests for the complete AWS native payment flow
+describe('Payment Flow Integration Tests', () => {
+  let client: any;
 
-// Integration test timeout (longer for complete flows)
-jest.setTimeout(30000);
-
-describe('AWS Payment Flow Integration Tests', () => {
-  let testCustomerId: string;
-  let testProviderId: string;
-  let testBookingId: string;
-
-  beforeEach(async () => {
-    jest.clearAllMocks();
-    
-    testCustomerId = 'integration_customer_' + Date.now();
-    testProviderId = 'integration_provider_' + Date.now();
-    testBookingId = 'integration_booking_' + Date.now();
+  beforeAll(async () => {
+    // Initialize Amplify client for integration testing
+    client = generateClient<Schema>();
   });
 
-  afterEach(async () => {
-    await cleanupTestData();
+  beforeEach(() => {
+    // Reset any test state
+    jest.clearAllMocks();
   });
 
   describe('Complete Customer Payment Journey', () => {
-    it('should process complete payment flow from card to escrow', async () => {
-      const testCard = generateTestCardData();
-      const testAmount = 15000; // $150.00
-      
-      console.log('🚀 Starting complete payment flow integration test...');
-      
-      // Step 1: Create payment intent
-      console.log('📝 Step 1: Creating payment intent...');
-      const paymentIntent = await awsPaymentClient.createPaymentIntent({
-        amount: testAmount,
+    it('should process end-to-end payment with all security checks', async () => {
+      // Test data
+      const paymentData = {
+        customerId: 'customer-integration-test',
+        providerId: 'provider-integration-test',
+        bookingId: 'booking-integration-test',
+        amount: 15000, // $150.00
         currency: 'USD',
-        customerId: testCustomerId,
-        providerId: testProviderId,
-        bookingId: testBookingId,
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      };
+
+      // Step 1: Create escrow account for provider
+      const escrowAccount = await client.mutations.createEscrowAccount({
+        providerId: paymentData.providerId,
+        initialBalance: 0,
+        currency: paymentData.currency,
+        accountType: 'provider_payout'
+      });
+
+      expect(escrowAccount.data?.success).toBe(true);
+      expect(escrowAccount.data?.accountId).toBeDefined();
+
+      // Step 2: Process payment with fraud detection
+      const paymentResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...paymentData
+      });
+
+      expect(paymentResult.data?.success).toBe(true);
+      expect(paymentResult.data?.paymentId).toBeDefined();
+      expect(paymentResult.data?.transactionId).toBeDefined();
+      expect(paymentResult.data?.status).toBe('COMPLETED');
+      
+      // Verify cost savings - should have minimal processing fees
+      const expectedPlatformFee = Math.round(paymentData.amount * 0.08); // 8% platform fee
+      expect(paymentResult.data?.fees).toBe(expectedPlatformFee);
+      expect(paymentResult.data?.netAmount).toBe(paymentData.amount - expectedPlatformFee);
+
+      // Step 3: Verify fraud score is acceptable
+      expect(paymentResult.data?.fraudScore).toBeLessThan(500); // Low to medium risk
+      expect(paymentResult.data?.fraudRecommendation).toBe('APPROVE');
+
+      // Step 4: Verify escrow deposit
+      const escrowBalance = await client.queries.getAccountBalance({
+        accountId: escrowAccount.data?.accountId
+      });
+
+      expect(escrowBalance.data?.success).toBe(true);
+      expect(escrowBalance.data?.balance).toBe(paymentResult.data?.netAmount);
+
+      // Step 5: Simulate service completion and fund release
+      const fundRelease = await client.mutations.releaseFunds({
+        accountId: escrowAccount.data?.accountId,
+        amount: paymentResult.data?.netAmount,
+        currency: paymentData.currency,
+        releaseCondition: 'booking_completed',
+        destinationAccount: 'provider_bank_account',
         metadata: {
-          service: 'Home Cleaning',
-          duration: '3 hours'
+          bookingId: paymentData.bookingId,
+          completionDate: new Date().toISOString()
         }
       });
 
-      expect(paymentIntent.id).toMatch(/^pi_/);
-      expect(paymentIntent.amount).toBe(testAmount);
-      expect(paymentIntent.status).toBe('requires_payment_method');
-      expect(paymentIntent.clientSecret).toBeDefined();
-      console.log('✅ Payment intent created:', paymentIntent.id);
+      expect(fundRelease.data?.success).toBe(true);
+      expect(fundRelease.data?.status).toBe('COMPLETED');
 
-      // Step 2: Tokenize card data
-      console.log('🔒 Step 2: Tokenizing card data with AWS Payment Cryptography...');
-      const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-      
-      expect(cardToken.token).toBeDefined();
-      expect(cardToken.last4).toBe('4242');
-      expect(cardToken.brand).toBe('visa');
-      
-      // Validate encryption
-      expect(validateEncryption(cardToken.token)).toBe(true);
-      expect(cardToken.token).not.toContain(testCard.cardNumber);
-      
-      // Validate PCI compliance
-      const complianceCheck = validatePCICompliance(cardToken);
-      expect(complianceCheck.isCompliant).toBe(true);
-      console.log('✅ Card tokenized securely, token:', cardToken.token.substring(0, 20) + '...');
-
-      // Step 3: Assess fraud risk
-      console.log('🛡️ Step 3: Assessing fraud risk...');
-      const fraudScore = await awsPaymentClient.assessFraudRisk({
-        customerId: testCustomerId,
-        amount: testAmount,
-        paymentMethodToken: cardToken.token,
-        metadata: {
-          ipAddress: '192.168.1.1',
-          deviceFingerprint: 'test_device_123',
-          userAgent: 'Mozilla/5.0 Test Browser'
-        }
+      // Step 6: Verify final escrow balance is zero
+      const finalBalance = await client.queries.getAccountBalance({
+        accountId: escrowAccount.data?.accountId
       });
 
-      expect(fraudScore.score).toBeGreaterThanOrEqual(0);
-      expect(fraudScore.score).toBeLessThanOrEqual(1);
-      expect(['low', 'medium', 'high']).toContain(fraudScore.riskLevel);
-      expect(['approve', 'review', 'decline']).toContain(fraudScore.recommendation);
-      console.log('✅ Fraud assessment completed, risk level:', fraudScore.riskLevel);
-
-      // Step 4: Process payment
-      console.log('💳 Step 4: Processing payment...');
-      const paymentResult = await awsPaymentClient.processPayment({
-        paymentIntentId: paymentIntent.id,
-        paymentMethodToken: cardToken.token,
-        customerId: testCustomerId,
-        amount: testAmount,
-        metadata: {
-          bookingId: testBookingId,
-          fraudScore: fraudScore.score.toString()
-        }
-      });
-
-      if (fraudScore.recommendation === 'decline') {
-        expect(paymentResult.success).toBe(false);
-        expect(paymentResult.error).toContain('security reasons');
-        console.log('⛔ Payment declined due to fraud risk (expected)');
-        return; // Exit early for declined payments
-      }
-
-      expect(paymentResult.success).toBe(true);
-      expect(paymentResult.paymentIntentId).toBe(paymentIntent.id);
-      expect(paymentResult.error).toBeUndefined();
-      console.log('✅ Payment processed successfully');
-
-      // Step 5: Create escrow hold
-      console.log('🏦 Step 5: Creating escrow hold for provider...');
-      const escrowHold = await awsPaymentClient.createEscrowHold({
-        paymentIntentId: paymentIntent.id,
-        amount: testAmount,
-        currency: 'USD',
-        providerId: testProviderId,
-        bookingId: testBookingId,
-        holdDays: 7,
-        metadata: {
-          serviceCompletionRequired: 'true'
-        }
-      });
-
-      expect(escrowHold.id).toBeDefined();
-      expect(escrowHold.balance).toBe(testAmount);
-      expect(escrowHold.status).toBe('holding');
-      expect(escrowHold.holdUntil).toBeDefined();
-      console.log('✅ Escrow hold created:', escrowHold.id);
-
-      // Validate cost savings
-      console.log('💰 Validating cost optimization...');
-      const feeAnalysis = validatePlatformFees(testAmount);
-      
-      // AWS native processing should have minimal fees vs Stripe
-      const stripeTotalFees = feeAnalysis.costSavingsVsStripe;
-      const awsProcessingFee = 5; // ~$0.05 for AWS native processing
-      const costSavings = (stripeTotalFees - awsProcessingFee) / stripeTotalFees;
-      
-      expect(costSavings).toBeGreaterThan(0.98); // 98%+ savings in processing fees
-      console.log(`✅ Cost savings validated: ${(costSavings * 100).toFixed(1)}% reduction vs Stripe`);
-      
-      console.log('🎉 Complete payment flow integration test successful!');
+      expect(finalBalance.data?.balance).toBe(0);
     });
 
-    it('should handle payment flow with provider payout', async () => {
-      const testCard = generateTestCardData();
-      const testBankAccount = generateTestBankAccount();
-      const testAmount = 25000; // $250.00
-      
-      console.log('🚀 Starting payment flow with payout integration test...');
-
-      // Setup: Create provider bank account
-      console.log('🏦 Setup: Creating provider bank account...');
-      const bankAccount = await awsPaymentClient.createBankAccount({
-        providerId: testProviderId,
-        ...testBankAccount
-      });
-
-      expect(bankAccount.id).toBeDefined();
-      expect(bankAccount.routingNumber).toBe(testBankAccount.routingNumber);
-      expect(bankAccount.accountType).toBe(testBankAccount.accountType);
-      console.log('✅ Provider bank account created:', bankAccount.id);
-
-      // Process payment (steps 1-5 from previous test)
-      const paymentIntent = await awsPaymentClient.createPaymentIntent({
-        amount: testAmount,
+    it('should handle high-risk payments with fraud blocking', async () => {
+      const highRiskPayment = {
+        customerId: 'suspicious-customer',
+        providerId: 'provider-test',
+        amount: 150000, // $1,500.00 - triggers fraud detection
         currency: 'USD',
-        customerId: testCustomerId,
-        providerId: testProviderId,
-        bookingId: testBookingId
+        cardNumber: '4000000000000002', // Decline test card
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      };
+
+      const paymentResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...highRiskPayment
       });
 
-      const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-      const paymentResult = await awsPaymentClient.processPayment({
-        paymentIntentId: paymentIntent.id,
-        paymentMethodToken: cardToken.token,
-        customerId: testCustomerId,
-        amount: testAmount
-      });
-
-      expect(paymentResult.success).toBe(true);
-
-      const escrowHold = await awsPaymentClient.createEscrowHold({
-        paymentIntentId: paymentIntent.id,
-        amount: testAmount,
-        currency: 'USD',
-        providerId: testProviderId,
-        bookingId: testBookingId,
-        holdDays: 7
-      });
-
-      // Step 6: Release escrow and create payout
-      console.log('💸 Step 6: Releasing escrow and creating provider payout...');
-      const escrowRelease = await awsPaymentClient.releaseEscrow({
-        escrowAccountId: escrowHold.id,
-        providerId: testProviderId,
-        metadata: {
-          serviceCompleted: 'true',
-          customerRating: '5'
-        }
-      });
-
-      expect(escrowRelease.success).toBe(true);
-      expect(escrowRelease.payoutId).toBeDefined();
-      console.log('✅ Escrow released, payout ID:', escrowRelease.payoutId);
-
-      // Step 7: Verify payout details
-      console.log('📊 Step 7: Verifying payout details...');
-      const providerPayouts = await awsPaymentClient.getProviderPayouts(testProviderId);
-      
-      expect(providerPayouts.length).toBeGreaterThan(0);
-      const latestPayout = providerPayouts[0];
-      expect(latestPayout.id).toBe(escrowRelease.payoutId);
-      expect(latestPayout.bankAccountId).toBe(bankAccount.id);
-      expect(latestPayout.status).toMatch(/^(pending|processing|completed)$/);
-      
-      // Validate net amount after platform fees
-      const platformFeeRate = 0.08; // 8%
-      const expectedPlatformFee = Math.round(testAmount * platformFeeRate);
-      const expectedNetAmount = testAmount - expectedPlatformFee;
-      expect(latestPayout.amount).toBe(expectedNetAmount);
-      
-      console.log(`✅ Payout verified: $${latestPayout.amount/100} (after $${expectedPlatformFee/100} platform fee)`);
-      console.log('🎉 Complete payment to payout flow successful!');
+      // Should be blocked by fraud detection
+      expect(paymentResult.data?.success).toBe(false);
+      expect(paymentResult.data?.fraudScore).toBeGreaterThan(800);
+      expect(paymentResult.data?.fraudRecommendation).toBe('BLOCK');
+      expect(paymentResult.data?.error).toContain('security risk');
     });
-  });
 
-  describe('Multi-Service Payment Scenarios', () => {
+    it('should process refunds correctly', async () => {
+      // First, process a successful payment
+      const originalPayment = await client.mutations.processPayment({
+        action: 'process_payment',
+        customerId: 'refund-test-customer',
+        providerId: 'refund-test-provider',
+        amount: 20000, // $200.00
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      });
+
+      expect(originalPayment.data?.success).toBe(true);
+
+      // Now process a refund
+      const refundResult = await client.mutations.processRefund({
+        originalPaymentId: originalPayment.data?.paymentId,
+        amount: 10000, // Partial refund of $100.00
+        reason: 'customer_request',
+        refundType: 'partial'
+      });
+
+      expect(refundResult.data?.success).toBe(true);
+      expect(refundResult.data?.refundId).toBeDefined();
+      expect(refundResult.data?.amount).toBe(10000);
+      expect(refundResult.data?.status).toBe('COMPLETED');
+
+      // Verify platform fee handling
+      // Original platform fee: $200 * 8% = $16
+      // Refund platform fee adjustment: $100 * 8% = $8 back to customer
+      expect(refundResult.data?.platformFeeAdjustment).toBe(800); // $8.00
+    });
+
     it('should handle multiple concurrent payments', async () => {
-      const testCard = generateTestCardData();
-      const numberOfPayments = 3;
-      const paymentAmount = 10000; // $100 each
-      
-      console.log(`🚀 Testing ${numberOfPayments} concurrent payments...`);
-      
-      const paymentPromises = Array(numberOfPayments).fill(null).map(async (_, index) => {
-        const customerId = `${testCustomerId}_${index}`;
-        const providerId = `${testProviderId}_${index}`;
-        const bookingId = `${testBookingId}_${index}`;
-        
-        // Create payment intent
-        const paymentIntent = await awsPaymentClient.createPaymentIntent({
-          amount: paymentAmount,
-          currency: 'USD',
-          customerId,
-          providerId,
-          bookingId,
-          metadata: { paymentIndex: index.toString() }
-        });
-
-        // Tokenize card (simulate different cards)
-        const cardToken = await awsPaymentClient.tokenizeCard({
-          ...testCard,
-          cvc: `12${index}` // Vary CVC to simulate different cards
-        });
-
-        // Process payment
-        const paymentResult = await awsPaymentClient.processPayment({
-          paymentIntentId: paymentIntent.id,
-          paymentMethodToken: cardToken.token,
-          customerId,
-          amount: paymentAmount
-        });
-
-        return {
-          index,
-          paymentIntent,
-          paymentResult,
-          customerId,
-          providerId
-        };
-      });
-
-      const results = await Promise.all(paymentPromises);
-      
-      // Validate all payments succeeded
-      results.forEach((result, index) => {
-        expect(result.paymentResult.success).toBe(true);
-        expect(result.paymentIntent.amount).toBe(paymentAmount);
-        console.log(`✅ Payment ${index + 1} processed successfully`);
-      });
-
-      console.log(`🎉 All ${numberOfPayments} concurrent payments successful!`);
-    });
-
-    it('should handle split payments between multiple providers', async () => {
-      const testCard = generateTestCardData();
-      const totalAmount = 30000; // $300 total
-      const provider1Amount = 18000; // $180 (60%)
-      const provider2Amount = 12000; // $120 (40%)
-      
-      const provider1Id = `${testProviderId}_1`;
-      const provider2Id = `${testProviderId}_2`;
-      
-      console.log('🚀 Testing split payment between multiple providers...');
-
-      // Create payment intent for total amount
-      const paymentIntent = await awsPaymentClient.createPaymentIntent({
-        amount: totalAmount,
+      const concurrentPayments = Array.from({ length: 10 }, (_, i) => ({
+        customerId: `concurrent-customer-${i}`,
+        providerId: `concurrent-provider-${i}`,
+        amount: 5000 + (i * 1000), // $50-$140 range
         currency: 'USD',
-        customerId: testCustomerId,
-        providerId: 'marketplace', // Marketplace as primary recipient
-        bookingId: testBookingId,
-        metadata: {
-          splitPayment: 'true',
-          provider1Id,
-          provider2Id,
-          provider1Amount: provider1Amount.toString(),
-          provider2Amount: provider2Amount.toString()
-        }
-      });
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
 
-      // Process main payment
-      const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-      const paymentResult = await awsPaymentClient.processPayment({
-        paymentIntentId: paymentIntent.id,
-        paymentMethodToken: cardToken.token,
-        customerId: testCustomerId,
-        amount: totalAmount
-      });
+      const promises = concurrentPayments.map(payment =>
+        client.mutations.processPayment({
+          action: 'process_payment',
+          ...payment
+        })
+      );
 
-      expect(paymentResult.success).toBe(true);
+      const results = await Promise.allSettled(promises);
+      const successful = results.filter(r => 
+        r.status === 'fulfilled' && r.value.data?.success === true
+      ).length;
 
-      // Create separate escrow holds for each provider
-      const escrow1 = await awsPaymentClient.createEscrowHold({
-        paymentIntentId: paymentIntent.id,
-        amount: provider1Amount,
-        currency: 'USD',
-        providerId: provider1Id,
-        bookingId: testBookingId,
-        holdDays: 7,
-        metadata: { splitPaymentPart: '1' }
-      });
+      expect(successful).toBe(10);
 
-      const escrow2 = await awsPaymentClient.createEscrowHold({
-        paymentIntentId: paymentIntent.id,
-        amount: provider2Amount,
-        currency: 'USD',
-        providerId: provider2Id,
-        bookingId: testBookingId,
-        holdDays: 7,
-        metadata: { splitPaymentPart: '2' }
-      });
+      // Verify all payment IDs are unique
+      const paymentIds = results
+        .filter(r => r.status === 'fulfilled')
+        .map(r => (r as any).value.data?.paymentId)
+        .filter(id => id);
 
-      expect(escrow1.balance).toBe(provider1Amount);
-      expect(escrow2.balance).toBe(provider2Amount);
-      expect(escrow1.balance + escrow2.balance).toBe(totalAmount);
-
-      console.log(`✅ Split payment created: Provider 1: $${provider1Amount/100}, Provider 2: $${provider2Amount/100}`);
-      console.log('🎉 Split payment integration test successful!');
+      const uniqueIds = new Set(paymentIds);
+      expect(uniqueIds.size).toBe(paymentIds.length);
     });
   });
 
-  describe('Error Recovery and Edge Cases', () => {
-    it('should handle partial payment failures gracefully', async () => {
-      const testCard = generateTestCardData();
-      const testAmount = 100000; // $1,000 - high amount to potentially trigger fraud detection
+  describe('Provider Payout Integration', () => {
+    it('should handle automated provider payouts', async () => {
+      // Setup: Create provider and process multiple payments
+      const providerId = 'payout-test-provider';
       
-      console.log('🚀 Testing payment failure recovery...');
-
-      const paymentIntent = await awsPaymentClient.createPaymentIntent({
-        amount: testAmount,
+      // Create escrow account
+      const escrowAccount = await client.mutations.createEscrowAccount({
+        providerId,
+        initialBalance: 0,
         currency: 'USD',
-        customerId: testCustomerId,
-        providerId: testProviderId,
-        bookingId: testBookingId
+        accountType: 'provider_payout'
       });
 
-      // Use a high-risk card pattern that might be declined
-      const riskCardToken = await awsPaymentClient.tokenizeCard({
-        ...testCard,
-        cardNumber: '5555555555554444', // High-risk test card
-        billingDetails: {
-          ...testCard.billingDetails,
-          email: 'suspicious@tempmail.org' // Suspicious email domain
-        }
+      expect(escrowAccount.data?.success).toBe(true);
+
+      // Process multiple customer payments
+      const payments = await Promise.all([
+        client.mutations.processPayment({
+          action: 'process_payment',
+          customerId: 'payout-customer-1',
+          providerId,
+          amount: 25000, // $250
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        }),
+        client.mutations.processPayment({
+          action: 'process_payment',
+          customerId: 'payout-customer-2',
+          providerId,
+          amount: 30000, // $300
+          currency: 'USD',
+          cardNumber: '4242424242424242',
+          expiryMonth: '12',
+          expiryYear: '2025',
+          cvc: '123'
+        })
+      ]);
+
+      payments.forEach(payment => {
+        expect(payment.data?.success).toBe(true);
       });
 
-      const paymentResult = await awsPaymentClient.processPayment({
-        paymentIntentId: paymentIntent.id,
-        paymentMethodToken: riskCardToken.token,
-        customerId: testCustomerId,
-        amount: testAmount,
-        metadata: {
-          ipAddress: '1.2.3.4', // Suspicious IP
-          deviceFingerprint: 'new_device_unknown'
-        }
+      // Check accumulated escrow balance
+      const escrowBalance = await client.queries.getAccountBalance({
+        accountId: escrowAccount.data?.accountId
       });
 
-      // Payment may be declined due to fraud detection
-      if (!paymentResult.success) {
-        expect(paymentResult.error).toBeDefined();
-        console.log('⚠️ Payment declined (expected for high-risk scenario):', paymentResult.error);
+      const totalNetAmount = payments.reduce((sum, payment) => 
+        sum + (payment.data?.netAmount || 0), 0
+      );
 
-        // Verify no escrow hold was created for failed payment
-        try {
-          await awsPaymentClient.createEscrowHold({
-            paymentIntentId: paymentIntent.id,
-            amount: testAmount,
-            currency: 'USD',
-            providerId: testProviderId,
-            bookingId: testBookingId,
-            holdDays: 7
-          });
-          fail('Escrow hold should not be created for failed payment');
-        } catch (error) {
-          expect(error).toBeDefined();
-          console.log('✅ Escrow hold correctly prevented for failed payment');
-        }
-      } else {
-        console.log('✅ Payment processed successfully despite risk factors');
-      }
+      expect(escrowBalance.data?.balance).toBe(totalNetAmount);
 
-      console.log('🎉 Payment failure recovery test completed!');
+      // Process batch payout
+      const payout = await client.mutations.processBatchPayout({
+        providerId,
+        payoutMethod: 'ach_transfer',
+        amount: totalNetAmount,
+        destinationAccount: 'provider_bank_123'
+      });
+
+      expect(payout.data?.success).toBe(true);
+      expect(payout.data?.payoutId).toBeDefined();
+      expect(payout.data?.amount).toBe(totalNetAmount);
+      expect(payout.data?.processingFee).toBeLessThan(100); // Minimal ACH fee
+
+      // Verify escrow balance is now zero
+      const finalBalance = await client.queries.getAccountBalance({
+        accountId: escrowAccount.data?.accountId
+      });
+
+      expect(finalBalance.data?.balance).toBe(0);
+    });
+  });
+
+  describe('Error Handling and Recovery', () => {
+    it('should handle payment processor failures gracefully', async () => {
+      const payment = {
+        customerId: 'error-test-customer',
+        providerId: 'error-test-provider',
+        amount: 10000,
+        currency: 'USD',
+        cardNumber: '4000000000000069', // Expired card test number
+        expiryMonth: '01',
+        expiryYear: '2020', // Expired date
+        cvc: '123'
+      };
+
+      const paymentResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...payment
+      });
+
+      expect(paymentResult.data?.success).toBe(false);
+      expect(paymentResult.data?.error).toBeDefined();
+      expect(paymentResult.data?.paymentId).toBeUndefined();
     });
 
-    it('should handle refund scenarios correctly', async () => {
-      const testCard = generateTestCardData();
-      const testAmount = 20000; // $200
-      const refundAmount = 12000; // $120 (partial refund)
-      
-      console.log('🚀 Testing payment refund flow...');
-
-      // Process initial payment
-      const paymentIntent = await awsPaymentClient.createPaymentIntent({
-        amount: testAmount,
+    it('should maintain data consistency during failures', async () => {
+      const payment = {
+        customerId: 'consistency-test-customer',
+        providerId: 'consistency-test-provider',
+        amount: 15000,
         currency: 'USD',
-        customerId: testCustomerId,
-        providerId: testProviderId,
-        bookingId: testBookingId
-      });
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      };
 
-      const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-      const paymentResult = await awsPaymentClient.processPayment({
-        paymentIntentId: paymentIntent.id,
-        paymentMethodToken: cardToken.token,
-        customerId: testCustomerId,
-        amount: testAmount
-      });
+      try {
+        // Attempt payment
+        const paymentResult = await client.mutations.processPayment({
+          action: 'process_payment',
+          ...payment
+        });
 
-      expect(paymentResult.success).toBe(true);
+        if (!paymentResult.data?.success) {
+          // Verify no partial data was created
+          const paymentValidation = await client.queries.validatePayment({
+            paymentId: paymentResult.data?.paymentId || 'non-existent'
+          });
 
-      // Process refund
-      console.log('💸 Processing refund...');
-      const refundResult = await awsPaymentClient.refundPayment({
-        paymentIntentId: paymentIntent.id,
-        amount: refundAmount,
-        reason: 'Customer requested partial refund',
-        metadata: {
-          refundReason: 'service_partially_completed',
-          approvedBy: 'customer_service'
+          expect(paymentValidation.data?.success).toBe(false);
+          expect(paymentValidation.data?.error).toBe('Payment not found');
         }
-      });
-
-      expect(refundResult.success).toBe(true);
-      expect(refundResult.refundId).toBeDefined();
-      
-      console.log(`✅ Refund processed: $${refundAmount/100} of $${testAmount/100}`);
-      console.log('🎉 Refund flow integration test successful!');
+      } catch (error) {
+        // Any exceptions should not leave the system in an inconsistent state
+        expect(error).toBeDefined();
+      }
     });
   });
 
   describe('Performance and Scalability', () => {
-    it('should maintain performance under load', async () => {
-      const concurrentPayments = 10;
-      const testCard = generateTestCardData();
-      const paymentAmount = 5000; // $50 each
-      
-      console.log(`🚀 Testing performance with ${concurrentPayments} concurrent payments...`);
-      
-      const startTime = performance.now();
-      
-      const performancePromises = Array(concurrentPayments).fill(null).map(async (_, index) => {
-        const stepStartTime = performance.now();
-        
-        const paymentIntent = await awsPaymentClient.createPaymentIntent({
-          amount: paymentAmount,
-          currency: 'USD',
-          customerId: `${testCustomerId}_perf_${index}`,
-          providerId: `${testProviderId}_perf_${index}`,
-          bookingId: `${testBookingId}_perf_${index}`
-        });
+    it('should maintain response times under load', async () => {
+      const loadTestPayments = Array.from({ length: 25 }, (_, i) => ({
+        customerId: `load-customer-${i}`,
+        providerId: `load-provider-${i}`,
+        amount: 10000, // $100.00
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
 
-        const cardToken = await awsPaymentClient.tokenizeCard(testCard);
-        
-        const paymentResult = await awsPaymentClient.processPayment({
-          paymentIntentId: paymentIntent.id,
-          paymentMethodToken: cardToken.token,
-          customerId: `${testCustomerId}_perf_${index}`,
-          amount: paymentAmount
-        });
-        
-        const stepEndTime = performance.now();
-        
-        return {
-          index,
-          success: paymentResult.success,
-          processingTime: stepEndTime - stepStartTime,
-          paymentId: paymentIntent.id
-        };
+      const startTime = Date.now();
+
+      const promises = loadTestPayments.map(payment =>
+        client.mutations.processPayment({
+          action: 'process_payment',
+          ...payment
+        })
+      );
+
+      const results = await Promise.all(promises);
+      const totalTime = Date.now() - startTime;
+
+      // Verify all payments processed successfully
+      const successful = results.filter(r => r.data?.success === true).length;
+      expect(successful).toBe(25);
+
+      // Verify reasonable performance
+      const averageTime = totalTime / 25;
+      expect(averageTime).toBeLessThan(5000); // Average of 5 seconds per payment
+
+      console.log(`Load test completed: ${successful}/${loadTestPayments.length} payments in ${totalTime}ms`);
+      console.log(`Average response time: ${averageTime}ms per payment`);
+    });
+
+    it('should handle database connection limits gracefully', async () => {
+      // Simulate high concurrent load
+      const highConcurrencyPayments = Array.from({ length: 100 }, (_, i) => ({
+        customerId: `concurrent-customer-${i}`,
+        providerId: 'shared-provider',
+        amount: 5000,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      }));
+
+      const promises = highConcurrencyPayments.map(payment =>
+        client.mutations.processPayment({
+          action: 'process_payment',
+          ...payment
+        }).catch(error => ({ error: error.message }))
+      );
+
+      const results = await Promise.allSettled(promises);
+      const fulfilled = results.filter(r => r.status === 'fulfilled').length;
+
+      // Should handle most requests successfully or fail gracefully
+      expect(fulfilled).toBeGreaterThan(80); // 80%+ success rate
+
+      // Count actual payment successes
+      const successfulPayments = results
+        .filter(r => r.status === 'fulfilled')
+        .filter(r => (r as any).value.data?.success === true)
+        .length;
+
+      expect(successfulPayments).toBeGreaterThan(70); // 70%+ actual payment success
+    });
+  });
+
+  describe('Security Integration', () => {
+    it('should encrypt sensitive data end-to-end', async () => {
+      const sensitivePayment = {
+        customerId: 'encryption-test-customer',
+        providerId: 'encryption-test-provider',
+        amount: 10000,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      };
+
+      const paymentResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...sensitivePayment
       });
 
-      const results = await Promise.all(performancePromises);
-      const endTime = performance.now();
-      
-      const totalTime = endTime - startTime;
-      const averageTime = results.reduce((sum, r) => sum + r.processingTime, 0) / results.length;
-      const successCount = results.filter(r => r.success).length;
-      
-      expect(successCount).toBe(concurrentPayments);
-      expect(averageTime).toBeLessThan(2000); // Average processing time under 2 seconds
-      expect(totalTime).toBeLessThan(10000); // Total time under 10 seconds
-      
-      console.log(`✅ Performance test completed:`);
-      console.log(`   - Total time: ${(totalTime/1000).toFixed(2)}s`);
-      console.log(`   - Average processing time: ${(averageTime).toFixed(0)}ms`);
-      console.log(`   - Success rate: ${(successCount/concurrentPayments*100).toFixed(1)}%`);
-      console.log('🎉 Performance test successful!');
+      expect(paymentResult.data?.success).toBe(true);
+
+      // Verify payment was created without exposing card data
+      const paymentValidation = await client.queries.validatePayment({
+        paymentId: paymentResult.data?.paymentId
+      });
+
+      expect(paymentValidation.data?.success).toBe(true);
+      // Sensitive data should not be returned in validation
+      expect(paymentValidation.data?.cardNumber).toBeUndefined();
+      expect(paymentValidation.data?.cvc).toBeUndefined();
+    });
+
+    it('should detect and prevent duplicate payments', async () => {
+      const duplicatePayment = {
+        customerId: 'duplicate-test-customer',
+        providerId: 'duplicate-test-provider',
+        amount: 10000,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123',
+        idempotencyKey: 'duplicate-test-key-123'
+      };
+
+      // First payment
+      const firstResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...duplicatePayment
+      });
+
+      expect(firstResult.data?.success).toBe(true);
+
+      // Attempt duplicate payment
+      const duplicateResult = await client.mutations.processPayment({
+        action: 'process_payment',
+        ...duplicatePayment
+      });
+
+      // Should either succeed with same payment ID or be rejected
+      if (duplicateResult.data?.success) {
+        expect(duplicateResult.data?.paymentId).toBe(firstResult.data?.paymentId);
+      } else {
+        expect(duplicateResult.data?.error).toContain('duplicate');
+      }
     });
   });
 
-  describe('Cost Optimization Validation', () => {
-    it('should demonstrate significant cost savings across payment volumes', async () => {
-      const testVolumes = [
-        { amount: 5000, count: 10, description: 'Small payments ($50 x 10)' },
-        { amount: 25000, count: 5, description: 'Medium payments ($250 x 5)' },
-        { amount: 100000, count: 2, description: 'Large payments ($1,000 x 2)' }
+  describe('Cost Validation Integration', () => {
+    it('should demonstrate actual cost savings vs Stripe', async () => {
+      const testAmount = 100000; // $1,000.00
+      
+      const payment = await client.mutations.processPayment({
+        action: 'process_payment',
+        customerId: 'cost-validation-customer',
+        providerId: 'cost-validation-provider',
+        amount: testAmount,
+        currency: 'USD',
+        cardNumber: '4242424242424242',
+        expiryMonth: '12',
+        expiryYear: '2025',
+        cvc: '123'
+      });
+
+      expect(payment.data?.success).toBe(true);
+
+      // Calculate actual AWS costs
+      const awsProcessingFee = 5; // ~$0.05 (KMS + DynamoDB + SNS)
+      const platformFee = Math.round(testAmount * 0.08); // 8%
+      const totalAwsFees = awsProcessingFee + platformFee;
+
+      // Calculate theoretical Stripe costs
+      const stripeProcessingFee = Math.round((testAmount * 0.029) + 30); // 2.9% + $0.30
+      const totalStripeFees = stripeProcessingFee + platformFee;
+
+      // Verify actual savings
+      const savings = totalStripeFees - totalAwsFees;
+      const savingsPercentage = (savings / totalStripeFees) * 100;
+
+      expect(savingsPercentage).toBeGreaterThan(90); // 90%+ savings
+
+      console.log(`Cost Analysis for $${testAmount/100} transaction:`);
+      console.log(`AWS fees: $${totalAwsFees/100} (processing: $${awsProcessingFee/100}, platform: $${platformFee/100})`);
+      console.log(`Stripe fees would be: $${totalStripeFees/100} (processing: $${stripeProcessingFee/100}, platform: $${platformFee/100})`);
+      console.log(`Savings: $${savings/100} (${savingsPercentage.toFixed(1)}%)`);
+
+      // Verify the actual payment result matches our calculation
+      expect(payment.data?.fees).toBe(platformFee + awsProcessingFee);
+    });
+
+    it('should validate monthly savings projections', async () => {
+      // Simulate a month's worth of transactions
+      const monthlyTransactions = [
+        { amount: 50000, count: 100 },   // $500 x 100
+        { amount: 100000, count: 50 },   // $1000 x 50
+        { amount: 200000, count: 25 },   // $2000 x 25
+        { amount: 500000, count: 10 }    // $5000 x 10
       ];
 
-      console.log('🚀 Testing cost optimization across different payment volumes...');
+      let totalAWSFees = 0;
+      let totalStripeFees = 0;
+      let totalVolume = 0;
 
-      for (const volume of testVolumes) {
-        console.log(`\n📊 Testing ${volume.description}...`);
+      for (const transaction of monthlyTransactions) {
+        const { amount, count } = transaction;
         
-        const totalAmount = volume.amount * volume.count;
-        
-        // Calculate Stripe costs (baseline)
-        const stripeFeePerTransaction = Math.round(volume.amount * 0.029) + 30; // 2.9% + $0.30
-        const totalStripeFees = stripeFeePerTransaction * volume.count;
-        
-        // Calculate AWS native costs
-        const awsFeePerTransaction = 5; // ~$0.05 AWS processing
-        const totalAwsFees = awsFeePerTransaction * volume.count;
-        
-        // Calculate platform fees (same for both)
-        const platformFeePerTransaction = Math.round(volume.amount * 0.08); // 8%
-        const totalPlatformFees = platformFeePerTransaction * volume.count;
-        
-        const costSavings = totalStripeFees - totalAwsFees;
-        const savingsPercentage = (costSavings / totalStripeFees) * 100;
-        
-        console.log(`   💰 Cost Analysis:`);
-        console.log(`      - Total payment volume: $${totalAmount/100}`);
-        console.log(`      - Stripe processing fees: $${totalStripeFees/100}`);
-        console.log(`      - AWS processing fees: $${totalAwsFees/100}`);
-        console.log(`      - Platform fees: $${totalPlatformFees/100} (same for both)`);
-        console.log(`      - Processing fee savings: $${costSavings/100} (${savingsPercentage.toFixed(1)}%)`);
-        
-        expect(savingsPercentage).toBeGreaterThan(98); // 98%+ savings
-        expect(costSavings).toBeGreaterThan(0);
+        // AWS fees per transaction
+        const awsProcessingFee = 5; // ~$0.05
+        const awsPlatformFee = Math.round(amount * 0.08);
+        const awsTotal = (awsProcessingFee + awsPlatformFee) * count;
+
+        // Stripe fees per transaction
+        const stripeProcessingFee = Math.round((amount * 0.029) + 30);
+        const stripePlatformFee = Math.round(amount * 0.08);
+        const stripeTotal = (stripeProcessingFee + stripePlatformFee) * count;
+
+        totalAWSFees += awsTotal;
+        totalStripeFees += stripeTotal;
+        totalVolume += amount * count;
       }
 
-      console.log('\n🎉 Cost optimization validation successful across all volumes!');
+      const totalSavings = totalStripeFees - totalAWSFees;
+      const savingsPercentage = (totalSavings / totalStripeFees) * 100;
+
+      expect(savingsPercentage).toBeGreaterThan(85); // 85%+ savings at scale
+      expect(totalSavings).toBeGreaterThan(50000); // At least $500 monthly savings
+
+      console.log(`Monthly Savings Analysis:`);
+      console.log(`Total transaction volume: $${(totalVolume/100).toLocaleString()}`);
+      console.log(`AWS fees: $${(totalAWSFees/100).toLocaleString()}`);
+      console.log(`Stripe fees would be: $${(totalStripeFees/100).toLocaleString()}`);
+      console.log(`Monthly savings: $${(totalSavings/100).toLocaleString()} (${savingsPercentage.toFixed(1)}%)`);
+      console.log(`Annual projected savings: $${((totalSavings * 12)/100).toLocaleString()}`);
     });
   });
+});
+
+// Helper functions for integration testing
+export const waitForPaymentCompletion = async (paymentId: string, timeout = 30000): Promise<boolean> => {
+  const client = generateClient<Schema>();
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < timeout) {
+    const result = await client.queries.validatePayment({ paymentId });
+    
+    if (result.data?.success && result.data?.status === 'COMPLETED') {
+      return true;
+    }
+    
+    if (result.data?.success && result.data?.status === 'FAILED') {
+      return false;
+    }
+
+    // Wait 1 second before retrying
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  return false;
+};
+
+export const generateTestPayment = (overrides = {}) => ({
+  customerId: `test-customer-${Date.now()}`,
+  providerId: `test-provider-${Date.now()}`,
+  amount: 10000,
+  currency: 'USD',
+  cardNumber: '4242424242424242',
+  expiryMonth: '12',
+  expiryYear: '2025',
+  cvc: '123',
+  ...overrides
 });

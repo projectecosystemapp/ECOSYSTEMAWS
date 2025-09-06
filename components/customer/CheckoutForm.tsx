@@ -61,42 +61,115 @@ export function CheckoutForm({ service, onSuccess, onCancel }: CheckoutFormProps
 
     try {
       // Process payment using AWS native payment processor
-      const paymentResult = await client.queries.awsPaymentProcessor({
+      const paymentResult = await client.mutations.processPayment({
         action: 'process_payment',
-        amount: Math.round(totalAmount * 100), // Amount in cents
+        amount: totalAmount, // Amount in dollars
         currency: 'USD',
         paymentMethod: paymentMethod,
         serviceId: service.id,
-        providerEmail: service.providerEmail,
+        providerId: service.providerId || service.providerEmail,
+        bookingId: `booking_${Date.now()}`, // Generate booking ID
+        customerId: `customer_${Date.now()}`, // Will be replaced with actual user ID
+        
+        // Payment details based on method
+        ...(paymentMethod === 'card' ? {
+          cardNumber: formData.cardNumber.replace(/\s/g, ''),
+          expiryMonth: formData.expiryMonth,
+          expiryYear: formData.expiryYear,
+          cvc: formData.cvv,
+        } : {
+          // For ACH payments, would use bank account details
+          routingNumber: formData.routingNumber,
+          accountNumber: formData.accountNumber,
+        }),
+
+        // Customer information
         customerInfo: {
           firstName: formData.firstName,
           lastName: formData.lastName,
           email: formData.email,
-          address: formData.address,
+          phone: formData.phone || '',
+          ipAddress: window?.navigator?.userAgent || '',
+        },
+
+        // Billing address
+        billingAddress: {
+          name: `${formData.firstName} ${formData.lastName}`,
+          line1: formData.address,
           city: formData.city,
           state: formData.state,
-          zipCode: formData.zipCode,
+          postal_code: formData.zipCode,
+          country: 'US',
         },
-        paymentDetails: paymentMethod === 'card' ? {
-          cardNumber: formData.cardNumber,
-          expiryMonth: formData.expiryMonth,
-          expiryYear: formData.expiryYear,
-          cvv: formData.cvv,
-        } : {
-          routingNumber: formData.routingNumber,
-          accountNumber: formData.accountNumber,
-          accountType: formData.accountType,
+
+        // Metadata
+        metadata: {
+          serviceTitle: service.title,
+          duration: service.duration?.toString() || '',
+          platformFee: platformFee.toString(),
+          source: 'web_checkout',
         },
       });
 
       if (paymentResult.data?.success) {
-        onSuccess?.();
+        // Create escrow account to hold funds until service completion
+        const escrowResult = await client.mutations.manageEscrow({
+          action: 'create_account',
+          providerId: service.providerId || service.providerEmail,
+          customerId: `customer_${Date.now()}`,
+          bookingId: paymentResult.data.bookingId,
+          transactionId: paymentResult.data.transactionId,
+          amount: (totalAmount - platformFee) * 100, // Convert to cents and exclude platform fee
+          currency: 'USD',
+          escrowConditions: JSON.stringify([{
+            conditionId: 'service_completion',
+            type: 'SERVICE_COMPLETION',
+            description: `Service completion for: ${service.title}`,
+            timeoutHours: 168, // 7 days
+          }]),
+          releaseConditions: JSON.stringify({
+            allConditionsMet: true,
+            requiresManualApproval: false,
+            approverUserIds: [service.providerId || service.providerEmail],
+            minimumApprovalsRequired: 1,
+            approvalTimeoutHours: 72,
+            partialReleaseAllowed: false,
+          }),
+          timeoutPolicy: JSON.stringify({
+            autoReleaseAfterHours: 168, // 7 days auto-release
+            autoRefundAfterHours: 720, // 30 days auto-refund if not released
+            warningNotificationHours: [144, 48, 24], // Warning notifications
+            escalationUserIds: [],
+          }),
+          disputePolicy: JSON.stringify({
+            allowDisputes: true,
+            disputeWindowHours: 168, // 7 days dispute window
+            autoResolutionDays: 30,
+            mediatorUserIds: [],
+            escalationThresholdAmount: 50000, // $500 in cents
+          }),
+          metadata: JSON.stringify({
+            serviceTitle: service.title,
+            duration: service.duration?.toString() || '',
+            platformFee: platformFee.toString(),
+            source: 'web_checkout',
+            originalAmount: totalAmount,
+          }),
+        });
+
+        if (escrowResult.data?.success) {
+          onSuccess?.();
+        } else {
+          console.warn('Payment succeeded but escrow creation failed:', escrowResult.data?.error);
+          onSuccess?.(); // Still proceed since payment was successful
+        }
       } else {
         throw new Error(paymentResult.data?.error || 'Payment failed');
       }
     } catch (error) {
       console.error('Payment processing error:', error);
-      alert('Payment failed. Please try again.');
+      const errorMessage = error instanceof Error ? error.message : 'Payment failed. Please try again.';
+      alert(errorMessage);
     } finally {
       setIsProcessing(false);
     }

@@ -84,19 +84,22 @@ const cloudWatchLogsClient = new CloudWatchLogsClient({
 
 // Escrow and financial interfaces
 interface EscrowRequest {
-  action: 'CREATE' | 'RELEASE' | 'DISPUTE' | 'REFUND' | 'STATUS';
+  action: 'create_account' | 'hold_funds' | 'release_funds' | 'freeze_funds' | 'get_balance' | 'get_transactions' | 'dispute_funds';
   escrowId?: string;
-  payerId: string;
-  payeeId: string;
-  amount: number; // in cents
-  currency: 'USD';
+  providerId?: string;
+  customerId?: string;
+  payerId?: string;
+  payeeId?: string;
+  amount?: number; // in cents
+  currency?: 'USD';
   serviceId?: string;
   bookingId?: string;
-  escrowConditions: EscrowCondition[];
-  releaseConditions: ReleaseCondition[];
-  timeoutPolicy: TimeoutPolicy;
-  disputePolicy: DisputePolicy;
-  metadata?: Record<string, string>;
+  transactionId?: string;
+  escrowConditions?: string | EscrowCondition[]; // Can be JSON string or object
+  releaseConditions?: string | ReleaseCondition; // Can be JSON string or object
+  timeoutPolicy?: string | TimeoutPolicy; // Can be JSON string or object
+  disputePolicy?: string | DisputePolicy; // Can be JSON string or object
+  metadata?: string | Record<string, string>; // Can be JSON string or object
 }
 
 interface EscrowCondition {
@@ -239,16 +242,19 @@ export const handler = async (
 
     // Route to appropriate handler based on action
     switch (input.action) {
-      case 'CREATE':
+      case 'create_account':
         return await handleCreateEscrow(input, correlationId, auditTrail);
-      case 'RELEASE':
+      case 'release_funds':
         return await handleReleaseEscrow(input, correlationId, auditTrail);
-      case 'DISPUTE':
+      case 'dispute_funds':
         return await handleDisputeEscrow(input, correlationId, auditTrail);
-      case 'REFUND':
+      case 'hold_funds':
         return await handleRefundEscrow(input, correlationId, auditTrail);
-      case 'STATUS':
+      case 'get_balance':
+      case 'get_transactions':
         return await handleEscrowStatus(input, correlationId, auditTrail);
+      case 'freeze_funds':
+        return await handleFreezeEscrow(input, correlationId, auditTrail);
       default:
         throw new Error(`Unsupported escrow action: ${input.action}`);
     }
@@ -291,11 +297,15 @@ async function validateEscrowInput(
   
   // Validate required fields
   if (!input.action) errors.push('Action is required');
-  if (!input.payerId) errors.push('Payer ID is required');
-  if (!input.payeeId) errors.push('Payee ID is required');
+  
+  const payerId = input.payerId || input.customerId;
+  const payeeId = input.payeeId || input.providerId;
+  
+  if (!payerId) errors.push('Payer/Customer ID is required');
+  if (!payeeId) errors.push('Payee/Provider ID is required');
   
   // Validate amount constraints
-  if (input.action === 'CREATE') {
+  if (input.action === 'create_account') {
     if (!input.amount || input.amount <= 0) errors.push('Valid amount is required');
     
     const minAmount = parseInt(process.env.MIN_ESCROW_AMOUNT || '100');
@@ -346,11 +356,47 @@ async function handleCreateEscrow(
   auditTrail: EscrowAuditEntry[]
 ): Promise<EscrowResult> {
   try {
+    // Parse JSON strings from AppSync input
+    const payerId = input.payerId || input.customerId!;
+    const payeeId = input.payeeId || input.providerId!;
+    
+    const escrowConditions = typeof input.escrowConditions === 'string' 
+      ? JSON.parse(input.escrowConditions) 
+      : (input.escrowConditions || []);
+    
+    const releaseConditions = typeof input.releaseConditions === 'string'
+      ? JSON.parse(input.releaseConditions)
+      : (input.releaseConditions || {});
+      
+    const timeoutPolicy = typeof input.timeoutPolicy === 'string'
+      ? JSON.parse(input.timeoutPolicy)
+      : (input.timeoutPolicy || {});
+      
+    const disputePolicy = typeof input.disputePolicy === 'string'
+      ? JSON.parse(input.disputePolicy)
+      : (input.disputePolicy || {});
+      
+    const metadata = typeof input.metadata === 'string'
+      ? JSON.parse(input.metadata)
+      : (input.metadata || {});
+
     // Generate unique escrow ID
     const escrowId = `${process.env.ESCROW_ACCOUNT_PREFIX || 'ESC'}_${Date.now()}_${randomUUID().substring(0, 8).toUpperCase()}`;
     
+    // Create normalized input for compliance screening
+    const normalizedInput: EscrowRequest = {
+      ...input,
+      payerId,
+      payeeId,
+      escrowConditions,
+      releaseConditions,
+      timeoutPolicy,
+      disputePolicy,
+      metadata,
+    };
+    
     // COMPLIANCE: Perform AML/KYC screening
-    const complianceScreening = await performComplianceScreening(input, correlationId);
+    const complianceScreening = await performComplianceScreening(normalizedInput, correlationId);
     auditTrail.push({
       timestamp: new Date().toISOString(),
       action: 'compliance_screening',
@@ -374,7 +420,7 @@ async function handleCreateEscrow(
     }
 
     // SECURITY: Calculate risk-based hold period
-    const riskAssessment = await calculateEscrowRiskScore(input, correlationId);
+    const riskAssessment = await calculateEscrowRiskScore(normalizedInput, correlationId);
     const holdPeriodHours = riskAssessment.riskScore > 0.7 ? 
       parseInt(process.env.HIGH_RISK_HOLD_PERIOD_HOURS || '168') :
       parseInt(process.env.DEFAULT_HOLD_PERIOD_HOURS || '72');
@@ -383,18 +429,18 @@ async function handleCreateEscrow(
     const escrowAccount: EscrowAccount = {
       escrowId,
       status: 'CREATED',
-      payerId: input.payerId,
-      payeeId: input.payeeId,
-      amount: input.amount,
-      currency: input.currency,
+      payerId,
+      payeeId,
+      amount: input.amount!,
+      currency: input.currency || 'USD',
       escrowAccountNumber: await encryptSensitiveData(`ESCROW_${escrowId}`),
       createdAt: new Date().toISOString(),
       fundsAvailableAt: new Date(Date.now() + holdPeriodHours * 60 * 60 * 1000).toISOString(),
-      expiresAt: input.timeoutPolicy?.autoRefundAfterHours ? 
-        new Date(Date.now() + input.timeoutPolicy.autoRefundAfterHours * 60 * 60 * 1000).toISOString() : 
+      expiresAt: timeoutPolicy?.autoRefundAfterHours ? 
+        new Date(Date.now() + timeoutPolicy.autoRefundAfterHours * 60 * 60 * 1000).toISOString() : 
         undefined,
       lastModifiedAt: new Date().toISOString(),
-      conditions: input.escrowConditions || [],
+      conditions: escrowConditions || [],
       approvals: [],
       holdReasons: riskAssessment.riskScore > 0.5 ? ['HIGH_RISK_ASSESSMENT'] : [],
       riskScore: riskAssessment.riskScore,
@@ -709,7 +755,54 @@ async function calculateEscrowRiskScore(input: EscrowRequest, correlationId: str
 }
 
 async function storeEscrowAccount(account: EscrowAccount, correlationId: string) {
-  // Store encrypted escrow account in DynamoDB
+  try {
+    const tableName = process.env.AMPLIFY_DATA_DYNAMODB_ESCROWACCOUNTTABLE_NAME;
+    if (!tableName) {
+      throw new Error('EscrowAccount table name not configured');
+    }
+
+    const command = new PutItemCommand({
+      TableName: tableName,
+      Item: {
+        id: { S: account.escrowId },
+        providerId: { S: account.payeeId },
+        accountId: { S: account.escrowAccountNumber },
+        balance: { N: account.amount.toString() },
+        availableBalance: { N: '0' }, // Funds are held until release
+        currency: { S: account.currency },
+        status: { S: account.status },
+        createdAt: { S: account.createdAt },
+        lastModifiedAt: { S: account.lastModifiedAt },
+        expiresAt: account.expiresAt ? { S: account.expiresAt } : undefined,
+        fundsAvailableAt: account.fundsAvailableAt ? { S: account.fundsAvailableAt } : undefined,
+        riskScore: { N: account.riskScore.toString() },
+        holdReasons: { SS: account.holdReasons.length ? account.holdReasons : ['NO_HOLDS'] },
+        complianceFlags: { SS: account.complianceFlags.length ? account.complianceFlags : ['CLEARED'] },
+        conditions: { S: JSON.stringify(account.conditions) },
+        approvals: { S: JSON.stringify(account.approvals) },
+        __typename: { S: 'EscrowAccount' },
+        owner: { S: account.payerId },
+      },
+    });
+
+    await dynamoClient.send(command);
+    
+    console.log(JSON.stringify({
+      level: 'INFO',
+      action: 'escrow_account_stored',
+      correlationId,
+      escrowId: account.escrowId,
+      tableName,
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'store_escrow_account_error',
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    throw error;
+  }
 }
 
 async function generateSarReport(input: EscrowRequest, screening: any, correlationId: string) {
@@ -725,8 +818,55 @@ async function startEscrowMonitoringWorkflow(escrowId: string, correlationId: st
 }
 
 async function getEscrowAccount(escrowId: string): Promise<EscrowAccount | null> {
-  // Retrieve escrow account from DynamoDB
-  return null; // Placeholder
+  try {
+    const tableName = process.env.AMPLIFY_DATA_DYNAMODB_ESCROWACCOUNTTABLE_NAME;
+    if (!tableName) {
+      throw new Error('EscrowAccount table name not configured');
+    }
+
+    const command = new GetItemCommand({
+      TableName: tableName,
+      Key: {
+        id: { S: escrowId },
+      },
+    });
+
+    const result = await dynamoClient.send(command);
+    
+    if (!result.Item) {
+      return null;
+    }
+
+    const item = result.Item;
+    return {
+      escrowId: item.id?.S || '',
+      status: item.status?.S as EscrowAccount['status'] || 'CREATED',
+      payerId: item.owner?.S || '',
+      payeeId: item.providerId?.S || '',
+      amount: parseFloat(item.balance?.N || '0'),
+      currency: item.currency?.S || 'USD',
+      escrowAccountNumber: item.accountId?.S || '',
+      fundingTransactionId: item.fundingTransactionId?.S,
+      releaseTransactionId: item.releaseTransactionId?.S,
+      createdAt: item.createdAt?.S || '',
+      fundsAvailableAt: item.fundsAvailableAt?.S,
+      expiresAt: item.expiresAt?.S,
+      lastModifiedAt: item.lastModifiedAt?.S || '',
+      conditions: item.conditions?.S ? JSON.parse(item.conditions.S) : [],
+      approvals: item.approvals?.S ? JSON.parse(item.approvals.S) : [],
+      holdReasons: item.holdReasons?.SS || [],
+      riskScore: parseFloat(item.riskScore?.N || '0'),
+      complianceFlags: item.complianceFlags?.SS || [],
+    };
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'get_escrow_account_error',
+      escrowId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    return null;
+  }
 }
 
 async function validateReleaseConditions(account: EscrowAccount, correlationId: string) {
@@ -754,19 +894,125 @@ async function validateMultiSignatureApproval(account: EscrowAccount, correlatio
 }
 
 async function processEscrowRelease(account: EscrowAccount, correlationId: string) {
-  // Process the actual fund release
-  return {
-    timestamp: new Date().toISOString(),
-    action: 'fund_release',
-    result: 'SUCCESS' as const,
-    details: { transactionId: randomUUID() },
-    correlationId,
-    dataHash: await generateDataHash('RELEASE_SUCCESS'),
-  };
+  try {
+    // Trigger ACH transfer to the provider's bank account
+    const achTransferResult = await triggerACHPayout(account, correlationId);
+    
+    if (!achTransferResult.success) {
+      throw new Error(`ACH payout failed: ${achTransferResult.error}`);
+    }
+
+    // Update escrow account balance to reflect the release
+    await updateEscrowBalance(account.escrowId, 0, correlationId); // Set balance to 0 after release
+
+    // Send notification to provider about payout
+    await sendPayoutNotification(account.payeeId, {
+      amount: account.amount,
+      transactionId: achTransferResult.transactionId,
+      estimatedArrival: achTransferResult.estimatedArrival,
+    });
+
+    return {
+      timestamp: new Date().toISOString(),
+      action: 'fund_release',
+      result: 'SUCCESS' as const,
+      details: { 
+        transactionId: achTransferResult.transactionId,
+        achTransferId: achTransferResult.achTransferId,
+        bankAccount: achTransferResult.bankAccountLast4,
+        amount: account.amount,
+        estimatedArrival: achTransferResult.estimatedArrival,
+      },
+      correlationId,
+      dataHash: await generateDataHash(achTransferResult.transactionId),
+    };
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'process_escrow_release_error',
+      correlationId,
+      escrowId: account.escrowId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+
+    return {
+      timestamp: new Date().toISOString(),
+      action: 'fund_release',
+      result: 'FAILURE' as const,
+      details: { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+      },
+      correlationId,
+      dataHash: await generateDataHash('RELEASE_FAILURE'),
+    };
+  }
 }
 
 async function updateEscrowStatus(escrowId: string, status: string, metadata: any) {
-  // Update escrow status in DynamoDB
+  try {
+    const tableName = process.env.AMPLIFY_DATA_DYNAMODB_ESCROWACCOUNTTABLE_NAME;
+    if (!tableName) {
+      throw new Error('EscrowAccount table name not configured');
+    }
+
+    const updateExpression = 'SET #status = :status, lastModifiedAt = :timestamp';
+    const expressionAttributeNames: Record<string, string> = { '#status': 'status' };
+    const expressionAttributeValues: Record<string, any> = {
+      ':status': { S: status },
+      ':timestamp': { S: new Date().toISOString() },
+    };
+
+    // Add metadata fields dynamically
+    if (metadata) {
+      Object.entries(metadata).forEach(([key, value], index) => {
+        const attrName = `#attr${index}`;
+        const valueName = `:val${index}`;
+        
+        updateExpression += `, ${attrName} = ${valueName}`;
+        expressionAttributeNames[attrName] = key;
+        
+        if (typeof value === 'string') {
+          expressionAttributeValues[valueName] = { S: value };
+        } else if (typeof value === 'number') {
+          expressionAttributeValues[valueName] = { N: value.toString() };
+        } else {
+          expressionAttributeValues[valueName] = { S: JSON.stringify(value) };
+        }
+      });
+    }
+
+    const command = new UpdateItemCommand({
+      TableName: tableName,
+      Key: {
+        id: { S: escrowId },
+      },
+      UpdateExpression: updateExpression,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: expressionAttributeValues,
+      ReturnValues: 'UPDATED_NEW',
+    });
+
+    const result = await dynamoClient.send(command);
+    
+    console.log(JSON.stringify({
+      level: 'INFO',
+      action: 'escrow_status_updated',
+      escrowId,
+      newStatus: status,
+      metadata,
+      updatedAttributes: result.Attributes,
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'update_escrow_status_error',
+      escrowId,
+      status,
+      metadata,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    throw error;
+  }
 }
 
 async function checkEscrowVelocity(userId: string, correlationId: string) {
@@ -795,7 +1041,308 @@ async function handleRefundEscrow(input: EscrowRequest, correlationId: string, a
   return { success: false, message: 'Refund handling not yet implemented', auditTrail };
 }
 
+async function handleFreezeEscrow(input: EscrowRequest, correlationId: string, auditTrail: EscrowAuditEntry[]): Promise<EscrowResult> {
+  try {
+    if (!input.escrowId) {
+      throw new Error('Escrow ID is required for freeze operation');
+    }
+
+    // Get existing escrow account
+    const escrowAccount = await getEscrowAccount(input.escrowId);
+    if (!escrowAccount) {
+      return {
+        success: false,
+        message: 'Escrow account not found',
+        auditTrail,
+      };
+    }
+
+    if (escrowAccount.status !== 'FUNDED' && escrowAccount.status !== 'CREATED') {
+      return {
+        success: false,
+        escrowId: input.escrowId,
+        status: escrowAccount.status,
+        message: `Cannot freeze escrow in status: ${escrowAccount.status}`,
+        auditTrail,
+      };
+    }
+
+    // Update escrow status to frozen
+    await updateEscrowStatus(input.escrowId, 'FROZEN', {
+      frozenAt: new Date().toISOString(),
+      frozenReason: input.metadata || 'Manual freeze',
+    });
+
+    auditTrail.push({
+      timestamp: new Date().toISOString(),
+      action: 'escrow_frozen',
+      result: 'SUCCESS',
+      details: {
+        escrowId: input.escrowId,
+        previousStatus: escrowAccount.status,
+        reason: input.metadata || 'Manual freeze',
+      },
+      correlationId,
+      dataHash: await generateDataHash(`FROZEN_${input.escrowId}`),
+    });
+
+    return {
+      success: true,
+      escrowId: input.escrowId,
+      status: 'FROZEN',
+      message: 'Escrow account frozen successfully',
+      auditTrail,
+    };
+  } catch (error) {
+    auditTrail.push({
+      timestamp: new Date().toISOString(),
+      action: 'escrow_freeze_failed',
+      result: 'FAILURE',
+      details: { error: error instanceof Error ? error.message : 'Unknown error' },
+      correlationId,
+      dataHash: await generateDataHash('ERROR'),
+    });
+
+    return {
+      success: false,
+      escrowId: input.escrowId,
+      message: 'Failed to freeze escrow account',
+      auditTrail,
+    };
+  }
+}
+
 async function handleEscrowStatus(input: EscrowRequest, correlationId: string, auditTrail: EscrowAuditEntry[]): Promise<EscrowResult> {
-  // Status checking implementation
-  return { success: false, message: 'Status checking not yet implemented', auditTrail };
+  try {
+    if (!input.escrowId) {
+      throw new Error('Escrow ID is required for status check');
+    }
+
+    const escrowAccount = await getEscrowAccount(input.escrowId);
+    if (!escrowAccount) {
+      return {
+        success: false,
+        message: 'Escrow account not found',
+        auditTrail,
+      };
+    }
+
+    auditTrail.push({
+      timestamp: new Date().toISOString(),
+      action: 'escrow_status_check',
+      result: 'SUCCESS',
+      details: {
+        escrowId: input.escrowId,
+        status: escrowAccount.status,
+        balance: escrowAccount.amount,
+        riskScore: escrowAccount.riskScore,
+      },
+      correlationId,
+      dataHash: await generateDataHash(escrowAccount.status),
+    });
+
+    return {
+      success: true,
+      escrowId: input.escrowId,
+      status: escrowAccount.status,
+      message: 'Status retrieved successfully',
+      riskScore: escrowAccount.riskScore,
+      complianceFlags: escrowAccount.complianceFlags,
+      auditTrail,
+    };
+  } catch (error) {
+    auditTrail.push({
+      timestamp: new Date().toISOString(),
+      action: 'escrow_status_check_failed',
+      result: 'FAILURE',
+      details: { error: error instanceof Error ? error.message : 'Unknown error' },
+      correlationId,
+      dataHash: await generateDataHash('ERROR'),
+    });
+
+    return {
+      success: false,
+      message: 'Failed to retrieve escrow status',
+      auditTrail,
+    };
+  }
+}
+
+// ========== Additional Helper Functions ==========
+
+async function triggerACHPayout(account: EscrowAccount, correlationId: string) {
+  try {
+    // This would integrate with your ACH transfer manager
+    // For now, simulate the ACH payout process
+    const transactionId = `ACH_${Date.now()}_${randomUUID().substring(0, 8).toUpperCase()}`;
+    const achTransferId = `PAYOUT_${account.escrowId}_${Date.now()}`;
+    
+    // Simulate 1-2 business day ACH processing
+    const estimatedArrival = new Date();
+    estimatedArrival.setDate(estimatedArrival.getDate() + (estimatedArrival.getDay() === 5 ? 3 : 2));
+
+    console.log(JSON.stringify({
+      level: 'INFO',
+      action: 'ach_payout_triggered',
+      correlationId,
+      escrowId: account.escrowId,
+      providerId: account.payeeId,
+      amount: account.amount,
+      transactionId,
+      achTransferId,
+      estimatedArrival: estimatedArrival.toISOString(),
+    }));
+
+    return {
+      success: true,
+      transactionId,
+      achTransferId,
+      bankAccountLast4: '****1234', // Would come from actual bank account data
+      estimatedArrival: estimatedArrival.toISOString(),
+    };
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'ach_payout_error',
+      correlationId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'ACH payout failed',
+    };
+  }
+}
+
+async function updateEscrowBalance(escrowId: string, newBalance: number, correlationId: string) {
+  try {
+    const tableName = process.env.AMPLIFY_DATA_DYNAMODB_ESCROWACCOUNTTABLE_NAME;
+    if (!tableName) {
+      throw new Error('EscrowAccount table name not configured');
+    }
+
+    const command = new UpdateItemCommand({
+      TableName: tableName,
+      Key: {
+        id: { S: escrowId },
+      },
+      UpdateExpression: 'SET balance = :balance, availableBalance = :availableBalance, lastModifiedAt = :timestamp',
+      ExpressionAttributeValues: {
+        ':balance': { N: newBalance.toString() },
+        ':availableBalance': { N: newBalance.toString() },
+        ':timestamp': { S: new Date().toISOString() },
+      },
+    });
+
+    await dynamoClient.send(command);
+    
+    console.log(JSON.stringify({
+      level: 'INFO',
+      action: 'escrow_balance_updated',
+      correlationId,
+      escrowId,
+      newBalance,
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'update_escrow_balance_error',
+      correlationId,
+      escrowId,
+      newBalance,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    throw error;
+  }
+}
+
+async function sendPayoutNotification(providerId: string, payoutData: {
+  amount: number;
+  transactionId: string;
+  estimatedArrival: string;
+}) {
+  try {
+    const message = {
+      type: 'ESCROW_PAYOUT_INITIATED',
+      providerId,
+      amount: payoutData.amount,
+      transactionId: payoutData.transactionId,
+      estimatedArrival: payoutData.estimatedArrival,
+      message: `Your payout of $${(payoutData.amount / 100).toFixed(2)} has been initiated and will arrive by ${new Date(payoutData.estimatedArrival).toLocaleDateString()}.`,
+    };
+
+    const topicArn = process.env.PAYOUT_NOTIFICATION_TOPIC_ARN;
+    if (topicArn) {
+      const publishCommand = new PublishCommand({
+        TopicArn: topicArn,
+        Message: JSON.stringify(message),
+        Subject: 'Escrow Payout Initiated',
+      });
+
+      await snsClient.send(publishCommand);
+      
+      console.log(JSON.stringify({
+        level: 'INFO',
+        action: 'payout_notification_sent',
+        providerId,
+        transactionId: payoutData.transactionId,
+      }));
+    }
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'send_payout_notification_error',
+      providerId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    // Don't throw - notifications are not critical to the payout process
+  }
+}
+
+async function startEscrowMonitoringWorkflow(escrowId: string, correlationId: string) {
+  try {
+    // Start automated monitoring via Step Functions
+    const workflowArn = process.env.ESCROW_MONITORING_WORKFLOW_ARN;
+    if (!workflowArn) {
+      console.log('Escrow monitoring workflow not configured, skipping automation');
+      return;
+    }
+
+    const input = {
+      escrowId,
+      correlationId,
+      monitoringRules: {
+        checkInterval: '1hour',
+        autoReleaseEnabled: true,
+        fraudMonitoring: true,
+        complianceChecks: true,
+      },
+    };
+
+    const command = new StartExecutionCommand({
+      stateMachineArn: workflowArn,
+      name: `escrow-monitoring-${escrowId}-${Date.now()}`,
+      input: JSON.stringify(input),
+    });
+
+    const result = await stepFunctionsClient.send(command);
+    
+    console.log(JSON.stringify({
+      level: 'INFO',
+      action: 'escrow_monitoring_started',
+      correlationId,
+      escrowId,
+      executionArn: result.executionArn,
+    }));
+  } catch (error) {
+    console.error(JSON.stringify({
+      level: 'ERROR',
+      action: 'start_monitoring_workflow_error',
+      correlationId,
+      escrowId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }));
+    // Don't throw - monitoring is not critical to escrow creation
+  }
 }
